@@ -1,0 +1,1389 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"emb",
+				"embedding_dict\tstatement"
+			],
+			[
+				"sent",
+				"sent_2\tparam"
+			],
+			[
+				"idx",
+				"idx2\tstatement"
+			],
+			[
+				"vec",
+				"vec_1\tstatement"
+			],
+			[
+				"wo",
+				"word_pair\tparam"
+			],
+			[
+				"vec_",
+				"vec_doc\tstatement"
+			],
+			[
+				"fil",
+				"filterfunc\tparam"
+			],
+			[
+				"to",
+				"tok\tstatement"
+			],
+			[
+				"t_id",
+				"t_idx_1\tstatement"
+			],
+			[
+				"cluste",
+				"cluster_gold_summaries\tparam"
+			],
+			[
+				"summ",
+				"summary\tstatement"
+			],
+			[
+				"clu",
+				"cluster\tstatement"
+			],
+			[
+				"fo",
+				"form\tstatement"
+			],
+			[
+				"token",
+				"tokens\tstatement"
+			],
+			[
+				"ca",
+				"candidates\tstatement"
+			],
+			[
+				"best",
+				"best_mapping\tstatement"
+			],
+			[
+				"sen",
+				"sent\tstatement"
+			],
+			[
+				"add_",
+				"add_sentence\tfunction"
+			],
+			[
+				"gene",
+				"generate_compression_candidates\tfunction"
+			],
+			[
+				"pr",
+				"print\tkeyword"
+			],
+			[
+				"no",
+				"nodes"
+			],
+			[
+				"min",
+				"minlen\tparam"
+			],
+			[
+				"weight",
+				"weight_sl"
+			],
+			[
+				"trg",
+				"trg_freq\tstatement"
+			],
+			[
+				"tok",
+				"tokens\tstatement"
+			],
+			[
+				"stop",
+				"stopword_tokens\tstatement"
+			],
+			[
+				"a",
+				"add\tfunction"
+			],
+			[
+				"best_",
+				"best_node\tstatement"
+			],
+			[
+				"prev",
+				"prev_t_idx\tstatement"
+			],
+			[
+				"pre",
+				"prev_t_idx\tstatement"
+			],
+			[
+				"can",
+				"canidate_preferences\tstatement"
+			],
+			[
+				"key",
+				"keyfunc\tstatement"
+			],
+			[
+				"cand",
+				"candidate_mappings\tstatement"
+			],
+			[
+				"new_",
+				"new_tok_overlap\tstatement"
+			],
+			[
+				"toke",
+				"tokens"
+			],
+			[
+				"is",
+				"isdir\tmodule"
+			],
+			[
+				"col",
+				"columns\tparam"
+			],
+			[
+				"doc",
+				"docfile\tparam"
+			],
+			[
+				"eva",
+				"eval_summarizer"
+			],
+			[
+				"read",
+				"read_summary_file"
+			],
+			[
+				"sco",
+				"scores\tstatement"
+			],
+			[
+				"rou",
+				"rouge_score_sums\tstatement"
+			],
+			[
+				"line",
+				"lines\tstatement"
+			],
+			[
+				"gold",
+				"gold_candidates\tstatement"
+			],
+			[
+				"doc_",
+				"doc_content\tstatement"
+			],
+			[
+				"pa",
+				"parse_args\tfunction"
+			],
+			[
+				"int",
+				"intersection\tfunction"
+			],
+			[
+				"righ",
+				"right_sent_neighbours\tstatement"
+			],
+			[
+				"clust",
+				"cluster_id\tstatement"
+			],
+			[
+				"cluts",
+				"cluster_id\tstatement"
+			],
+			[
+				"la",
+				"lambda\tkeyword"
+			],
+			[
+				"sort",
+				"sorted_clusters\tstatement"
+			],
+			[
+				"clus",
+				"cluster_2\tparam"
+			],
+			[
+				"item",
+				"items\tfunction"
+			],
+			[
+				"cmp_",
+				"cmp_to_key\tfunction"
+			],
+			[
+				"sente",
+				"sentences_with_index\tstatement"
+			],
+			[
+				"for",
+				"format\tfunction"
+			],
+			[
+				"swi",
+				"switch\tstatement"
+			],
+			[
+				"arg",
+				"args\tparam"
+			],
+			[
+				"node_",
+				"node_token\tstatement"
+			],
+			[
+				"li",
+				"linalg\tmodule"
+			],
+			[
+				"all",
+				"all_tokens\tstatement"
+			],
+			[
+				"wor",
+				"words"
+			],
+			[
+				"tok_",
+				"tok_id\tstatement"
+			],
+			[
+				"ha",
+				"hash\tfunction"
+			],
+			[
+				"docume",
+				"document_token_ids\tstatement"
+			],
+			[
+				"documen",
+				"documents\tstatement"
+			],
+			[
+				"docu",
+				"document_basedir\tstatement"
+			],
+			[
+				"re",
+				"reader\tstatement"
+			],
+			[
+				"w",
+				"wait\tfunction"
+			],
+			[
+				"PO",
+				"Popen\tclass"
+			],
+			[
+				"read_",
+				"read_document_cluster\tfunction"
+			],
+			[
+				"fi",
+				"findtext\tfunction"
+			],
+			[
+				"get",
+				"getroot\tfunction"
+			],
+			[
+				"Ele",
+				"ElementTree\tmodule"
+			],
+			[
+				"file",
+				"filename"
+			],
+			[
+				"sele",
+				"select_switch\tstatement"
+			],
+			[
+				"from",
+				"from_file\tfunction"
+			],
+			[
+				"Sto",
+				"StoredLanguageModel\tclass"
+			],
+			[
+				"pro",
+				"proposed_sent\tstatement"
+			],
+			[
+				"infor",
+				"informativeness_score\tstatement"
+			],
+			[
+				"sho",
+				"shortest_path\tstatement"
+			],
+			[
+				"star",
+				"start\tstatement"
+			],
+			[
+				"end",
+				"end_sent\tstatement"
+			],
+			[
+				"es",
+				"estimate_sent_log_proba\tfunction"
+			],
+			[
+				"ng",
+				"ngrams_by_size"
+			],
+			[
+				"fro",
+				"from_file\tfunction"
+			],
+			[
+				"v",
+				"vocabulary"
+			],
+			[
+				"setn",
+				"sentences\tparam"
+			],
+			[
+				"ite",
+				"items\tfunction"
+			],
+			[
+				"it",
+				"items\tfunction"
+			],
+			[
+				"pred",
+				"precedence_counts\tstatement"
+			],
+			[
+				"st",
+				"start_idx\tstatement"
+			],
+			[
+				"con",
+				"context_ngram\tstatement"
+			],
+			[
+				"cou",
+				"counts"
+			],
+			[
+				"coun",
+				"count_normalizer\tstatement"
+			],
+			[
+				"def",
+				"defaultdict\tclass"
+			],
+			[
+				"pop",
+				"popleft\tfunction"
+			],
+			[
+				"send",
+				"sent_end_node_idx\tstatement"
+			],
+			[
+				"poten",
+				"potential_node\tstatement"
+			],
+			[
+				"best_ma",
+				"best_match_overlap\tstatement"
+			],
+			[
+				"se",
+				"sent\tparam"
+			],
+			[
+				"sp",
+				"sp_linalg\tmodule"
+			],
+			[
+				"seed",
+				"seeds\tparam"
+			],
+			[
+				"best_se",
+				"best_seed_similarity\tstatement"
+			],
+			[
+				"mem",
+				"membership_matrix\tstatement"
+			],
+			[
+				"cl",
+				"clusters\tstatement"
+			],
+			[
+				"spl",
+				"split_train_test"
+			],
+			[
+				"rand",
+				"randint\tfunction"
+			],
+			[
+				"sam",
+				"sample_points\tstatement"
+			],
+			[
+				"ds",
+				"dstack\tfunction"
+			],
+			[
+				"mat",
+				"matplotlib\tmodule"
+			],
+			[
+				"rando",
+				"random\tstatement"
+			],
+			[
+				"ra",
+				"rand\tfunction"
+			],
+			[
+				"ran",
+				"range"
+			],
+			[
+				"red",
+				"reduce_domains\tfunction"
+			],
+			[
+				"ass",
+				"assignments\tparam"
+			],
+			[
+				"prin",
+				"print_strs\tstatement"
+			],
+			[
+				"batc",
+				"batch_id"
+			],
+			[
+				"Int",
+				"IntroductionTextPage\tclass"
+			],
+			[
+				"su",
+				"submit_options"
+			],
+			[
+				"Ch",
+				"CharacterAnnotation\tclass"
+			],
+			[
+				"TestP",
+				"IntroductionTestPage\tclass"
+			],
+			[
+				"poly",
+				"polymorphic_on"
+			],
+			[
+				"Intro",
+				"IntroductionTestPage\tclass"
+			],
+			[
+				"In",
+				"IntroductionTestPage\tclass"
+			],
+			[
+				"val",
+				"value\tparam"
+			],
+			[
+				"Cha",
+				"CharAnnotation\tclass"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "libs/potara/potara/run.py",
+			"settings":
+			{
+				"buffer_size": 739,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "libs/potara/potara/document.py",
+			"settings":
+			{
+				"buffer_size": 3556,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "libs/potara/potara/summarizer.py",
+			"settings":
+			{
+				"buffer_size": 12634,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "graphsum/graphsum.py",
+			"settings":
+			{
+				"buffer_size": 28911,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "graphsum/similarity.py",
+			"settings":
+			{
+				"buffer_size": 4937,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "graphsum/langmodel.py",
+			"settings":
+			{
+				"buffer_size": 10865,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "graphsum/eval.py",
+			"settings":
+			{
+				"buffer_size": 2297,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/Users/juliussteen/Documents/Studium/ws17/mmd/ex08/tasks.tex",
+			"settings":
+			{
+				"buffer_size": 4909,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/Users/juliussteen/Documents/Studium/ws17/mmd/ex08/dataframe.py",
+			"settings":
+			{
+				"buffer_size": 3226,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "libs/potara/potara/takahe.py",
+			"settings":
+			{
+				"buffer_size": 58836,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "libs/potaravenv/lib/python3.5/site-packages/pulp/solvers.py",
+			"settings":
+			{
+				"buffer_size": 110049,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"contents": "/Users/juliussteen/Documents/Studium/master/libs/potaravenv/lib/python3.5/site-packages/pulp/solvers.py(389)actualSolve()\n\n/Users/juliussteen/Documents/Studium/master/libs/potaravenv/lib/python3.5/site-packages/pulp/solvers.py:389",
+			"settings":
+			{
+				"buffer_size": 230,
+				"line_ending": "Unix",
+				"name": "/Users/juliussteen/Documents/Studium/master/libs/p"
+			}
+		}
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+		[
+			[
+				[
+					"Anaconda Python Builder",
+					""
+				],
+				[
+					"Packages/Python/Python.sublime-build",
+					""
+				],
+				[
+					"Packages/Python/Python.sublime-build",
+					"Syntax Check"
+				]
+			],
+			[
+				"Anaconda Python Builder",
+				""
+			]
+		]
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 392.0,
+		"last_filter": ":w",
+		"selected_items":
+		[
+			[
+				":w",
+				":w - Save"
+			],
+			[
+				":Pack",
+				"Package Control: Upgrade Package"
+			],
+			[
+				"Packa",
+				"Package Control: Install Package"
+			],
+			[
+				"PackageControl: Inst",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 444.0
+	},
+	"console":
+	{
+		"height": 126.0,
+		"history":
+		[
+			"import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((\"localhost\", 57596))",
+			"import urllib.request,os,hashlib; h = 'df21e130d211cfc94d9b0905775a7c0f' + '1e3d39e33b79698005270310898eea76'; pf = 'Package Control.sublime-package'; ipp = sublime.installed_packages_path(); urllib.request.install_opener( urllib.request.build_opener( urllib.request.ProxyHandler()) ); by = urllib.request.urlopen( 'http://packagecontrol.io/' + pf.replace(' ', '%20')).read(); dh = hashlib.sha256(by).hexdigest(); print('Error validating download (got %s instead of %s), please try manual install' % (dh, h)) if dh != h else open(os.path.join( ipp, pf), 'wb' ).write(by)"
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/Users/juliussteen/Documents/Studium/master/graphsum"
+	],
+	"file_history":
+	[
+		"/Users/juliussteen/Documents/Studium/ws17/mmd/ex08/dataframe.py",
+		"/Users/juliussteen/Documents/Studium/master/libs/potara/potara/summarizer.py",
+		"/Users/juliussteen/Documents/Studium/master/libs/pyrouge/test.txt",
+		"/Users/juliussteen/Documents/Studium/master/DUC2005/results/ROUGE/models/D354.M.250.C.C",
+		"/Users/juliussteen/Documents/Studium/master/libs/potara/potara/document.py",
+		"/Users/juliussteen/Documents/Studium/master/libs/potara/run.py",
+		"/Users/juliussteen/Documents/Studium/ws17/mmd/ex06/tasks.",
+		"/Users/juliussteen/Documents/Studium/ws17/mmd/ex05/mf.py.txt",
+		"/Users/juliussteen/Documents/Studium/ws17/iai/ex04/ex04.tex",
+		"/Users/juliussteen/Documents/tabbing/opdtab/OPDtab/bin/Debug/data/tournament.dat",
+		"/Users/juliussteen/Documents/Studium/LWC/tokenannotation/tokenannotation/mt.py",
+		"/Users/juliussteen/Documents/Studium/LWC/tokenannotation/tokenannotation/templates/present-secret.html",
+		"/Users/juliussteen/Downloads/peter.csv",
+		"/Users/juliussteen/Documents/tabbing/opdtab/OPDtab/bin/Debug/tmpl/round-tmpl.tex",
+		"/Users/juliussteen/Documents/Studium/LWC/tokenannotation/venv/lib/python3.5/site-packages/sqlalchemy/orm/strategies.py",
+		"/Users/juliussteen/Documents/Studium/LWC/tokenannotation/tokenannotation/templates/annotation.html",
+		"/Users/juliussteen/Documents/Studium/LWC/tokenannotation/tokenannotation/database.py",
+		"/Users/juliussteen/Documents/Studium/LWC/tokenannotation/tokenannotation/web.py",
+		"/Users/juliussteen/Documents/Projects/open_tab_project/tabserver/gui.py",
+		"/Users/juliussteen/Documents/Projects/open_tab_project/tabserver/node_modules/fsevents/build/fse.target.mk",
+		"/Users/juliussteen/Library/Application Support/Steam/SteamApps/common/Software Inc/Saves/allsoft.sav",
+		"/Users/juliussteen/Documents/Projects/open_tab_project/mt.py",
+		"/Users/juliussteen/Documents/jobs/alt/slportal/config/app.php",
+		"/Users/juliussteen/Documents/jobs/alt/slportal/config/bootstrap.php",
+		"/Users/juliussteen/.composer/composer.json",
+		"/Users/juliussteen/Documents/Projects/open_tab_project/tabserver/model_tests.py",
+		"/Users/juliussteen/Documents/Projects/open_tab_project/sqlmutations.py",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/todos.txt",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/database/models.py",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/web/templates/entry.html",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/web/run.py",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/web/static/style.css",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/web/templates/overview.html",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/database/__init__.py",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/cmdscripts/query.py",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb.sublime-project",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/cmdscripts/upload.py",
+		"/Users/juliussteen/Downloads/test_offsets.pl",
+		"/Users/juliussteen/Downloads/50_testinput_julius.csv",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/setup.py",
+		"/Users/juliussteen/Documents/Studium/ss17/IEA/blatt06.tex",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/tabularannotation.py",
+		"/Users/juliussteen/Documents/Studium/LWC/causalweb/causalweb/models/models.py",
+		"/Users/juliussteen/Documents/Studium/LWC/MACE-AL/competence",
+		"/Users/juliussteen/Documents/Studium/LWC/MACE-AL/maceal/reader.py",
+		"/Users/juliussteen/Documents/Studium/LWC/MACE-AL/maceal/simulation.py",
+		"/Users/juliussteen/Documents/jobs/shopware/engine/Library/ExtJs/components/Enlight.app.SubApplication.js",
+		"/Users/juliussteen/Documents/Projects/Debating/opentabber/model.py"
+	],
+	"find":
+	{
+		"height": 39.0
+	},
+	"find_in_files":
+	{
+		"height": 101.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": true,
+		"find_history":
+		[
+			"np.lin",
+			"norm",
+			"generate_word_occurence_matrix",
+			"idf",
+			"generate_compression_candidates",
+			"generate_summary_candidates",
+			"matrix",
+			"binary_bow",
+			"select_sen",
+			"mapped_token",
+			"mapping",
+			"mapp",
+			"mapped_tokens",
+			"summarizer",
+			"any",
+			"\\rightleftarrow",
+			"the drug trad",
+			"generate_summary_candidates",
+			"per_cluster_candidates",
+			"select_sentences",
+			"> 0.5",
+			"cluster",
+			"weight=",
+			"generate_summary_candidates",
+			"generate_compression_candidates",
+			"print(",
+			"rerank",
+			"print(",
+			"lm =",
+			"best_mapp",
+			"node_token_mapping",
+			"compute_token_overlap",
+			"generate_summ",
+			"print(",
+			"generate_compression_candidates",
+			"surface_to_nodes_map",
+			"dot",
+			"compute_token_overlap",
+			"succes",
+			"token_to_node_map",
+			"token_candidate_preferences",
+			"add_sentence",
+			"tokenizer",
+			"map_tokens_to_nodes",
+			"'wei",
+			"get_edge_weight",
+			"weight",
+			"['weight'] +=",
+			"['weight']",
+			"k_shortest_paths",
+			"['weight']",
+			"tokens",
+			"token_mappings",
+			"summerize_documents",
+			"main(",
+			"0.5",
+			"0.3",
+			"clusters",
+			"clusterSentences",
+			"self.clusterSentences",
+			"_fuseCluster",
+			"Sequence",
+			"try:",
+			"has_key",
+			"multiprocessing",
+			"\n        ",
+			"glpk",
+			"GLPK"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+			"\\leftrightarrow"
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 3,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "libs/potara/potara/run.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 739,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								246,
+								246
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": ".",
+									"selector": "source.python - string - comment - constant.numeric"
+								},
+								{
+									"characters": ".",
+									"selector": "source.python - string - constant.numeric"
+								}
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 10,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "libs/potara/potara/document.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3556,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								432,
+								432
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 9,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "libs/potara/potara/summarizer.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 12634,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								7655,
+								7775
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": ".",
+									"selector": "source.python - string - comment - constant.numeric"
+								},
+								{
+									"characters": ".",
+									"selector": "source.python - string - constant.numeric"
+								}
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 3365.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "graphsum/graphsum.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 28911,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								8256,
+								8264
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": ".",
+									"selector": "source.python - string - comment - constant.numeric"
+								},
+								{
+									"characters": ".",
+									"selector": "source.python - string - constant.numeric"
+								},
+								{
+									"characters": ".",
+									"selector": "source.python - string - constant.numeric"
+								}
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 3364.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "graphsum/similarity.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4937,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4937,
+								4937
+							]
+						],
+						"settings":
+						{
+							"open_with_edit": true,
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1557.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "graphsum/langmodel.py",
+					"semi_transient": true,
+					"settings":
+					{
+						"buffer_size": 10865,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1030.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "graphsum/eval.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2297,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								708,
+								708
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": ".",
+									"selector": "source.python - string - comment - constant.numeric"
+								},
+								{
+									"characters": ".",
+									"selector": "source.python - string - constant.numeric"
+								}
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "/Users/juliussteen/Documents/Studium/ws17/mmd/ex08/tasks.tex",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4909,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4292,
+								4292
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/LaTeX/LaTeX.sublime-syntax"
+						},
+						"translation.x": 0.0,
+						"translation.y": 1582.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "/Users/juliussteen/Documents/Studium/ws17/mmd/ex08/dataframe.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3226,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2899,
+								2899
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": ".",
+									"selector": "source.python - string - comment - constant.numeric"
+								},
+								{
+									"characters": ".",
+									"selector": "source.python - string - constant.numeric"
+								}
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 9,
+					"file": "libs/potara/potara/takahe.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 58836,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								47036,
+								47040
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": ".",
+									"selector": "source.python - string - comment - constant.numeric"
+								},
+								{
+									"characters": ".",
+									"selector": "source.python - string - constant.numeric"
+								}
+							],
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 16197.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
+					"type": "text"
+				},
+				{
+					"buffer": 10,
+					"file": "libs/potaravenv/lib/python3.5/site-packages/pulp/solvers.py",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 110049,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								14282,
+								14282
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 6561.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 11,
+					"type": "text"
+				},
+				{
+					"buffer": 11,
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 230,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								123,
+								230
+							]
+						],
+						"settings":
+						{
+							"auto_name": "/Users/juliussteen/Documents/Studium/master/libs/p",
+							"default_dir": "/Users/juliussteen/Documents/Studium/master/graphsum",
+							"syntax": "Packages/Text/Plain text.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 23.0
+	},
+	"input":
+	{
+		"height": 35.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 100.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"output.unsaved_changes":
+	{
+		"height": 100.0
+	},
+	"pinned_build_system": "",
+	"project": "graphsum.sublime-project",
+	"replace":
+	{
+		"height": 70.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"",
+				"~/Documents/Studium/ws17/mmd/ex06/testshingle.py"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 500.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"",
+				"~/Documents/Studium/master/graphsum.sublime-project"
+			]
+		],
+		"width": 380.0
+	},
+	"select_symbol":
+	{
+		"height": 392.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"",
+				"AbstractRelationshipLoader"
+			]
+		],
+		"width": 532.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 181.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}

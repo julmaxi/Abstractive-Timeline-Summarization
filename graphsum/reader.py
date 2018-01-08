@@ -24,13 +24,31 @@ class TokenListView(Sequence):
             return tuple([getattr(tok, arg) for arg in self.attributes])
 
     def __len__(self):
-        return self.document.tokens
+        return len(self.container.tokens)
+
+
+class TokenAttrListView(Sequence):
+    def __init__(self, container, attr):
+        self.container = container
+        self.attr = attr
+
+    def __getitem__(self, idx):
+        tok = self.container.tokens[idx]
+
+        if isinstance(idx, slice):
+            return [getattr(t, self.attr) for t in tok]
+        else:
+            return getattr(tok, self.attr)
+
+    def __len__(self):
+        return len(self.container.tokens)
 
 
 class Document:
     def __init__(self, new_sentences, name = None):
         self.name = name
         self.sentences = []
+        self._tok_list = None
 
         for sent in new_sentences:
             self.add_sentence(sent)
@@ -43,7 +61,9 @@ class Document:
 
     @property
     def tokens(self):
-        return it.chain(*map(lambda s: s.tokens, self.sentences))
+        if self._tok_list is None:
+            self._tok_list = list(it.chain(*map(lambda s: s.tokens, self.sentences)))
+        return self._tok_list
 
     @property
     def basename(self):
@@ -53,6 +73,12 @@ class Document:
         sentence.idx = len(self.sentences)
         self.sentences.append(sentence)
         sentence.document = self
+
+    def as_token_tuple_sequence(self, *args):
+        return TokenListView(self, args)
+
+    def as_token_attr_sequence(self, arg):
+        return TokenAttrListView(self, arg)
 
 
 class Sentence:
@@ -82,6 +108,9 @@ class Sentence:
     def as_token_tuple_sequence(self, *args):
         return TokenListView(self, args)
 
+    def as_token_attr_sequence(self, arg):
+        return TokenAttrListView(self, arg)
+
 class Token:
     def __init__(self,
                  form=None,
@@ -107,6 +136,10 @@ class Token:
 
     def __hash__(self):
         return hash(self.form.lower())
+
+    @property
+    def form_lowercase(self):
+        return self.form.lower()
 
 
 class StanfordXMLReader:

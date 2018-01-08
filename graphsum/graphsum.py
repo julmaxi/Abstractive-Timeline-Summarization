@@ -20,9 +20,9 @@ import random
 import math
 from networkx.drawing.nx_pydot import to_pydot
 import functools
-from langmodel import StoredLanguageModel
+from langmodel import StoredLanguageModel, KenLMLanguageModel
 from reader import StanfordXMLReader, Sentence, Token
-
+from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel
 
 
 class SentenceCompressionGraph:
@@ -34,6 +34,10 @@ class SentenceCompressionGraph:
 
         self.surface_to_nodes_map = defaultdict(set)
 
+    def add_sentences(self, sentences):
+        for sent in sentences:
+            self.add_sentence(sent)
+
     def add_sentence(self, sentence):
         normalized_sentence = []
         for tok in sentence:
@@ -41,13 +45,11 @@ class SentenceCompressionGraph:
             form, pos = tok
             normalized_sentence.append((form.lower(), pos))
 
-
         token_to_node_map = self.map_tokens_to_nodes(normalized_sentence)
 
         prev_node = "START"
 
         for t_idx, token in enumerate(normalized_sentence):
-            print(token)
             node = token_to_node_map[t_idx]
             if node is None:
                 node = self.create_new_node(token)
@@ -61,7 +63,7 @@ class SentenceCompressionGraph:
             else:
                 edge["frequency"] += 1
 
-            self.graph.nodes[node].setdefault("mapped_tokens", []).append(token)
+            self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, sentence))
             prev_node = node
 
         self.graph.add_edge(prev_node, "END")
@@ -127,11 +129,7 @@ class SentenceCompressionGraph:
                 node = candidate_mappings[0]
                 canidate_preferences = [node]
             else:
-                best_overlap_score = -1
-                best_mapping = None
-                overlap = self.compute_token_overlap(sentence, t_idx, candidate_node)
-                keyfunc = lambda c_node: (self.compute_token_overlap(sentence, t_idx, c_node), len(self.graph.c_node["mapped_tokens"]))
-
+                keyfunc = lambda c_node: (self.compute_token_overlap(sentence, t_idx, c_node), len(self.graph.nodes[c_node]["mapped_tokens"]))
                 canidate_preferences = sorted(candidate_mappings, key=keyfunc, reverse=True)
 
             token_candidate_preferences[t_idx] = canidate_preferences
@@ -145,18 +143,19 @@ class SentenceCompressionGraph:
             while len(preferences) > 0:
                 best_node = preferences.pop()
 
-                prev_t_idx = token_mappings.get(best_node)
-                print(prev_t_idx)
+                prev_t_idx = node_token_mapping.get(best_node)
 
                 if prev_t_idx is None:
                     token_mappings[t_idx] = best_node
+                    node_token_mapping[best_node] = t_idx
                     break
                 else:
                     prev_t_overlap = self.compute_token_overlap(sentence, prev_t_idx, best_node)
-                    new_t_overlap = self.compute_token_overlap(sentence, new_t_overlap, best_node)
+                    new_t_overlap = self.compute_token_overlap(sentence, t_idx, best_node)
 
                     if new_t_overlap > prev_t_overlap:
                         token_mappings[t_idx] = best_node
+                        node_token_mapping[best_node] = t_idx
                         unmapped_tokens_indices.add(prev_t_idx)
                         break
             else:
@@ -201,18 +200,33 @@ class SentenceCompressionGraph:
     def calculate_strong_links_weights(self):
         for src, trg, data in self.graph.edges(data=True):
             if src == "START" or trg == "END":
-                data["weight_sl"] = 0 # TODO: Check what this should be
+                data["weight_sl"] = 0  # TODO: Check what this should be
                 continue
 
             src_freq = len(self.graph.nodes[src]["mapped_tokens"])
             trg_freq = len(self.graph.nodes[trg]["mapped_tokens"])
 
-            data["weight_sl"] = (src_freq + trg_freq) / data["frequency"]
+            diff = 0.0
 
-    def generate_compression_candidates(self, n=200, minlen=8):
+            for t_idx_1, _, sent_1 in self.graph.nodes[src]["mapped_tokens"]:
+                for t_idx_2, _, sent_2 in self.graph.nodes[trg]["mapped_tokens"]:
+                    if sent_1 == sent_2 and t_idx_1 < t_idx_2:
+                        diff += t_idx_2 - t_idx_1
+
+            diff **= -1
+
+            w = (src_freq + trg_freq) / diff  #data["frequency"]
+
+            w /= src_freq * trg_freq
+
+            data["weight_sl"] = w
+
+    def generate_compression_candidates(self, n=200, minlen=8, filterfunc=lambda c: True):
         self.calculate_strong_links_weights()
 
         candidates = []
+
+        candidate_set = set()
 
         for path in nx.shortest_simple_paths(self.graph, "START", "END", weight="weight_sl"):
             if len(path) < minlen + 2:  # Account for START and END
@@ -220,85 +234,23 @@ class SentenceCompressionGraph:
 
             tokens = [self.graph.nodes[n]["token"] for n in path[1:-1]]
 
-            candidates.append(tokens)
+            for form, pos in tokens:
+                if pos[0] == "V":
+                    break
+            else:
+                continue
+
+            if tuple(tokens) not in candidate_set:
+                candidates.append(tokens)
+                candidate_set.add(tuple(tokens))
+
+            if not filterfunc(tokens):
+                continue
+
+            if len(candidates) == n:
+                break
 
         return candidates
-
-
-
-def generate_tf_idx_matrix(docset, cutoff=2):
-    document_frequencies = Counter()
-    total_frequencies = Counter()
-
-    per_doc_frequency_counter = {}
-
-    for d_idx, doc in enumerate(docset):
-        doc_frequency_counter = Counter(doc)
-        document_frequencies.update(doc_frequency_counter.keys())
-        total_frequencies += doc_frequency_counter
-
-        per_doc_frequency_counter[d_idx] = doc_frequency_counter
-
-    words = list(map(lambda x: x[0], filter(lambda x: x[1] >= cutoff, total_frequencies.items())))
-
-    tf_idf_matrix = lil_matrix((len(docset), len(words)))
-    for d_idx, doc in enumerate(docset):
-        for w_idx, word in enumerate(words):
-            tf_idf_matrix[d_idx, w_idx] = per_doc_frequency_counter[d_idx][word] / float(document_frequencies[word])
-
-    return csr_matrix(tf_idf_matrix)
-
-
-def generate_binary_bow_matrix(docset, cutoff=8, words=None):
-    tok_counters = Counter()
-    document_token_ids = defaultdict(set)
-
-    for d_idx, doc in enumerate(docset):
-        for tok in doc:
-            tok_counters[tok] += 1
-            document_token_ids[d_idx].add(tok)
-
-    if words is None:
-        all_tokens = list(map(lambda x: x[0], filter(lambda x: x[1] >= cutoff, tok_counters.items())))
-    else:
-        all_tokens = list(words)
-    #print(all_tokens)
-
-    tok_ids = dict(map(lambda x: (x[1], x[0]), enumerate(all_tokens)))
-
-    tf_idf_matrix = lil_matrix((len(docset), len(all_tokens)))
-    for d_idx, tokens in document_token_ids.items():
-        for tok in tokens:
-            tok_id = tok_ids.get(tok)
-            if tok_id is None:
-                continue
-            tf_idf_matrix[d_idx, tok_id] = 1
-
-    return csr_matrix(tf_idf_matrix)
-
-
-def generate_word_occurence_matrix(docset):
-    per_doc_counters = defaultdict(Counter)
-
-    token_indices = {}
-
-    for d_idx, doc in enumerate(docset):
-        for tok in doc:
-            t_idx = token_indices.get(tok)
-            if t_idx is None:
-                t_idx = len(token_indices)
-                token_indices[tok] = t_idx
-            per_doc_counters[d_idx][t_idx] += 1
-
-
-    tf_idf_matrix = lil_matrix((len(docset), len(token_indices)))
-    for d_idx, counter in per_doc_counters.items():
-        for t_idx, cnt in counter.items():
-            tf_idf_matrix[d_idx, t_idx] = cnt
-
-    return csr_matrix(tf_idf_matrix)
-
-
 
 
 def insert_into_top_n_list(l, new_item, n):
@@ -309,7 +261,7 @@ def insert_into_top_n_list(l, new_item, n):
     for idx, item in enumerate(l):
         if new_item > item:
             insert_idx = idx
-    
+
     if insert_idx is not None:
         l.insert(idx, new_item)
         l.pop()
@@ -317,8 +269,8 @@ def insert_into_top_n_list(l, new_item, n):
     return l
 
 
-def rank_documents_pairwise(docset):
-    tf_idf = generate_word_occurence_matrix(list(map(lambda d: list(d.tokens), docset)))
+def rank_documents_pairwise(docset, sim_model):
+    #tf_idf = generate_word_occurence_matrix(list(map(lambda d: list(d.tokens), docset)))
 
     top_n_docs = []
 
@@ -327,20 +279,38 @@ def rank_documents_pairwise(docset):
         for cmp_doc_idx, cmp_doc in enumerate(docset):
             if doc_idx == cmp_doc_idx:
                 continue
-            doc_vec = tf_idf[doc_idx]
-            cmp_vec = tf_idf[cmp_doc_idx]
-
-            cosine = doc_vec.dot(cmp_vec.transpose()).toarray()[0][0] / (sp_linalg.norm(doc_vec) * sp_linalg.norm(cmp_vec))
-
-            if (sp_linalg.norm(doc_vec) * sp_linalg.norm(cmp_vec)) == 0:
-                cosine = 0
-
-            consine_sum += cosine
+            #doc_vec = tf_idf[doc_idx]
+            #cmp_vec = tf_idf[cmp_doc_idx]
+#
+            #cosine = doc_vec.dot(cmp_vec.transpose()).toarray()[0][0] / (sp_linalg.norm(doc_vec) * sp_linalg.norm(cmp_vec))
+#
+            #if (sp_linalg.norm(doc_vec) * sp_linalg.norm(cmp_vec)) == 0:
+            #    cosine = 0
+#
+            #consine_sum += cosine
+            consine_sum += sim_model.compute_similarity(doc.as_token_attr_sequence("form"), cmp_doc.as_token_attr_sequence("form"))
 
         avg_cosine = consine_sum / (len(docset) - 1)
         insert_into_top_n_list(top_n_docs, (avg_cosine, doc_idx), 1)
+        print(avg_cosine, doc_idx)
+
+    print(top_n_docs)
 
     return top_n_docs
+
+
+def rank_documents_docset_sim(docset, sim_model):
+    docset_tokens = [token for doc in docset for token in doc.as_token_attr_sequence("form")]
+
+    doc_sims = []
+
+    for doc_idx, doc in enumerate(docset):
+        cosine_sim = sim_model.compute_similarity(doc.as_token_attr_sequence("form"), docset_tokens)
+        doc_sims.append((cosine_sim, doc_idx))
+
+    print(doc_sims)
+    return max(doc_sims)[1]
+
 
 
 class Document:
@@ -369,39 +339,45 @@ class Document:
 #        pass
 
 
-def cluster_with_seed_sentences(seeds, documents):
+def cluster_with_seed_sentences(seeds, documents, sim_model):
     sentences = [s for doc in documents for s in doc.sentences]
-    tf_idf_matrix = generate_word_occurence_matrix(seeds + sentences)
+    #tf_idf_matrix = generate_word_occurence_matrix(seeds + sentences)
 
-    seeds_tf_idf = tf_idf_matrix[:len(seeds),:]
-    remaining_tf_idf = tf_idf_matrix[len(seeds):,:]
+    #seeds_tf_idf = tf_idf_matrix[:len(seeds),:]
+    #remaining_tf_idf = tf_idf_matrix[len(seeds):,:]
 
     clusters = dict((idx, (seed, [])) for idx, seed in enumerate(seeds))
 
-    for sent_idx, doc in enumerate(sentences):
+    for sent_idx, sent in enumerate(sentences):
         best_seed_idx = None
         best_seed_similarity = None
         for seed_idx, seed in enumerate(seeds):
-            vec_seed = seeds_tf_idf[seed_idx].toarray()
-            vec_doc = remaining_tf_idf[sent_idx].toarray()
-
-            vec_seed = vec_seed.reshape((vec_seed.shape[1],))
-            vec_doc = vec_doc.reshape((vec_doc.shape[1],))
-
-            norm = (np.linalg.norm(vec_doc) * np.linalg.norm(vec_seed))
-            if norm > 0:
-                cosine = np.dot(vec_seed, vec_doc) / norm
-            else:
-                cosine = 0
-
-            #cosine = vec_seed.dot(vec_doc.T) / (sp_linalg.norm(vec_doc) * sp_linalg.norm(vec_seed))
+#            vec_seed = seeds_tf_idf[seed_idx].toarray()
+#            vec_doc = remaining_tf_idf[sent_idx].toarray()
+#
+#            vec_seed = vec_seed.reshape((vec_seed.shape[1],))
+#            vec_doc = vec_doc.reshape((vec_doc.shape[1],))
+#
+#            norm = (np.linalg.norm(vec_doc) * np.linalg.norm(vec_seed))
+#            if norm > 0:
+#                cosine = np.dot(vec_seed, vec_doc) / norm
+#            else:
+#                cosine = 0
+#
+#            print(norm, cosine, np.dot(vec_seed, vec_doc))
+#
+#            #cosine = vec_seed.dot(vec_doc.T) / (sp_linalg.norm(vec_doc) * sp_linalg.norm(vec_seed))
+            cosine = sim_model.compute_similarity(sent.as_token_attr_sequence("form"), seed.as_token_attr_sequence("form"))
 
             if best_seed_similarity is None or best_seed_similarity < cosine:
                 best_seed_similarity = cosine
                 best_seed_idx = seed_idx
 
-        if best_seed_similarity > 0.5:
-            clusters[best_seed_idx][1].append(doc)
+        if best_seed_similarity > 0.1:
+            clusters[best_seed_idx][1].append(sent)
+        else:
+            seeds.append(sent)
+            clusters[len(seeds) - 1] = (sent, [sent])
 
     return clusters
 
@@ -570,7 +546,8 @@ def generate_cluster_graph(cluster_sents):
 
 
 def main():
-    lm = StoredLanguageModel.from_file("lm_giga_20k_nvp_3gram/lm_giga_20k_nvp_3gram.arpa")
+    #lm = StoredLanguageModel.from_file("lm_giga_20k_nvp_3gram/lm_giga_20k_nvp_3gram.arpa")
+    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
     #lm = None
 
     document_basedir = sys.argv[1]
@@ -590,19 +567,20 @@ def main():
             f_out.write(summarization)
 
 
-def main2():
-    run_summarizer([
-        "The American killed in the crash was 31 year old Seth J . Foti , a diplomatic courier carrying classified information",
-        "31 year old Seth Foti was carrying pouches containing classified information",
-    ])
-
-
 def summerize_documents(documents, lm):
-    best_doc = documents[rank_documents_pairwise(documents)[0][1]]
-    clusters = cluster_with_seed_sentences(best_doc.sentences, documents)
+    #embeddings_similarity_model = EmbeddingsCosingSimilarityModel(read_glove_embeddings("glove.6B.50d.txt"))
+    similarity_model = ModifiedIdfCosineSimilarityModel(STOPWORDS)
+    similarity_model.fit([doc.as_token_attr_sequence("form") for doc in documents])
+
+    best_doc = documents[rank_documents_docset_sim(documents, similarity_model)]
+    clusters = cluster_with_seed_sentences(best_doc.sentences, documents, similarity_model)
 
     for cluster_id, (seed, members) in list(clusters.items()):
+        print(cluster_id)
+        for member in members:
+            print(member.as_tokenized_string(), (1.0 / (1.0 - lm.estimate_sent_log_proba(member.as_token_attr_sequence("form")))))
         if len(members) < len(documents) / 2:
+        #if len(members) < 2:
             del clusters[cluster_id]
 
     sorted_clusters = []
@@ -635,17 +613,17 @@ def summerize_documents(documents, lm):
     print("Generating cluster candidates...")
     cluster_idx_id_map = {}
     for cluster_idx, (cluster_id, (_, cluster_sentences)) in enumerate(clusters.items()):
-        candidates = generate_summary_candidates(list(map(lambda s: s.as_token_tuple_sequence("form", "pos"), cluster_sentences)), lm)
+        candidates = generate_summary_candidates(list(map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"), cluster_sentences)), lm)
         per_cluster_candidates.append(candidates)
         cluster_idx_id_map[cluster_idx] = cluster_id
         print("Found {} candidates for cluster".format(len(candidates)))
     print("Selecting sentences...")
-    sentences = select_sentences(per_cluster_candidates)
+    for cluster in per_cluster_candidates:
+        for sent, _ in cluster:
+            print(" ".join(map(lambda x: x[0], sent)), (1.0 / (1.0 - lm.estimate_sent_log_proba(list(map(lambda x: x[0], sent))))))
+    sentences = select_sentences(per_cluster_candidates, similarity_model)
 
     print("Ordering...")
-
-    print(cluster_indices)
-    print(cluster_idx_id_map)
 
     sentences = sorted(sentences, key=lambda x: cluster_indices[cluster_idx_id_map[x[1]]])
     plaintext_sents = list(map(lambda x: x[0], sentences))
@@ -654,6 +632,36 @@ def summerize_documents(documents, lm):
 
 
 def generate_summary_candidates(sentences, lm):
+    compressor = SentenceCompressionGraph(STOPWORDS)
+    print("Building Graph...")
+    compressor.add_sentences(sentences)
+
+    print("Scoring keywords...")
+    tr_scores = calculate_keyword_text_rank(sentences)
+
+    #pydot.write_png("out.png")
+
+    print("Extracting candidates...")
+    sents_and_scores = []
+
+    def check_sent_has_verb(sent):
+        return any(map(lambda t: t[1].startswith("V"), sent))
+
+    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_sent_has_verb):
+        plaintext_sent = list(map(lambda x: x[0], proposed_sent))
+        lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(plaintext_sent))
+
+        informativeness_score = 0
+        for token in proposed_sent:
+            print(token, tr_scores.get(token))
+            informativeness_score += tr_scores.get(token, 0)
+
+        score = lm_score * informativeness_score / len(proposed_sent)
+        sents_and_scores.append((proposed_sent, score))
+
+    return sents_and_scores
+
+
     #tokenizer = WhitespaceTokenizer()
     #graph = generate_cluster_graph(list(map(lambda t: nltk.pos_tag(tokenizer.tokenize(t)), [
     #    "30 year old Tom Anderson was not the murderer of Ann Sophie , who was found dead last Saturday",
@@ -750,13 +758,12 @@ def generate_summary_candidates(sentences, lm):
     return sents_and_scores
 
 
-def select_sentences(per_cluster_candidates, maxlen=250):
+def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
     sentences_with_index = [
         ((c_idx, s_idx), sent[0]) for c_idx, sents in enumerate(per_cluster_candidates)
         for s_idx, sent in enumerate(sents)
     ]
     sentences = [sent[1] for sent in sentences_with_index]
-    repr_matrix = generate_word_occurence_matrix(sentences)
 
     cluster_scores = [
         (c_idx, [(s_idx, sent[1]) for s_idx, sent in enumerate(sents)])
@@ -789,13 +796,18 @@ def select_sentences(per_cluster_candidates, maxlen=250):
         if idx_1[0] == idx_2[0]:
             continue
 
-        sent_1_vec = repr_matrix[s_idx_1]
-        sent_2_vec = repr_matrix[s_idx_2]
+        #sent_1_vec = repr_matrix[s_idx_1]
+        #sent_2_vec = repr_matrix[s_idx_2]
+#
+        #sent_1_vec = sent_1_vec.toarray().reshape(sent_1_vec.shape[1])
+        #sent_2_vec = sent_2_vec.toarray().reshape(sent_2_vec.shape[1])
+#
+        #sim = np.dot(sent_1_vec, sent_2_vec) / (np.linalg.norm(sent_1_vec) * np.linalg.norm(sent_2_vec))
 
-        sent_1_vec = sent_1_vec.toarray().reshape(sent_1_vec.shape[1])
-        sent_2_vec = sent_2_vec.toarray().reshape(sent_2_vec.shape[1])
+        sent_1_toks = list(map(lambda x: x[0], sent_1))
+        sent_2_toks = list(map(lambda x: x[0], sent_2))
 
-        sim = np.dot(sent_1_vec, sent_2_vec) / (np.linalg.norm(sent_1_vec) * np.linalg.norm(sent_2_vec))
+        sim = sim_model.compute_similarity(sent_1_toks, sent_2_toks)
 
         if sim > 0.5:
             select_switch[idx_1] + select_switch[idx_2] <= 1.0
@@ -813,23 +825,26 @@ def select_sentences(per_cluster_candidates, maxlen=250):
     return sentences
 
 
-def calculate_keyword_text_rank(sentences, window_size=4):
+def calculate_keyword_text_rank(sentences, window_size=None):
     graph = nx.Graph()
 
-
     for sent in sentences:
-        context = deque(maxlen=window_size)
+        context = sent
         for tok in sent:
-            if tok[0] in STOPWORDS:
+            if tok[0] in STOPWORDS or not tok[0].isalnum():
                 continue
             graph.add_node(tok)
             for context_tok in context:
+                if context_tok == tok:
+                    continue
                 graph.add_edge(context_tok, tok)
-            context.append(tok)
+            #context.append(tok)
 
     pr = nx.pagerank(graph)
 
     return pr
+
+
 
 #    doc_set = [
 #        "In Conneticut a man was shot. His wife was sad about that, because he did not survive .",
@@ -879,5 +894,5 @@ def test_sentence_compression():
 
 
 if __name__ == "__main__":
-    test_sentence_compression()
-    #main()
+    #test_sentence_compression()
+    main()

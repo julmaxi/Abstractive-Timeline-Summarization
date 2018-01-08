@@ -4,6 +4,19 @@ import math
 import re
 import sys
 
+from kenlm import Model
+
+
+class KenLMLanguageModel:
+    @staticmethod
+    def from_file(filename):
+        return KenLMLanguageModel(Model(filename))
+
+    def __init__(self, kenlm_model):
+        self.kenlm_model = kenlm_model
+
+    def estimate_sent_log_proba(self, sent):
+        return self.kenlm_model.score(" ".join(sent))
 
 class StoredLanguageModel:
     @staticmethod
@@ -32,7 +45,6 @@ class StoredLanguageModel:
                     else:
                         print("Warning, parsing error at line ", line)
 
-
         return StoredLanguageModel(ngrams_by_size)
 
     def __init__(self, ngrams_by_size):
@@ -48,7 +60,7 @@ class StoredLanguageModel:
         proba = self.estimate_log_proba(context[1:], word)
         backoff = self.ngrams_by_size[len(ngram)].get(context)
         if backoff is None or len(backoff) != 2:
-            backoff = 0.0 # Remember, we work in log-space
+            backoff = 0.0  # Remember, we work in log-space
         else:
             backoff = backoff[1]
 
@@ -73,11 +85,11 @@ class StoredLanguageModel:
         for t_idx, tok in enumerate(sent):
             if t_idx == 0:
                 continue
-            context = tuple(sent[max(t_idx - (self.n - 1), 0):t_idx])
+            context = tuple(sent[max(t_idx - self.n, 0):t_idx])
             proba += self.estimate_log_proba(context, tok)
+            print(proba)
 
         return proba / len(sent)
-
 
 
 class KatzLanguageModel:
@@ -109,7 +121,6 @@ class KatzLanguageModel:
                 ngrams_with_length.append((len(context) + 1, count))
 
         self.ngram_size_counter = Counter(ngrams_with_length)
-
 
     def estimate_propa(self, context, token):
         if len(context) == 0:
@@ -145,7 +156,8 @@ class KatzLanguageModel:
             return alpha * self.estimate_propa(context[1:], token)
 
 
-class UNK: pass
+class UNK:
+    pass
 
 
 class KeyserNeyLanguageModel:
@@ -206,7 +218,6 @@ class KeyserNeyLanguageModel:
                 context.popleft()
                 context.append(tok)
 
-
     def estimate_proba(self, context, word, use_freq=True):
         if len(context) == 0:
             context_counts = sum(list(map(lambda x: len(x[1]), self.all_preceding_words_by_ngram_length[1].items())))
@@ -260,21 +271,6 @@ class KeyserNeyLanguageModel:
 
 
 if __name__ == "__main__":
-    #model = KeyserNeyLanguageModel()
-
-    #testset_2 = ["We live in the city of New York", "The city we eat in is New York", "We dance and party in New York"]
-
-    #model.train([s.split() for s in ["The cat has a hat", "The dog has a hat", "The cat has a dog"]])
-
-#    print(list(filter(lambda item: len(item[0]) == 2, model.precedence_counts.items())))
-#    print(model.all_preceding_words_by_ngram_length)
-
-    #print(model.estimate_proba(("has", "a"), "cat"))
-    #print(model.estimate_proba(("has", "a"), "dog"))
-    #print(model.estimate_proba(("has", "a"), "hat"))
-    #print(sum([model.estimate_proba(("dog", "cat"), v) for v in model.vocabulary]))
-    #print(sum([model.estimate_proba(("has", "cat"), v) for v in model.vocabulary]))
-
     model = StoredLanguageModel.from_file(sys.argv[1])
 
     print(model.estimate_log_proba(("has", "a",), "dog"))
@@ -287,4 +283,3 @@ if __name__ == "__main__":
     print(model.estimate_sent_log_proba(["The", "dog", "has", "cat"]))
     print(model.estimate_sent_log_proba(["The", "dog", "has", "a", "cat"]))
     print(model.estimate_sent_log_proba(["The", "dog", "dog", "has", "a", "cat"]))
-    #print(sum([model.estimate_proba(("a", "hat"), v) for v in model.vocabulary]))

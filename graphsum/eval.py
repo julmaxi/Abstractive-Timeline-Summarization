@@ -9,7 +9,6 @@ import re
 
 
 def eval_main():
-    print(ROUGE_EVAL_HOME)
     def parse_args():
         parser = ArgumentParser()
         parser.add_argument("system_dir")
@@ -24,22 +23,37 @@ def eval_main():
     def summarizer(doc_id):
         fname = os.path.join(args.system_dir, "{}.sum.txt".format(doc_id))
 
-        return read_summary_file(fname)
+        if os.path.isfile(fname):
+            return read_summary_file(fname)
 
-    eval_summarizer(gold_summaries, summarizer)
+        return None
+
+    eval_summarizer(gold_summaries, summarizer, True)
 
 
-def eval_summarizer(cluster_gold_summaries, summarizer):
+def eval_summarizer(cluster_gold_summaries, summarizer, ignore_missing=False):
     rouge = Rouge155(n_words=250, average="sentence")
     rouge_score_sums = Counter()
+
+    num_clusters = 0
     for doc_cluster_id, gold_summaries in cluster_gold_summaries.items():
         summary = summarizer(doc_cluster_id)
+        if summary is None:
+            if ignore_missing:
+                continue
+            else:
+                summary = ""
+
+        num_clusters += 1
+
         scores = rouge.score_summary(summary, gold_summaries)
 
         rouge_score_sums += Counter(scores)
 
-    print(rouge_score_sums["rouge_su4_f_score"] / len(cluster_gold_summaries))
-    print(rouge_score_sums["rouge_2_f_score"] / len(cluster_gold_summaries))
+    print("Evaluated {}/{} clusters".format(num_clusters, len(cluster_gold_summaries)))
+    print("SU4", rouge_score_sums["rouge_su4_f_score"] / num_clusters)
+    print("R1", rouge_score_sums["rouge_1_f_score"] / num_clusters)
+    print("R2", rouge_score_sums["rouge_2_f_score"] / num_clusters)
 
 
 
@@ -62,7 +76,6 @@ def read_gold_summaries(gold_dir):
 
 def read_summary_file(fname, encoding="utf-8"):
     lines = []
-    print(fname)
     with open(fname, encoding=encoding) as f:
         for line in f:
             lines.append(line.split())
