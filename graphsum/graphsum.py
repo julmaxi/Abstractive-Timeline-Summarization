@@ -22,7 +22,11 @@ from networkx.drawing.nx_pydot import to_pydot
 import functools
 from langmodel import StoredLanguageModel, KenLMLanguageModel
 from reader import StanfordXMLReader, Sentence, Token
-from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel
+from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel, BinaryCosineSimilarityModel, BinaryOverlapSimilarityModel
+
+
+def scnd(t):
+    return t[1]
 
 
 class SentenceCompressionGraph:
@@ -66,7 +70,11 @@ class SentenceCompressionGraph:
             self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, sentence))
             prev_node = node
 
-        self.graph.add_edge(prev_node, "END")
+        end_edge = self.graph[prev_node].get("END")
+        if end_edge is None:
+            self.graph.add_edge(prev_node, "END", frequency=1)
+        else:
+            end_edge["frequency"] += 1
 
     def create_new_node(self, token):
         node_id = len(self.graph.nodes)
@@ -163,7 +171,7 @@ class SentenceCompressionGraph:
 
         return token_mappings
 
-    def compute_token_overlap(self, sentence, t_idx, node):
+    def compute_token_overlap(self, sentence, t_idx, node, filter_stopwords=True):
         left_ctx_tokens = self.get_node_context_tokens(node, "l")
         right_ctx_tokens = self.get_node_context_tokens(node, "r")
 
@@ -171,11 +179,11 @@ class SentenceCompressionGraph:
 
         if t_idx < len(sentence) - 1:
             r_ctx = sentence[t_idx + 1]
-            if r_ctx not in self.stopwords and r_ctx in right_ctx_tokens:
+            if (not filter_stopwords or r_ctx[0] not in self.stopwords) and r_ctx in right_ctx_tokens:
                 overlap += 1
         if t_idx > 0:
             l_ctx = sentence[t_idx - 1]
-            if l_ctx not in self.stopwords and l_ctx in left_ctx_tokens:
+            if (not filter_stopwords or l_ctx[0] not in self.stopwords) and l_ctx in left_ctx_tokens:
                 overlap += 1
 
         return overlap
@@ -191,7 +199,7 @@ class SentenceCompressionGraph:
         tokens = []
 
         for n in neighbours:
-            tok = self.graph[n].get("token")
+            tok = self.graph.nodes[n].get("token")
             if tok is not None:
                 tokens.append(tok)
 
@@ -200,7 +208,7 @@ class SentenceCompressionGraph:
     def calculate_strong_links_weights(self):
         for src, trg, data in self.graph.edges(data=True):
             if src == "START" or trg == "END":
-                data["weight_sl"] = 0  # TODO: Check what this should be
+                data["weight_sl"] = 1.0 / data["frequency"]  # TODO: Check what this should be
                 continue
 
             src_freq = len(self.graph.nodes[src]["mapped_tokens"])
@@ -211,15 +219,16 @@ class SentenceCompressionGraph:
             for t_idx_1, _, sent_1 in self.graph.nodes[src]["mapped_tokens"]:
                 for t_idx_2, _, sent_2 in self.graph.nodes[trg]["mapped_tokens"]:
                     if sent_1 == sent_2 and t_idx_1 < t_idx_2:
-                        diff += t_idx_2 - t_idx_1
+                        diff += (t_idx_2 - t_idx_1) ** -1
 
-            diff **= -1
+            #diff **= -1
 
             w = (src_freq + trg_freq) / diff  #data["frequency"]
 
             w /= src_freq * trg_freq
 
             data["weight_sl"] = w
+            data["label"] = str(w)
 
     def generate_compression_candidates(self, n=200, minlen=8, filterfunc=lambda c: True):
         self.calculate_strong_links_weights()
@@ -240,14 +249,14 @@ class SentenceCompressionGraph:
             else:
                 continue
 
+            if not filterfunc(tokens):
+                continue
+
             if tuple(tokens) not in candidate_set:
                 candidates.append(tokens)
                 candidate_set.add(tuple(tokens))
 
-            if not filterfunc(tokens):
-                continue
-
-            if len(candidates) == n:
+            if len(candidates) >= n:
                 break
 
         return candidates
@@ -367,17 +376,25 @@ def cluster_with_seed_sentences(seeds, documents, sim_model):
 #            print(norm, cosine, np.dot(vec_seed, vec_doc))
 #
 #            #cosine = vec_seed.dot(vec_doc.T) / (sp_linalg.norm(vec_doc) * sp_linalg.norm(vec_seed))
+            
+
+            cosine = sim_model.compute_similarity(
+                map(lambda t: t[0], filter(lambda t: t[1][0] in "NV", sent.as_token_tuple_sequence("form", "pos"))),
+                map(lambda t: t[0], filter(lambda t: t[1][0] in "NV", seed.as_token_tuple_sequence("form", "pos"))))
             cosine = sim_model.compute_similarity(sent.as_token_attr_sequence("form"), seed.as_token_attr_sequence("form"))
 
             if best_seed_similarity is None or best_seed_similarity < cosine:
                 best_seed_similarity = cosine
                 best_seed_idx = seed_idx
-
-        if best_seed_similarity > 0.1:
+        print(best_seed_similarity)
+        #print(clusters[best_seed_idx][0].as_tokenized_string())
+        #print(sent.as_tokenized_string())
+        #print()
+        if best_seed_similarity > 0.5:
             clusters[best_seed_idx][1].append(sent)
-        else:
-            seeds.append(sent)
-            clusters[len(seeds) - 1] = (sent, [sent])
+        #else:
+        #    seeds.append(sent)
+        #    clusters[len(seeds) - 1] = (sent, [sent])
 
     return clusters
 
@@ -553,6 +570,7 @@ def main():
     document_basedir = sys.argv[1]
 
     for cluster_id in os.listdir(document_basedir):
+    #for cluster_id in ["331"]:
         documents = []
         cluster_dir = os.path.join(document_basedir, cluster_id)
         for doc_fname in os.listdir(cluster_dir):
@@ -567,20 +585,65 @@ def main():
             f_out.write(summarization)
 
 
+def timeline_main():
+    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+    document_basedir = sys.argv[1]
+
+    best_date_id = None
+    best_num_dates = None
+
+    for date_id in os.listdir(document_basedir):
+        date_path = os.path.join(document_basedir, date_id)
+        num_dates = len(os.listdir(date_path))
+
+        if best_date_id is None or num_dates > best_num_dates:
+            best_date_id = date_id
+            best_num_dates = num_dates
+
+
+    best_date_id = "2011-03-15"
+
+    documents = []
+
+    best_date_path = os.path.join(document_basedir, date_id)
+
+    for fname in os.listdir(best_date_path):
+        try:
+            reader = StanfordXMLReader()
+            document = reader.run(os.path.join(best_date_path, fname))
+            documents.append(document)
+        except:
+            pass
+
+    summarization = summerize_documents(documents, lm)
+
+    print(summarization)
+
+
 def summerize_documents(documents, lm):
     #embeddings_similarity_model = EmbeddingsCosingSimilarityModel(read_glove_embeddings("glove.6B.50d.txt"))
-    similarity_model = ModifiedIdfCosineSimilarityModel(STOPWORDS)
-    similarity_model.fit([doc.as_token_attr_sequence("form") for doc in documents])
+    #similarity_model = ModifiedIdfCosineSimilarityModel(STOPWORDS)
+    #similarity_model = BinaryCosineSimilarityModel(STOPWORDS)
+    #similarity_model.fit([doc.as_token_attr_sequence("form") for doc in documents])
+
+    similarity_model = BinaryOverlapSimilarityModel(STOPWORDS)
+    similarity_model.fit([sent.as_token_attr_sequence("form") for doc in documents for sent in doc])
 
     best_doc = documents[rank_documents_docset_sim(documents, similarity_model)]
+
+    #similarity_model = BinaryCosineSimilarityModel(STOPWORDS)
+    #similarity_model = BinaryOverlapSimilarityModel(STOPWORDS)
+
     clusters = cluster_with_seed_sentences(best_doc.sentences, documents, similarity_model)
+
+    #clusters = {0: (None, [doc.sentences[0] for doc in documents])}
 
     for cluster_id, (seed, members) in list(clusters.items()):
         print(cluster_id)
         for member in members:
             print(member.as_tokenized_string(), (1.0 / (1.0 - lm.estimate_sent_log_proba(member.as_token_attr_sequence("form")))))
-        if len(members) < len(documents) / 2:
-        #if len(members) < 2:
+        #if len(members) < len(documents) / 2:
+        if len(members) < 2:
             del clusters[cluster_id]
 
     sorted_clusters = []
@@ -645,7 +708,7 @@ def generate_summary_candidates(sentences, lm):
     sents_and_scores = []
 
     def check_sent_has_verb(sent):
-        return any(map(lambda t: t[1].startswith("V"), sent))
+        return any(map(lambda t: t[1] in {"VB", "VBD", "VBP", "VBZ"}, sent))
 
     for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_sent_has_verb):
         plaintext_sent = list(map(lambda x: x[0], proposed_sent))
@@ -662,100 +725,39 @@ def generate_summary_candidates(sentences, lm):
     return sents_and_scores
 
 
-    #tokenizer = WhitespaceTokenizer()
-    #graph = generate_cluster_graph(list(map(lambda t: nltk.pos_tag(tokenizer.tokenize(t)), [
-    #    "30 year old Tom Anderson was not the murderer of Ann Sophie , who was found dead last Saturday",
-    #    "Tom Anderson , a carpenter from New England , was found not guilty of the murder of Ann Sophie",
-    #])))
-#
-    #sentences = list(map(lambda t: nltk.pos_tag(tokenizer.tokenize(t)), sentences))
+def generate_summary_candidates_preselection(sentences, lm):
+    compressor = SentenceCompressionGraph(STOPWORDS)
+    print("Building Graph...")
+    compressor.add_sentences(sentences)
 
-    print("Constructing graph...")
-    graph = generate_cluster_graph(sentences)
-
-    #networkx.drawing.draw(graph)
-    #plt.show()
-
-    for node_idx in graph.nodes:
-        node = graph.nodes[node_idx]
-        label = None
-
-        token = node.get("token")
-        if token is not None:
-            label = token[0]
-
-        if label is None:
-            label = node["marker"]
-        graph.nodes[node_idx]["label"] = label.replace(",", "\\,")
-
-    #pydot = to_pydot(graph)
-    #pydot.write("out.dot")
-    #pydot.write_png("out.png")
-
-    start_nodes = []
-    end_nodes = []
-
-    for node, data in graph.nodes.items():
-        if data.get("marker") == "START":
-            start_nodes.append((node, data["orig_sent"]))
-        elif data.get("marker") == "END":
-            end_nodes.append((node, data["orig_sent"]))
-
-    print("Finding shortest paths...")
-    all_paths = nx.shortest_simple_paths(graph, "master_start", "master_end")
-
-    possible_summary_sents = []
-    for path in all_paths:
-        if len(path) >= 12:
-            sent = [graph.nodes[node].get("token") for node in path][2:-2]
-
-            if not any(pos.startswith("V") for form, pos in sent):
-                continue
-
-            possible_summary_sents.append(sent)
-
-        if len(possible_summary_sents) == 200:
-            break
-
-    #all_pairs = list(it.product(start_nodes, end_nodes))
-
-    #random.shuffle(all_pairs)
-
-    #all_pairs = iter(all_pairs)
-
-    #possible_summary_sents = []
-
-
-
-    #while len(possible_summary_sents) <= 199:
-    #    try:
-    #        (start, start_sent), (end, end_sent) = next(all_pairs)
-    #    except StopIteration:
-    #        break
-    #    if start_sent == end_sent:
-    #        continue
-#
-    #    try:
-    #        shortest_path = nx.shortest_path(graph, start, end)
-    #        possible_summary_sents.append([graph.nodes[node].get("token") for node in shortest_path][1:-1])
-    #    except nx.NetworkXNoPath:
-    #        pass
-
+    print("Scoring keywords...")
     tr_scores = calculate_keyword_text_rank(sentences)
 
+    #pydot.write_png("out.png")
+
+    print("Extracting candidates...")
     sents_and_scores = []
-    for proposed_sent in possible_summary_sents:
+
+    def check_sent_has_verb(sent):
+        return any(map(lambda t: t[1] in {"VB", "VBD", "VBP", "VBZ"}, sent))
+
+
+    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_sent_has_verb, n=200):
         plaintext_sent = list(map(lambda x: x[0], proposed_sent))
+        print(plaintext_sent)
         lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(plaintext_sent))
 
         informativeness_score = 0
         for token in proposed_sent:
+            #print(token, tr_scores.get(token))
             informativeness_score += tr_scores.get(token, 0)
 
         score = lm_score * informativeness_score / len(proposed_sent)
         sents_and_scores.append((proposed_sent, score))
 
-    return sents_and_scores
+    sents_and_scores.sort(key=scnd, reverse=True)
+
+    return sents_and_scores[:200]
 
 
 def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
@@ -837,7 +839,8 @@ def calculate_keyword_text_rank(sentences, window_size=None):
             for context_tok in context:
                 if context_tok == tok:
                     continue
-                graph.add_edge(context_tok, tok)
+                if context_tok[0] not in STOPWORDS and tok[0].isalnum():
+                    graph.add_edge(context_tok, tok)
             #context.append(tok)
 
     pr = nx.pagerank(graph)
@@ -846,45 +849,31 @@ def calculate_keyword_text_rank(sentences, window_size=None):
 
 
 
-#    doc_set = [
-#        "In Conneticut a man was shot. His wife was sad about that, because he did not survive .",
-#        "A man was killed in Conneticut . His wife was very sad . The perpetrator was arrested .",
-#        "A man killed another man in Conneticut. The perpetrator was arrested. He did not plead guilty .",
-#        "In Conneticut a man was shot . He did not survive .",
-#    ]
-#
-#    sentence_splitter = PunktSentenceTokenizer()
-#    tokenizer = WhitespaceTokenizer()
-#
-#    documents = []
-#    for doc in doc_set:
-#        doc_sents = []
-#        sents = sentence_splitter.tokenize(doc)
-#        for sent in sents:
-#            tokens = tokenizer.tokenize(sent)
-#            tagged_tokens = nltk.pos_tag(tokens)
-#            doc_sents.append(tagged_tokens)
-#
-#        documents.append(Document(doc_sents))
-#
-#    best_doc = documents[rank_documents_pairwise(documents)[0][1]]
-#
-#    seeds = best_doc.sentences
-#
-#    print(cluster_with_seed_sentences(seeds, documents))
-
 
 def test_sentence_compression():
     compressor = SentenceCompressionGraph(stopwords=STOPWORDS)
 
-    compressor.add_sentence(nltk.pos_tag("US President George W. Bush visits the Greenfield Memorial .".split()))
-    compressor.add_sentence(nltk.pos_tag("George W. Bush , who was sworn in last sunday , visits the Greenfield Memorial .".split()))
-    compressor.add_sentence(nltk.pos_tag("Bush is sworn in this sunday .".split()))
-    compressor.add_sentence(nltk.pos_tag("Bush visits us .".split()))
+    sentences = [
+        "General Antonia Noriega 's defence gained traction",
+        "General Antonia Noriega 's defence has gained traction",
+        "General Antonia Noriega 's defence is improving",
+        "Gen. Noriega 's attorney said he was not guilty",
+        "' This is not true ' , said the prosecutor",
+        "' In fact it it quite wrong ' , said the state attorney"
+    ]
 
-    compressor.add_sentence(nltk.pos_tag("'' We are happy about this opportunity '' , says Greenfield Mayor Tom Smith".split()))
+    pos_tagged = map(lambda s: nltk.pos_tag(s.split()), sentences)
 
-    compressor.add_sentence(nltk.pos_tag("'' I hate this '' , says his son".split()))
+    compressor.add_sentences(pos_tagged)
+
+    #compressor.add_sentence(nltk.pos_tag("US President George W. Bush visits the Greenfield Memorial .".split()))
+    #compressor.add_sentence(nltk.pos_tag("George W. Bush , who was sworn in last sunday , visits the Greenfield Memorial .".split()))
+    #compressor.add_sentence(nltk.pos_tag("Bush is sworn in this sunday .".split()))
+    #compressor.add_sentence(nltk.pos_tag("Bush visits us .".split()))
+#
+    #compressor.add_sentence(nltk.pos_tag("'' We are happy about this opportunity '' , says Greenfield Mayor Tom Smith".split()))
+#
+    #compressor.add_sentence(nltk.pos_tag("'' I hate this '' , says his son".split()))
 
     candidates = compressor.generate_compression_candidates()
 
@@ -893,6 +882,75 @@ def test_sentence_compression():
     pydot.write_png("out.png")
 
 
+def test_reallife_compression():
+    #lm = StoredLanguageModel.from_file("lm_giga_20k_nvp_3gram/lm_giga_20k_nvp_3gram.arpa")
+    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+    #lm = None
+
+    document_basedir = sys.argv[1]
+
+    for cluster_id in ["331"]:
+        documents = []
+        cluster_dir = os.path.join(document_basedir, cluster_id)
+        for doc_fname in os.listdir(cluster_dir):
+            if not doc_fname.endswith(".out"):
+                continue
+            reader = StanfordXMLReader()
+            document = reader.run(os.path.join(cluster_dir, doc_fname))
+            documents.append(document)
+
+    noriega_sents = []
+    for doc in documents:
+        for sent in doc.sentences:
+            if "noriega" in sent.as_tokenized_string().lower() or True:
+                noriega_sents.append(sent)
+    import random
+    compressor = SentenceCompressionGraph(STOPWORDS)
+
+    flat_noriega_sents = []
+
+    for sent in noriega_sents:
+        flat_noriega_sents.append(sent.as_tokenized_string())
+
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    tf_idf = TfidfVectorizer("english").fit_transform(flat_noriega_sents)
+    sims = cosine_similarity(tf_idf)
+
+    print(sims)
+
+    sim_sents = list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(sims > 0.5))))))
+
+    for idx1, idx2 in sim_sents:
+        print(noriega_sents[idx1].as_tokenized_string())
+        print(noriega_sents[idx2].as_tokenized_string())
+        print()
+
+    random.shuffle(noriega_sents)
+    noriega_sents = noriega_sents[:15]
+    compressor.add_sentences(map(lambda s: s.as_token_tuple_sequence("form", "pos"), noriega_sents))
+
+
+    print(len(noriega_sents))
+    pydot = to_pydot(compressor.graph)
+    pydot.write_png("noriega.png")
+
+    generated_sentence = []
+
+    for cnd in compressor.generate_compression_candidates(n=50):
+        generated_sentence.append((" ".join(map(lambda x: x[0], cnd)), 
+            (1.0 / (1.0 - lm.estimate_sent_log_proba(list(map(lambda x: x[0], cnd)))))))
+
+    generated_sentence.sort(key=lambda t: t[1], reverse=True)
+
+    for s in generated_sentence:
+        print(s[0], s[1])
+
+
 if __name__ == "__main__":
+    #test_reallife_compression()
     #test_sentence_compression()
-    main()
+    #main()
+
+    timeline_main()

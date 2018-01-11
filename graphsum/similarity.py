@@ -10,6 +10,14 @@ import networkx as nx
 import itertools as it
 import math
 
+from nltk.stem.snowball import SnowballStemmer
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+
+stemmer = SnowballStemmer("english")
+
+
 def generate_tf_idx_matrix(docset, cutoff=2):
     document_frequencies = Counter()
     total_frequencies = Counter()
@@ -91,11 +99,37 @@ def generate_word_occurence_matrix(docset):
 
     return csr_matrix(tf_idf_matrix)
 
-from nltk.stem.snowball import SnowballStemmer
-stemmer = SnowballStemmer("english")
+
+class BinaryCosineSimilarityModel:
+    def __init__(self, stopwords):
+        self.stopwords = stopwords
+
+    def fit(self, documents):
+        pass
+
+    def compute_similarity(self, sent_1, sent_2):
+        toks_1 = set(filter(lambda t: t.isalnum() and t not in self.stopwords, map(lambda x: x.lower(), sent_1)))
+        toks_2 = set(filter(lambda t: t.isalnum() and t not in self.stopwords, map(lambda x: x.lower(), sent_2)))
+
+        return len(toks_1 & toks_2) / (math.sqrt(len(toks_1)) * math.sqrt(len(toks_2)))
 
 
-from sklearn.feature_extraction.text import TfidfVectorizer
+class BinaryOverlapSimilarityModel:
+    def __init__(self, stopwords):
+        self.stopwords = stopwords
+
+    def fit(self, documents):
+        pass
+
+    def compute_similarity(self, sent_1, sent_2):
+        toks_1 = set(filter(lambda t: t.isalnum() and t not in self.stopwords, map(lambda x: x.lower(), sent_1)))
+        toks_2 = set(filter(lambda t: t.isalnum() and t not in self.stopwords, map(lambda x: x.lower(), sent_2)))
+
+        minlen = min(len(toks_1), len(toks_2))
+        if minlen == 0:
+            return 0
+
+        return len(toks_1 & toks_2) / minlen
 
 
 class SklearnTfIdfCosineSimilarityModel:
@@ -103,7 +137,7 @@ class SklearnTfIdfCosineSimilarityModel:
         pass
 
     def fit(self, documents):
-        self.model = TfidfVectorizer()
+        self.model = TfidfVectorizer(stop_words="english")
 
         self.model.fit(map(lambda d: " ".join(d), documents))
 
@@ -112,7 +146,7 @@ class SklearnTfIdfCosineSimilarityModel:
         sent_2 = " ".join(sent_2)
         vecs = self.model.transform((sent_1, sent_2)).toarray()
 
-        return np.dot(vecs[0], vecs[1]) / (np.linalg.norm(vecs[0]) * np.linalg.norm(vecs[1]))
+        return np.dot(vecs[0], vecs[1])  # Vectors are normalized
 
 
 class ModifiedIdfCosineSimilarityModel:

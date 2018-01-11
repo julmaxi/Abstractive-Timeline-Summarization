@@ -16,7 +16,8 @@ class KenLMLanguageModel:
         self.kenlm_model = kenlm_model
 
     def estimate_sent_log_proba(self, sent):
-        return self.kenlm_model.score(" ".join(sent))
+        return self.kenlm_model.score(" ".join(sent)) / len(sent)
+
 
 class StoredLanguageModel:
     @staticmethod
