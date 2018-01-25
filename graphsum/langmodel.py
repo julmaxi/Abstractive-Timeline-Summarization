@@ -16,7 +16,9 @@ class KenLMLanguageModel:
         self.kenlm_model = kenlm_model
 
     def estimate_sent_log_proba(self, sent):
-        return self.kenlm_model.score(" ".join(sent)) / len(sent)
+        log10score = self.kenlm_model.score(" ".join(sent)) / len(sent)
+
+        return log10score / math.log(2)
 
 
 class StoredLanguageModel:
@@ -88,7 +90,6 @@ class StoredLanguageModel:
                 continue
             context = tuple(sent[max(t_idx - self.n, 0):t_idx])
             proba += self.estimate_log_proba(context, tok)
-            print(proba)
 
         return proba / len(sent)
 

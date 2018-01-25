@@ -139,11 +139,11 @@ class SklearnTfIdfCosineSimilarityModel:
     def fit(self, documents):
         self.model = TfidfVectorizer(stop_words="english")
 
-        self.model.fit(map(lambda d: " ".join(d), documents))
+        self.model.fit(map(lambda d: " ".join(map(stemmer.stem, d)), documents))
 
     def compute_similarity(self, sent_1, sent_2):
-        sent_1 = " ".join(sent_1)
-        sent_2 = " ".join(sent_2)
+        sent_1 = " ".join(map(stemmer.stem, sent_1))
+        sent_2 = " ".join(map(stemmer.stem, sent_2))
         vecs = self.model.transform((sent_1, sent_2)).toarray()
 
         return np.dot(vecs[0], vecs[1])  # Vectors are normalized

@@ -24,9 +24,135 @@ from langmodel import StoredLanguageModel, KenLMLanguageModel
 from reader import StanfordXMLReader, Sentence, Token
 from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel, BinaryCosineSimilarityModel, BinaryOverlapSimilarityModel
 
+import time
 
 def scnd(t):
     return t[1]
+
+
+class ClusterGenerator:
+    def __init__(self, clustering_func, min_cluster_size):
+        self.clustering_func = clustering_func
+        self.min_cluster_size = min_cluster_size
+
+
+def order_clusters_mayority(cluster_dict):
+    for cl_id, members in cluster_dict.items():
+        pass
+
+
+class SummarizationPipeline:
+    def __init__(self, clustering_func, lm, global_tr=True):
+        self.clustering_func = clustering_func
+        self.lm = lm
+
+        self.global_tr = global_tr
+
+    def summerize_documents(self, documents):
+        similarity_model = BinaryCosineSimilarityModel(STOPWORDS)
+        similarity_model.fit([sent.as_token_attr_sequence("form") for doc in documents for sent in doc])
+
+        if os.path.isdir("clusters"):
+            clusters = read_clusters("clusters", documents)
+        else:
+            clusters = self.clustering_func(documents)
+            for idx, (seed, cluster) in enumerate(clusters.values()):
+                save_cluster("clusters/cluster-{}.txt".format(idx), cluster)
+
+        for cluster_id, (seed, members) in list(clusters.items()):
+            #print(cluster_id)
+            #for member in members:
+            #    print(member.as_tokenized_string(), (1.0 / (1.0 - lm.estimate_sent_log_proba(member.as_token_attr_sequence("form")))))
+            if len(members) < 5:
+                del clusters[cluster_id]
+
+        #clusters_l = sorted(clusters.items(), key=lambda c: len(c[1][1]), reverse=True)
+        #seed, members = clusters_l[0][1]
+        #print(seed.as_tokenized_string())
+        #for member in members:
+        #    print(member.as_tokenized_string())
+        #print("--"*10)
+
+        sorted_clusters = []
+
+        for cluster_id, (seed, members) in clusters.items():
+            sorted_clusters.append(cluster_id)
+
+        def cluster_mayority_cmp(cluster_id_1, cluster_id_2):
+            c_1_mayority = 0
+
+            cluster_1 = clusters[cluster_id_1]
+            cluster_2 = clusters[cluster_id_2]
+
+            for sent_1 in cluster_1[1]:
+                for sent_2 in cluster_2[1]:
+                    if sent_1.document == sent_2.document:
+                        if sent_1.idx > sent_2.idx:
+                            c_1_mayority += 1
+                        elif sent_1.idx < sent_2.idx:
+                            c_1_mayority -= 1
+
+            return c_1_mayority
+
+        #sorted_clusters.sort(key=lambda cid: len(clusters[cid]), reverse=True)
+        #sorted_clusters = sorted_clusters[:50]
+
+        sorted_clusters.sort(key=functools.cmp_to_key(cluster_mayority_cmp))
+
+        cluster_indices = dict(map(lambda x: (x[1], x[0]), enumerate(sorted_clusters)))
+
+        per_cluster_candidates = []
+        print("Found {} clusters".format(len(clusters)))
+        print("Generating cluster candidates...")
+        if self.global_tr:
+            tr_scores = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in documents for sent in doc])
+        else:
+            tr_scores = None
+        #print(sorted(tr_scores.items(), key=lambda x: x[1]))
+
+        cluster_idx_id_map = {}
+        for cluster_idx, (cluster_id, (_, cluster_sentences)) in enumerate(clusters.items()):
+            candidates = generate_summary_candidates(
+                list(
+                    map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
+                        cluster_sentences)), self.lm, tr_scores=tr_scores)
+            per_cluster_candidates.append(candidates)
+            cluster_idx_id_map[cluster_idx] = cluster_id
+            print("Found {} candidates for cluster".format(len(candidates)))
+        print("Selecting sentences...")
+
+        flat_sentences = [(sent, score) for sents in per_cluster_candidates for (sent, score) in sents]
+        print("Best sentences overall")
+        print(flat_sentences[0])
+        for sent in sorted(flat_sentences, key=lambda x: x[1], reverse=True)[:10]:
+            print(
+                " ".join(map(lambda t: t[0], sent[0])),
+                "Score:", sent[1],
+                "Gram:", 1.0 / (1.0 - self.lm.estimate_sent_log_proba(list(map(lambda x: x[0], sent[0])))),
+                "Info:", calculate_informativeness(sent[0], tr_scores))
+        print("-----")
+
+        print("Best sentences informativeness")
+        for sent in sorted(flat_sentences, key=lambda s: calculate_informativeness(s[0], tr_scores), reverse=True)[:10]:
+            print(
+                " ".join(map(lambda t: t[0], sent[0])),
+                "Score:", sent[1],
+                "Gram:", 1.0 / (1.0 - self.lm.estimate_sent_log_proba(list(map(lambda x: x[0], sent[0])))),
+                "Info:", calculate_informativeness(sent[0], tr_scores))
+        print("-----")
+
+        #for cluster in per_cluster_candidates:
+        #    for sent, _ in cluster:
+        #        print(" ".join(map(lambda x: x[0], sent)), (1.0 / (1.0 - self.lm.estimate_sent_log_proba(list(map(lambda x: x[0], sent))))))
+        sentences = select_sentences(per_cluster_candidates, similarity_model)
+
+        print("Ordering...")
+
+        sentences = sorted(sentences, key=lambda x: cluster_indices.get(cluster_idx_id_map[x[1]], 0))
+        plaintext_sents = list(map(lambda x: x[0], sentences))
+
+        return "\n".join(plaintext_sents)
+
 
 
 class SentenceCompressionGraph:
@@ -209,6 +335,7 @@ class SentenceCompressionGraph:
         for src, trg, data in self.graph.edges(data=True):
             if src == "START" or trg == "END":
                 data["weight_sl"] = 1.0 / data["frequency"]  # TODO: Check what this should be
+                data["label"] = data["weight_sl"]
                 continue
 
             src_freq = len(self.graph.nodes[src]["mapped_tokens"])
@@ -230,12 +357,14 @@ class SentenceCompressionGraph:
             data["weight_sl"] = w
             data["label"] = str(w)
 
-    def generate_compression_candidates(self, n=200, minlen=8, filterfunc=lambda c: True):
+    def generate_compression_candidates(self, n=50, minlen=8, filterfunc=lambda c: True, timeout=60):
         self.calculate_strong_links_weights()
 
         candidates = []
 
         candidate_set = set()
+
+        start_time = time.time()
 
         for path in nx.shortest_simple_paths(self.graph, "START", "END", weight="weight_sl"):
             if len(path) < minlen + 2:  # Account for START and END
@@ -257,6 +386,9 @@ class SentenceCompressionGraph:
                 candidate_set.add(tuple(tokens))
 
             if len(candidates) >= n:
+                break
+
+            if time.time() - start_time >= timeout:
                 break
 
         return candidates
@@ -569,6 +701,63 @@ def main():
 
     document_basedir = sys.argv[1]
 
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    all_docs = []
+    all_sents = []
+    all_cluster_sents = []
+
+    from nltk.stem.snowball import SnowballStemmer
+
+    stemmer = SnowballStemmer("english")
+
+    for cluster_id in os.listdir(document_basedir):
+        cluster_sentences = []
+
+        cluster_dir = os.path.join(document_basedir, cluster_id)
+        for doc_fname in os.listdir(cluster_dir):
+            if not doc_fname.endswith(".out"):
+                continue
+            reader = StanfordXMLReader()
+            document = reader.run(os.path.join(cluster_dir, doc_fname))
+            all_docs.append(list(map(lambda t: stemmer.stem(t), document.as_token_attr_sequence("form"))))
+
+            cluster_sentences.extend(list(map(lambda s: list(map(stemmer.stem, s)), document.as_sentence_attr_sequence("form"))))
+
+        all_sents.extend(cluster_sentences)
+        all_cluster_sents.append(cluster_sentences)
+
+    vectorizer = TfidfVectorizer("english")
+    vectorizer.fit(map(lambda d: " ".join(d), all_docs))
+    tf_idf = vectorizer.transform(map(lambda d: " ".join(d), all_sents))
+
+    start_idx = 0
+
+    for cluster_sents in all_cluster_sents:
+        if len(cluster_sents) == 0:
+            continue
+        end_idx = start_idx + len(cluster_sents)
+
+        global_sims = cosine_similarity(tf_idf[start_idx:end_idx])
+        print("G", len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(global_sims > 0.5))))))), len(all_docs))
+
+        local_tf_idf = TfidfVectorizer("english").fit_transform(map(lambda d: " ".join(d), cluster_sents))
+        local_sims = cosine_similarity(local_tf_idf)
+        print("L", len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(local_sims > 0.5))))))), len(all_docs))
+
+
+        start_idx = end_idx
+
+
+    sim_model = SklearnTfIdfCosineSimilarityModel()
+    #sim_model.fit(all_docs)
+
+    tf_idf = TfidfVectorizer("english").fit_transform(map(lambda d: " ".join(d), all_docs))
+    sims = cosine_similarity(tf_idf)
+
+    print(len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(sims > 0.5))))))))
+
     for cluster_id in os.listdir(document_basedir):
     #for cluster_id in ["331"]:
         documents = []
@@ -579,7 +768,7 @@ def main():
             reader = StanfordXMLReader()
             document = reader.run(os.path.join(cluster_dir, doc_fname))
             documents.append(document)
-        summarization = summerize_documents(documents, lm)
+        summarization = summerize_documents(documents, lm, sim_model)
 
         with open("{}.sum.txt".format(cluster_id), "w") as f_out:
             f_out.write(summarization)
@@ -600,12 +789,9 @@ def timeline_main():
             best_date_id = date_id
             best_num_dates = num_dates
 
-
-    best_date_id = "2011-03-15"
-
     documents = []
 
-    best_date_path = os.path.join(document_basedir, date_id)
+    best_date_path = os.path.join(document_basedir, best_date_id)
 
     for fname in os.listdir(best_date_path):
         try:
@@ -615,21 +801,49 @@ def timeline_main():
         except:
             pass
 
-    summarization = summerize_documents(documents, lm)
+    print("Summarizing date", best_date_id, "at", best_date_path)
 
+    summerizer = SummarizationPipeline(cluster_without_seed, lm)
+    summarization = summerizer.summerize_documents(documents)
+
+    print("-" * 10)
     print(summarization)
+    print("-" * 10)
 
 
-def summerize_documents(documents, lm):
+def cluster_without_seed(documents):
+    sim_model = BinaryOverlapSimilarityModel(STOPWORDS)
+    clusters = []
+
+    for doc in documents:
+        for sent in doc:
+            for seed, members in clusters:
+                cos_sim = sim_model.compute_similarity(
+                    seed.as_token_attr_sequence("form"),
+                    sent.as_token_attr_sequence("form")
+                )
+
+                if cos_sim > 0.7:
+                    members.append(sent)
+
+            clusters.append((sent, [sent]))
+
+    return dict(enumerate(clusters))
+
+
+def summerize_documents(documents, lm, similarity_model=None):
     #embeddings_similarity_model = EmbeddingsCosingSimilarityModel(read_glove_embeddings("glove.6B.50d.txt"))
     #similarity_model = ModifiedIdfCosineSimilarityModel(STOPWORDS)
     #similarity_model = BinaryCosineSimilarityModel(STOPWORDS)
     #similarity_model.fit([doc.as_token_attr_sequence("form") for doc in documents])
 
-    similarity_model = BinaryOverlapSimilarityModel(STOPWORDS)
-    similarity_model.fit([sent.as_token_attr_sequence("form") for doc in documents for sent in doc])
+    if similarity_model is not None:
+        similarity_model = SklearnTfIdfCosineSimilarityModel()
+        similarity_model.fit([sent.as_token_attr_sequence("form") for doc in documents for sent in doc])
 
     best_doc = documents[rank_documents_docset_sim(documents, similarity_model)]
+
+    tr_scores = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in documents for sent in doc])
 
     #similarity_model = BinaryCosineSimilarityModel(STOPWORDS)
     #similarity_model = BinaryOverlapSimilarityModel(STOPWORDS)
@@ -643,7 +857,7 @@ def summerize_documents(documents, lm):
         for member in members:
             print(member.as_tokenized_string(), (1.0 / (1.0 - lm.estimate_sent_log_proba(member.as_token_attr_sequence("form")))))
         #if len(members) < len(documents) / 2:
-        if len(members) < 2:
+        if len(members) < 5:
             del clusters[cluster_id]
 
     sorted_clusters = []
@@ -676,7 +890,7 @@ def summerize_documents(documents, lm):
     print("Generating cluster candidates...")
     cluster_idx_id_map = {}
     for cluster_idx, (cluster_id, (_, cluster_sentences)) in enumerate(clusters.items()):
-        candidates = generate_summary_candidates(list(map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"), cluster_sentences)), lm)
+        candidates = generate_summary_candidates(list(map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"), cluster_sentences)), lm, tr_scores=tr_scores)
         per_cluster_candidates.append(candidates)
         cluster_idx_id_map[cluster_idx] = cluster_id
         print("Found {} candidates for cluster".format(len(candidates)))
@@ -693,14 +907,21 @@ def summerize_documents(documents, lm):
 
     return "\n".join(plaintext_sents)
 
+def calculate_informativeness(sent, tr_scores):
+    informativeness_score = 0
+    for token in set(sent):
+        informativeness_score += tr_scores.get(token, 0)
 
-def generate_summary_candidates(sentences, lm):
+    return informativeness_score
+
+def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized=True):
     compressor = SentenceCompressionGraph(STOPWORDS)
     print("Building Graph...")
     compressor.add_sentences(sentences)
 
     print("Scoring keywords...")
-    tr_scores = calculate_keyword_text_rank(sentences)
+    if tr_scores is None:
+        tr_scores = calculate_keyword_text_rank(sentences)
 
     #pydot.write_png("out.png")
 
@@ -714,12 +935,14 @@ def generate_summary_candidates(sentences, lm):
         plaintext_sent = list(map(lambda x: x[0], proposed_sent))
         lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(plaintext_sent))
 
-        informativeness_score = 0
-        for token in proposed_sent:
-            print(token, tr_scores.get(token))
-            informativeness_score += tr_scores.get(token, 0)
+        informativeness_score = calculate_informativeness(proposed_sent, tr_scores)
 
-        score = lm_score * informativeness_score / len(proposed_sent)
+        score = informativeness_score * lm_score
+        if length_normalized:
+            score /= len(proposed_sent)
+
+        #score = len(proposed_sent) ** 3
+        #print(" ".join(plaintext_sent), score, lm_score, informativeness_score, len(proposed_sent))
         sents_and_scores.append((proposed_sent, score))
 
     return sents_and_scores
@@ -744,7 +967,6 @@ def generate_summary_candidates_preselection(sentences, lm):
 
     for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_sent_has_verb, n=200):
         plaintext_sent = list(map(lambda x: x[0], proposed_sent))
-        print(plaintext_sent)
         lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(plaintext_sent))
 
         informativeness_score = 0
@@ -753,14 +975,83 @@ def generate_summary_candidates_preselection(sentences, lm):
             informativeness_score += tr_scores.get(token, 0)
 
         score = lm_score * informativeness_score / len(proposed_sent)
+        print(plaintext_sent, score, lm_score, informativeness_score, len(proposed_sent))
         sents_and_scores.append((proposed_sent, score))
 
     sents_and_scores.sort(key=scnd, reverse=True)
 
     return sents_and_scores[:200]
 
-
 def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
+    sentences_with_index = []
+
+    global_sent_idx = 0
+    for cluster_idx, cluster_sents in enumerate(per_cluster_candidates):
+        for sent, score in cluster_sents:
+            sentences_with_index.append((cluster_idx, global_sent_idx, sent, score))
+            global_sent_idx += 1
+
+    p = model('basic')
+    select_switch = p.var('p', global_sent_idx, bool)
+
+    maxlen_constraint = None
+    max_term = None
+
+    cluster_idx_sums = {}
+
+    for cluster_idx, global_sent_idx, sent, score in sentences_with_index:
+        if max_term is None:
+            max_term = select_switch[global_sent_idx] * score
+            maxlen_constraint = select_switch[global_sent_idx] * len(sent)
+        else:
+            max_term += select_switch[global_sent_idx] * score
+            maxlen_constraint += select_switch[global_sent_idx] * len(sent)
+
+        cluster_idx_sum = cluster_idx_sums.get(cluster_idx)
+        if cluster_idx_sum is None:
+            cluster_idx_sum = select_switch[global_sent_idx]
+            cluster_idx_sums[cluster_idx] = cluster_idx_sum
+        else:
+            cluster_idx_sum += select_switch[global_sent_idx]
+
+        for cluster_idx_2, global_sent_idx_2, sent_2, score_2 in sentences_with_index:
+            if global_sent_idx == global_sent_idx_2:
+                continue
+
+            if cluster_idx == cluster_idx_2:
+                select_switch[global_sent_idx] + select_switch[global_sent_idx_2] <= 1
+            else:
+                sent_1_toks = list(map(lambda x: x[0], sent))
+                sent_2_toks = list(map(lambda x: x[0], sent_2))
+                sim = sim_model.compute_similarity(sent_1_toks, sent_2_toks)
+
+                #if sim > 0.5:
+                #    select_switch[global_sent_idx] + select_switch[global_sent_idx_2] <= 1.0
+
+    p.maximize(max_term)
+    maxlen_constraint <= maxlen
+
+    for cluster_term in cluster_idx_sums.values():
+        cluster_term <= 1.0
+
+    p.solve()
+
+    sentences = []
+
+    for global_sent_idx, sent_switch in enumerate(select_switch):
+        if sent_switch.primal > 0.0:
+            cluster_idx, global_sent_idx, sent, score = sentences_with_index[global_sent_idx]
+            sentences.append((" ".join([tok for tok, pos in sent]), cluster_idx))
+
+    p.end()
+
+    return sentences
+
+
+    #sum(score * select_switch[(c_idx, s_idx)] for c_idx, sents in cluster_scores for s_idx, score in sents)
+
+
+def select_sentences_old(per_cluster_candidates, sim_model, maxlen=250):
     sentences_with_index = [
         ((c_idx, s_idx), sent[0]) for c_idx, sents in enumerate(per_cluster_candidates)
         for s_idx, sent in enumerate(sents)
@@ -832,16 +1123,15 @@ def calculate_keyword_text_rank(sentences, window_size=None):
 
     for sent in sentences:
         context = sent
-        for tok in sent:
-            if tok[0] in STOPWORDS or not tok[0].isalnum():
+        for tok, pos in sent:
+            if tok in STOPWORDS or not tok.isalnum():
                 continue
-            graph.add_node(tok)
-            for context_tok in context:
-                if context_tok == tok:
+            graph.add_node((tok, pos))
+            for context_tok, context_pos in context:
+                if context_tok == tok and context_pos == pos:
                     continue
-                if context_tok[0] not in STOPWORDS and tok[0].isalnum():
-                    graph.add_edge(context_tok, tok)
-            #context.append(tok)
+                if context_tok not in STOPWORDS and tok.isalnum():
+                    graph.add_edge((context_tok, context_pos), (tok, pos))
 
     pr = nx.pagerank(graph)
 
@@ -854,32 +1144,36 @@ def test_sentence_compression():
     compressor = SentenceCompressionGraph(stopwords=STOPWORDS)
 
     sentences = [
-        "General Antonia Noriega 's defence gained traction",
-        "General Antonia Noriega 's defence has gained traction",
-        "General Antonia Noriega 's defence is improving",
-        "Gen. Noriega 's attorney said he was not guilty",
-        "' This is not true ' , said the prosecutor",
-        "' In fact it it quite wrong ' , said the state attorney"
+#"The SPD has come to an agreement with the CDU .",
+#"The social democratic party of Germany , the SPD , has come to an agreement with the CDU tonight .",
+#"SPD and center right CDU agree on coalition talks .",
+#"SPD and CDU have come to an agreement on a blueprint for future coalition talks .",
+#"Leaders of SPD and CDU have come to an agreement tonight",
+        "Anna has bought cookies",
+        "Anna Smith has bought chocolat cookies",
+        "The chocolat cookies were bought by Anna",
+        "Anna bought cookies for the party"
     ]
 
     pos_tagged = map(lambda s: nltk.pos_tag(s.split()), sentences)
 
-    compressor.add_sentences(pos_tagged)
-
-    #compressor.add_sentence(nltk.pos_tag("US President George W. Bush visits the Greenfield Memorial .".split()))
-    #compressor.add_sentence(nltk.pos_tag("George W. Bush , who was sworn in last sunday , visits the Greenfield Memorial .".split()))
-    #compressor.add_sentence(nltk.pos_tag("Bush is sworn in this sunday .".split()))
-    #compressor.add_sentence(nltk.pos_tag("Bush visits us .".split()))
-#
-    #compressor.add_sentence(nltk.pos_tag("'' We are happy about this opportunity '' , says Greenfield Mayor Tom Smith".split()))
-#
-    #compressor.add_sentence(nltk.pos_tag("'' I hate this '' , says his son".split()))
+    for idx, sent in enumerate(pos_tagged):
+        compressor.add_sentence(sent)
+        pydot = to_pydot(compressor.graph)
+        pydot.set_rankdir('LR')
+        pydot.write("example-{}.dot".format(idx))
+        pydot.write_png("example-{}.png".format(idx))
 
     candidates = compressor.generate_compression_candidates()
 
     pydot = to_pydot(compressor.graph)
-    pydot.write("out.dot")
-    pydot.write_png("out.png")
+    pydot.set_rankdir('LR')
+    #pydot.set_landscape(True)
+    print(dir(pydot))
+    pydot.write("example.dot")
+    pydot.write_png("example.png")
+
+    print(candidates[0:3])
 
 
 def test_reallife_compression():
@@ -938,7 +1232,7 @@ def test_reallife_compression():
 
     generated_sentence = []
 
-    for cnd in compressor.generate_compression_candidates(n=50):
+    for cnd in compressor.generate_compression_candidates(n=200):
         generated_sentence.append((" ".join(map(lambda x: x[0], cnd)), 
             (1.0 / (1.0 - lm.estimate_sent_log_proba(list(map(lambda x: x[0], cnd)))))))
 
@@ -948,9 +1242,97 @@ def test_reallife_compression():
         print(s[0], s[1])
 
 
+def save_cluster(fname, sentences):
+    with open(fname, "w") as f_out:
+        for sentence in sentences:
+            name = sentence.document.name
+            idx = sentence.idx
+
+            f_out.write("{} {}\n".format(name, idx))
+
+
+def read_cluster_from_premade_files(dirname):
+    clusters = {}
+
+    for cl_idx, filename in enumerate(os.listdir(dirname)):
+        filepath = os.path.join(dirname, filename)
+
+        if not filepath.endswith(".txt"):
+            continue
+
+        clusters[cl_idx] = (None, read_cluster_file(filepath))
+
+    return clusters
+
+
+from reader import Token, Sentence
+
+
+def read_cluster_file(path):
+    sentences = []
+
+    with open(path, encoding="latin-1") as f:
+        for line in f:
+            words = line.split()
+            tokens = []
+
+            for word in words:
+                print(word)
+                form, pos = word.split("/")
+                tokens.append(Token(form=form, pos=pos))
+            sent = Sentence(tokens)
+            sent.idx = 0
+            sentences.append(sent)
+
+    return sentences
+
+
+def iter_files(dirname, suffix):
+    for fname in os.listdir(dirname):
+        if fname.endswith(suffix):
+            yield os.path.join(dirname, fname)
+
+
+def read_clusters(path, documents):
+    document_lookup = dict((doc.name, doc) for doc in documents)
+
+    clusters = dict()
+
+    for fname in iter_files(path, ".txt"):
+        clusters[fname] = (None, read_cluster_file(fname, document_lookup))
+
+    return clusters
+
+
+def read_cluster_file(path, document_lookup):
+    cluster_members = []
+
+    with open(path) as f:
+        for line in f:
+            docname, sent_id = line.strip().rsplit(" ", 1)
+            cluster_members.append(document_lookup[docname].sentences[int(sent_id)])
+
+    return cluster_members
+
+
+
+
+def summ_with_premade_clusters():
+    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+    pipeline = SummarizationPipeline(read_cluster_from_premade_files, lm)
+    summary = pipeline.summerize_documents(sys.argv[1])
+
+    print(summary)
+
+
+
+
 if __name__ == "__main__":
     #test_reallife_compression()
     #test_sentence_compression()
+    
     #main()
 
     timeline_main()
+
+    #summ_with_premade_clusters()

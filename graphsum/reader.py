@@ -45,7 +45,7 @@ class TokenAttrListView(Sequence):
 
 
 class Document:
-    def __init__(self, new_sentences, name = None):
+    def __init__(self, new_sentences, name=None):
         self.name = name
         self.sentences = []
         self._tok_list = None
@@ -79,6 +79,9 @@ class Document:
 
     def as_token_attr_sequence(self, arg):
         return TokenAttrListView(self, arg)
+
+    def as_sentence_attr_sequence(self, arg):
+        return [sent.as_token_attr_sequence(arg) for sent in self.sentences]
 
 
 class Sentence:
@@ -153,7 +156,8 @@ class StanfordXMLReader:
         sents = []
 
         for xml_sent in root.find("document").find("sentences").iter("sentence"):
-            sents.append(self.process_sentence(xml_sent))
+            sent = self.process_sentence(xml_sent)
+            sents.append(sent)
 
         self.process_coref(root.find("document").find("coreference"), sents)
 
