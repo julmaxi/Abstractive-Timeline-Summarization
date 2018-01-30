@@ -20,25 +20,65 @@ import random
 import math
 from networkx.drawing.nx_pydot import to_pydot
 import functools
+from utils import iter_files, scnd, fst
 from langmodel import StoredLanguageModel, KenLMLanguageModel
 from reader import StanfordXMLReader, Sentence, Token
 from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel, BinaryCosineSimilarityModel, BinaryOverlapSimilarityModel
 
 import time
 
-def scnd(t):
-    return t[1]
 
 
 class ClusterGenerator:
-    def __init__(self, clustering_func, min_cluster_size):
+    def __init__(self, clustering_func, min_cluster_size, cache_dir="clusters"):
         self.clustering_func = clustering_func
         self.min_cluster_size = min_cluster_size
+        self.cache_dir = cache_dir
+
+    def cluster_from_documents(self, documents, cache_key=""):
+        func_name = self.clustering_func.__name__
+
+        cache_path = os.path.join(self.cache_dir, func_name + ":" + cache_key)
+
+        if os.path.isdir(cache_path):
+            cluster_dict = read_clusters(cache_path, documents)
+        else:
+            os.makedirs(cache_path)
+            cluster_dict = self.clustering_func(documents)
+            self._save_clusters(cluster_dict, cache_path)
+
+        for cluster_id, members in list(cluster_dict.items()):
+            if len(members) < self.min_cluster_size:
+                del cluster_dict[cluster_id]
+
+        return cluster_dict
+
+    def _save_clusters(self, cluster_dict, cache_path):
+        for cl_id, members in cluster_dict.items():
+            fname = os.path.join(cache_path, "cl-{}.txt".format(cl_id))
+            save_cluster(fname, members)
 
 
 def order_clusters_mayority(cluster_dict):
-    for cl_id, members in cluster_dict.items():
-        pass
+    """
+    Returns list of ids in appropriate order
+    """
+    def cluster_mayority_cmp(cl1, cl2):
+        c_1_mayority = 0
+        id1, members_1 = cl1
+        id2, members_2 = cl1
+
+        for sent_1 in members_1:
+            for sent_2 in members_2:
+                if sent_1.document == sent_2.document:
+                    if sent_1.idx > sent_2.idx:
+                        c_1_mayority += 1
+                    elif sent_1.idx < sent_2.idx:
+                        c_1_mayority -= 1
+
+        return c_1_mayority
+
+    return list(map(fst, sorted(cluster_dict.items(), key=functools.cmp_to_key(cluster_mayority_cmp))))
 
 
 class SummarizationPipeline:
@@ -48,57 +88,17 @@ class SummarizationPipeline:
 
         self.global_tr = global_tr
 
-    def summerize_documents(self, documents):
+    def summarize_documents(self, documents, cache_key=""):
         similarity_model = BinaryCosineSimilarityModel(STOPWORDS)
         similarity_model.fit([sent.as_token_attr_sequence("form") for doc in documents for sent in doc])
 
-        if os.path.isdir("clusters"):
-            clusters = read_clusters("clusters", documents)
-        else:
-            clusters = self.clustering_func(documents)
-            for idx, (seed, cluster) in enumerate(clusters.values()):
-                save_cluster("clusters/cluster-{}.txt".format(idx), cluster)
+        cluster_gen = ClusterGenerator(cluster_without_seed, 5)
+        clusters = cluster_gen.cluster_from_documents(documents, cache_key=cache_key)
 
-        for cluster_id, (seed, members) in list(clusters.items()):
-            #print(cluster_id)
-            #for member in members:
-            #    print(member.as_tokenized_string(), (1.0 / (1.0 - lm.estimate_sent_log_proba(member.as_token_attr_sequence("form")))))
-            if len(members) < 5:
-                del clusters[cluster_id]
+        if len(clusters) == 0:
+            return ""
 
-        #clusters_l = sorted(clusters.items(), key=lambda c: len(c[1][1]), reverse=True)
-        #seed, members = clusters_l[0][1]
-        #print(seed.as_tokenized_string())
-        #for member in members:
-        #    print(member.as_tokenized_string())
-        #print("--"*10)
-
-        sorted_clusters = []
-
-        for cluster_id, (seed, members) in clusters.items():
-            sorted_clusters.append(cluster_id)
-
-        def cluster_mayority_cmp(cluster_id_1, cluster_id_2):
-            c_1_mayority = 0
-
-            cluster_1 = clusters[cluster_id_1]
-            cluster_2 = clusters[cluster_id_2]
-
-            for sent_1 in cluster_1[1]:
-                for sent_2 in cluster_2[1]:
-                    if sent_1.document == sent_2.document:
-                        if sent_1.idx > sent_2.idx:
-                            c_1_mayority += 1
-                        elif sent_1.idx < sent_2.idx:
-                            c_1_mayority -= 1
-
-            return c_1_mayority
-
-        #sorted_clusters.sort(key=lambda cid: len(clusters[cid]), reverse=True)
-        #sorted_clusters = sorted_clusters[:50]
-
-        sorted_clusters.sort(key=functools.cmp_to_key(cluster_mayority_cmp))
-
+        sorted_clusters = order_clusters_mayority(clusters)
         cluster_indices = dict(map(lambda x: (x[1], x[0]), enumerate(sorted_clusters)))
 
         per_cluster_candidates = []
@@ -108,10 +108,9 @@ class SummarizationPipeline:
             tr_scores = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in documents for sent in doc])
         else:
             tr_scores = None
-        #print(sorted(tr_scores.items(), key=lambda x: x[1]))
 
         cluster_idx_id_map = {}
-        for cluster_idx, (cluster_id, (_, cluster_sentences)) in enumerate(clusters.items()):
+        for cluster_idx, (cluster_id, cluster_sentences) in enumerate(clusters.items()):
             candidates = generate_summary_candidates(
                 list(
                     map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
@@ -141,18 +140,71 @@ class SummarizationPipeline:
                 "Info:", calculate_informativeness(sent[0], tr_scores))
         print("-----")
 
-        #for cluster in per_cluster_candidates:
-        #    for sent, _ in cluster:
-        #        print(" ".join(map(lambda x: x[0], sent)), (1.0 / (1.0 - self.lm.estimate_sent_log_proba(list(map(lambda x: x[0], sent))))))
-        sentences = select_sentences(per_cluster_candidates, similarity_model)
+        #sentences = select_sentences(per_cluster_candidates, similarity_model)
+        sentences = select_sentences_submod(
+            per_cluster_candidates,
+            [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in documents for sent in doc]
+        )
 
         print("Ordering...")
-
         sentences = sorted(sentences, key=lambda x: cluster_indices.get(cluster_idx_id_map[x[1]], 0))
         plaintext_sents = list(map(lambda x: x[0], sentences))
 
         return "\n".join(plaintext_sents)
 
+
+from submodular import SubModularOptimizer, RedundancyFactor, CoverageFactor, KnapsackConstraint
+
+
+def select_sentences_submod(per_cluster_candidates, doc_sents, max_tokens=None, max_sents=2):
+    id_sentence_map = {}
+    id_cluster_map = {}
+    id_score_map = {}
+    id_tok_count_map = {}
+
+    sent_idx_counter = 0
+    for cl_idx, members in enumerate(per_cluster_candidates):
+        for sent, score in members:
+            id_sentence_map[sent_idx_counter] = sent
+            id_cluster_map[sent_idx_counter] = cl_idx
+            id_score_map[sent_idx_counter] = score
+            id_tok_count_map[sent_idx_counter] = len(sent)
+
+            sent_idx_counter += 1
+
+    constraints = []
+
+    if max_sents is not None:
+        constraints.append(KnapsackConstraint(max_sents, defaultdict(lambda: 1)))
+
+    if max_tokens is not None:
+        constraints.append(KnapsackConstraint(max_tokens, id_tok_count_map))
+
+    #cluster_redundancy_factor = RedundancyFactor(id_score_map, id_cluster_map)
+
+    kmeans_redundancy_factor = RedundancyFactor.from_sentences(
+        id_score_map,
+        id_sentence_map)
+
+    coverage_factor = CoverageFactor.from_sentences(
+        doc_sents,
+        list(map(scnd, sorted(id_sentence_map.items(), key=fst)))
+    )
+
+    opt = SubModularOptimizer(
+        [
+            kmeans_redundancy_factor,
+            coverage_factor
+        ],
+        constraints)
+
+    sent_ids = opt.run(range(sent_idx_counter))
+
+    selected_sentences = []
+    for sent_id in sent_ids:
+        selected_sentences.append((" ".join([tok for tok, pos in id_sentence_map[sent_id]]), id_cluster_map[sent_id]))
+
+    return selected_sentences
 
 
 class SentenceCompressionGraph:
@@ -768,15 +820,16 @@ def main():
             reader = StanfordXMLReader()
             document = reader.run(os.path.join(cluster_dir, doc_fname))
             documents.append(document)
-        summarization = summerize_documents(documents, lm, sim_model)
+        summarization = summarize_documents(documents, lm, sim_model)
 
         with open("{}.sum.txt".format(cluster_id), "w") as f_out:
             f_out.write(summarization)
 
 
 def timeline_main():
-    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
     document_basedir = sys.argv[1]
+
+    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
 
     best_date_id = None
     best_num_dates = None
@@ -789,26 +842,28 @@ def timeline_main():
             best_date_id = date_id
             best_num_dates = num_dates
 
-    documents = []
-
     best_date_path = os.path.join(document_basedir, best_date_id)
-
-    for fname in os.listdir(best_date_path):
-        try:
-            reader = StanfordXMLReader()
-            document = reader.run(os.path.join(best_date_path, fname))
-            documents.append(document)
-        except:
-            pass
-
-    print("Summarizing date", best_date_id, "at", best_date_path)
-
-    summerizer = SummarizationPipeline(cluster_without_seed, lm)
-    summarization = summerizer.summerize_documents(documents)
+    summarization = summarize_timeline_dir(best_date_path, lm)
 
     print("-" * 10)
     print(summarization)
     print("-" * 10)
+
+
+def summarize_timeline_dir(docdir, lm):
+    documents = []
+    for fname in os.listdir(docdir):
+        try:
+            reader = StanfordXMLReader()
+            document = reader.run(os.path.join(docdir, fname))
+            documents.append(document)
+        except:
+            pass
+
+    summerizer = SummarizationPipeline(cluster_without_seed, lm)
+    summarization = summerizer.summarize_documents(documents, cache_key=os.path.basename(docdir))
+
+    return summarization
 
 
 def cluster_without_seed(documents):
@@ -828,10 +883,10 @@ def cluster_without_seed(documents):
 
             clusters.append((sent, [sent]))
 
-    return dict(enumerate(clusters))
+    return dict(enumerate(map(scnd, clusters)))
 
 
-def summerize_documents(documents, lm, similarity_model=None):
+def summarize_documents(documents, lm, similarity_model=None):
     #embeddings_similarity_model = EmbeddingsCosingSimilarityModel(read_glove_embeddings("glove.6B.50d.txt"))
     #similarity_model = ModifiedIdfCosineSimilarityModel(STOPWORDS)
     #similarity_model = BinaryCosineSimilarityModel(STOPWORDS)
@@ -907,6 +962,7 @@ def summerize_documents(documents, lm, similarity_model=None):
 
     return "\n".join(plaintext_sents)
 
+
 def calculate_informativeness(sent, tr_scores):
     informativeness_score = 0
     for token in set(sent):
@@ -914,7 +970,8 @@ def calculate_informativeness(sent, tr_scores):
 
     return informativeness_score
 
-def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized=True):
+
+def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized=False):
     compressor = SentenceCompressionGraph(STOPWORDS)
     print("Building Graph...")
     compressor.add_sentences(sentences)
@@ -981,6 +1038,7 @@ def generate_summary_candidates_preselection(sentences, lm):
     sents_and_scores.sort(key=scnd, reverse=True)
 
     return sents_and_scores[:200]
+
 
 def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
     sentences_with_index = []
@@ -1287,19 +1345,13 @@ def read_cluster_file(path):
     return sentences
 
 
-def iter_files(dirname, suffix):
-    for fname in os.listdir(dirname):
-        if fname.endswith(suffix):
-            yield os.path.join(dirname, fname)
-
-
 def read_clusters(path, documents):
     document_lookup = dict((doc.name, doc) for doc in documents)
 
     clusters = dict()
 
     for fname in iter_files(path, ".txt"):
-        clusters[fname] = (None, read_cluster_file(fname, document_lookup))
+        clusters[fname] = read_cluster_file(fname, document_lookup)
 
     return clusters
 
@@ -1315,12 +1367,10 @@ def read_cluster_file(path, document_lookup):
     return cluster_members
 
 
-
-
 def summ_with_premade_clusters():
     lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
     pipeline = SummarizationPipeline(read_cluster_from_premade_files, lm)
-    summary = pipeline.summerize_documents(sys.argv[1])
+    summary = pipeline.summarize_documents(sys.argv[1])
 
     print(summary)
 

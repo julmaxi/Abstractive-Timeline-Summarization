@@ -311,7 +311,6 @@ class EmbeddingsCosingSimilarityModel:
         return total_sim / min(len(sent_1), len(sent_2)) # Subsumed sentences should be similar
 
 
-
 def read_glove_embeddings(fname):
     embedding_dict = {}
     with open(fname) as f_in:
