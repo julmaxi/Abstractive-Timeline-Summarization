@@ -7,6 +7,8 @@ from collections import defaultdict, Counter
 import os
 import re
 
+from utils import iter_dirs, iter_files
+
 
 def eval_main():
     def parse_args():
@@ -18,7 +20,7 @@ def eval_main():
 
     args = parse_args()
 
-    gold_summaries = read_gold_summaries(args.gold_dir)
+    gold_summaries = read_duc2004_gold_summaries(args.gold_dir)
 
     def summarizer(doc_id):
         fname = os.path.join(args.system_dir, "{}.sum.txt".format(doc_id))
@@ -56,6 +58,14 @@ def eval_summarizer(cluster_gold_summaries, summarizer, ignore_missing=False):
     print("R2", rouge_score_sums["rouge_2_f_score"] / num_clusters)
 
 
+def read_duc2004_gold_summaries(gold_dir):
+    gold_summaries = defaultdict(dict)
+
+    for dirname in iter_dirs(gold_dir):
+        for filename in iter_files(dirname, ""):
+            if os.path.basename(filename).startswith("APW"):
+                content = read_summary_file(filename)
+                gold_summaries[os.path.basename(dirname)][os.path.basename(filename)] = content
 
 
 def read_gold_summaries(gold_dir):
