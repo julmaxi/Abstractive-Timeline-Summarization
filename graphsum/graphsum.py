@@ -24,6 +24,8 @@ from utils import iter_files, scnd, fst
 from langmodel import StoredLanguageModel, KenLMLanguageModel
 from reader import StanfordXMLReader, Sentence, Token
 from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel, BinaryCosineSimilarityModel, BinaryOverlapSimilarityModel
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 import time
 
@@ -753,9 +755,6 @@ def main():
 
     document_basedir = sys.argv[1]
 
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-
     all_docs = []
     all_sents = []
     all_cluster_sents = []
@@ -985,10 +984,19 @@ def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized
     print("Extracting candidates...")
     sents_and_scores = []
 
+    cluster_vector_model = TfidfVectorizer()
+    cluster_vectors = cluster_vector_model.fit_transform([" ".join(map(lambda x: x[0], sent)) for sent in sentences])
+
     def check_sent_has_verb(sent):
         return any(map(lambda t: t[1] in {"VB", "VBD", "VBP", "VBZ"}, sent))
 
-    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_sent_has_verb):
+    def check_closeness(sent):
+        sent_vec = cluster_vector_model.transform([" ".join(map(lambda x: x[0], sent))])
+        sims = cosine_similarity(sent_vec, cluster_vectors)
+
+        return all(sims[0,:] < 0.8)
+
+    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_closeness):
         plaintext_sent = list(map(lambda x: x[0], proposed_sent))
         lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(plaintext_sent))
 
@@ -1040,7 +1048,7 @@ def generate_summary_candidates_preselection(sentences, lm):
     return sents_and_scores[:200]
 
 
-def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
+def select_sentences(per_cluster_candidates, sim_model, maxlen=625):
     sentences_with_index = []
 
     global_sent_idx = 0
@@ -1056,14 +1064,24 @@ def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
     max_term = None
 
     cluster_idx_sums = {}
+    cluster_idx_single_member_constraints = {}
 
     for cluster_idx, global_sent_idx, sent, score in sentences_with_index:
+        single_member_constr = cluster_idx_single_member_constraints.get(cluster_idx)
+
+        if single_member_constr is None:
+            single_member_constr = select_switch[global_sent_idx]
+        else:
+            single_member_constr += select_switch[global_sent_idx]
+
+        cluster_idx_single_member_constraints[cluster_idx] = single_member_constr
+
         if max_term is None:
             max_term = select_switch[global_sent_idx] * score
-            maxlen_constraint = select_switch[global_sent_idx] * len(sent)
+            maxlen_constraint = select_switch[global_sent_idx] * len(" ".join(map(fst, sent)))
         else:
             max_term += select_switch[global_sent_idx] * score
-            maxlen_constraint += select_switch[global_sent_idx] * len(sent)
+            maxlen_constraint += select_switch[global_sent_idx] * len(" ".join(map(fst, sent)))
 
         cluster_idx_sum = cluster_idx_sums.get(cluster_idx)
         if cluster_idx_sum is None:
@@ -1076,9 +1094,7 @@ def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
             if global_sent_idx == global_sent_idx_2:
                 continue
 
-            if cluster_idx == cluster_idx_2:
-                select_switch[global_sent_idx] + select_switch[global_sent_idx_2] <= 1
-            else:
+            if cluster_idx != cluster_idx_2:
                 sent_1_toks = list(map(lambda x: x[0], sent))
                 sent_2_toks = list(map(lambda x: x[0], sent_2))
                 sim = sim_model.compute_similarity(sent_1_toks, sent_2_toks)
@@ -1091,6 +1107,9 @@ def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
 
     for cluster_term in cluster_idx_sums.values():
         cluster_term <= 1.0
+
+    for member_constr in cluster_idx_single_member_constraints.values():
+        member_constr <= 1.0
 
     p.solve()
 
@@ -1318,7 +1337,7 @@ def read_cluster_from_premade_files(dirname):
         if not filepath.endswith(".txt"):
             continue
 
-        clusters[cl_idx] = (None, read_cluster_file(filepath))
+        clusters[cl_idx] = read_cluster_file_banerjee(filepath)
 
     return clusters
 
@@ -1326,7 +1345,7 @@ def read_cluster_from_premade_files(dirname):
 from reader import Token, Sentence
 
 
-def read_cluster_file(path):
+def read_cluster_file_banerjee(path):
     sentences = []
 
     with open(path, encoding="latin-1") as f:
@@ -1335,7 +1354,6 @@ def read_cluster_file(path):
             tokens = []
 
             for word in words:
-                print(word)
                 form, pos = word.split("/")
                 tokens.append(Token(form=form, pos=pos))
             sent = Sentence(tokens)
@@ -1369,8 +1387,55 @@ def read_cluster_file(path, document_lookup):
 
 def summ_with_premade_clusters():
     lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
-    pipeline = SummarizationPipeline(read_cluster_from_premade_files, lm)
-    summary = pipeline.summarize_documents(sys.argv[1])
+    #pipeline = SummarizationPipeline(read_cluster_from_premade_files, lm)
+    #summary = pipeline.summarize_documents(sys.argv[1])
+
+    clusters = read_cluster_from_premade_files(sys.argv[1])
+    outfile = sys.argv[2]
+
+    global_sim_model = SklearnTfIdfCosineSimilarityModel(stem=False)
+    global_sim_model.fit([sent.as_token_attr_sequence("form") for cl in clusters.values() for sent in cl])
+
+    candidates = []
+
+    for cluster in clusters.values():
+        cl_candidates = []
+
+        tr_scores = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form", "pos") for sent in cluster])
+
+        sim_model = TfidfVectorizer()
+        orig_vecs = sim_model.fit_transform([" ".join(sent.as_token_attr_sequence("form")) for sent in cluster])
+
+        def check_closeness(sent):
+            vec_1 = sim_model.transform(map(lambda x: x[0], sent))
+            similarities = cosine_similarity(vec_1, orig_vecs)
+
+            return all(similarities[0,:] < 0.8)
+
+        word_graph = SentenceCompressionGraph(STOPWORDS)
+        word_graph.add_sentences(sent.as_token_tuple_sequence("form", "pos") for sent in cluster)
+
+        for sent in word_graph.generate_compression_candidates(n=200, filterfunc=check_closeness):
+            print(" ".join(map(lambda x: x[0], sent)))
+            lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(list(map(lambda x: x[0], sent))))
+            informativeness_score = calculate_informativeness(sent, tr_scores)
+            score = informativeness_score * lm_score / len(sent)
+
+            cl_candidates.append((sent, score))
+
+        candidates.append(cl_candidates)
+
+    #summary = select_sentences_submod(
+    #    candidates,
+    #    [sent.as_token_tuple_sequence("form", "pos") for sent in cluster for cluster in clusters]
+    #)
+
+    summary = select_sentences(candidates, global_sim_model)
+
+    with open(outfile, "w") as f_out:
+        for sent in summary:
+            f_out.write(sent[0])
+            f_out.write("\n")
 
     print(summary)
 
@@ -1383,6 +1448,6 @@ if __name__ == "__main__":
     
     #main()
 
-    timeline_main()
+    #timeline_main()
 
-    #summ_with_premade_clusters()
+    summ_with_premade_clusters()

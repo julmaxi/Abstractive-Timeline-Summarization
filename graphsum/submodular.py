@@ -16,7 +16,7 @@ class RedundancyFactor:
         tf_idf = model.fit_transform(map(lambda sid: " ".join(
             map(lambda t: t[0], id_sentence_map[sid])), sorted_sent_ids))
 
-        clustering = KMeans(n_clusters=len(id_sentence_map) // 10).fit_predict(tf_idf)
+        clustering = KMeans(n_clusters=max(len(id_sentence_map) // 100, 2)).fit_predict(tf_idf)
 
         sent_partitions = {}
 
@@ -25,14 +25,25 @@ class RedundancyFactor:
 
         return RedundancyFactor(rewards, sent_partitions)
 
-    def __init__(self, rewards, sent_partitions):
+    def __init__(self, rewards, sent_partitions, normalize=True):
         self.rewards = rewards
         self.sent_partitions = sent_partitions
 
         self.all_partitions = set(sent_partitions.values())
 
+        if normalize:
+            self._normalize_rewards()
+
         self.reward_sums = dict((partition_id, 0) for partition_id in sent_partitions)
         self.reward_sqrts = dict((partition_id, 0) for partition_id in sent_partitions)
+
+    def _normalize_rewards(self):
+        max_reward = 0
+        for reward in self.rewards.values():
+            max_reward = max(reward, max_reward)
+
+        for sid, reward in list(self.rewards.items()):
+            self.rewards[sid] = reward / max_reward
 
     def update_scores(self, new_sentence):
         new_sent_partition_id = self.sent_partitions[new_sentence]
@@ -50,6 +61,8 @@ class RedundancyFactor:
 class CoverageFactor:
     @classmethod
     def from_sentences(cls, doc_sents, summary_sents):
+        print(list(map(lambda s: " ".join(
+            map(lambda t: t[0], s)), doc_sents)))
         model = TfidfVectorizer(stop_words="english")
         doc_tf_idf = model.fit_transform(map(lambda s: " ".join(
             map(lambda t: t[0], s)), doc_sents))
@@ -59,7 +72,7 @@ class CoverageFactor:
 
         return CoverageFactor(cosine)
 
-    def __init__(self, similarity_matrix):
+    def __init__(self, similarity_matrix, normalize=True):
         self.similarity_matrix = similarity_matrix
 
         self.overlaps = {}
@@ -67,7 +80,20 @@ class CoverageFactor:
         for sent_id, sent_row in enumerate(self.similarity_matrix):
             self.overlaps[sent_id] = sum(sent_row) / self.similarity_matrix.shape[1]
 
+        if normalize:
+            self._normalize_scores()
+
         self.current_overlap_score = 0.0
+
+    def _normalize_scores(self):
+        max_overlap = 0
+
+        for overlap in self.overlaps.values():
+            max_overlap = max(max_overlap, overlap)
+
+        for did, overlap in list(self.overlaps.items()):
+            self.overlaps[did] = overlap / max_overlap
+
 
     def update_scores(self, new_sentence):
         self.current_overlap_score += self.overlaps[new_sentence]

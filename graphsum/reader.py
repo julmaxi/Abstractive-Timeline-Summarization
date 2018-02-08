@@ -5,7 +5,7 @@ import itertools as it
 
 from xml.etree import ElementTree as ET
 from subprocess import Popen
-
+import datetime
 
 from collections.abc import Sequence
 
@@ -121,7 +121,8 @@ class Token:
                  pos=None,
                  coarse_pos=None,
                  idx=None,
-                 coref_chain=None):
+                 coref_chain=None,
+                 timex=None):
         self.form = form
         self.lemma = lemma
         self.pos = pos
@@ -129,6 +130,7 @@ class Token:
         self.idx = idx
         self.sentence = None
         self.coref_chain = coref_chain
+        self.timex = timex
 
     def __repr__(self):
         return "Token(idx = {!r}, {!r}, sentence_idx = {!r})".format(
@@ -283,19 +285,245 @@ class DUC2005Reader:
                 paragraphs = [text]
         return os.path.basename(doc_path), "\n".join([p.text for p in paragraphs])
 
+from xml.etree import ElementTree as ET
+from collections import namedtuple
+
+TimeEX = namedtuple("TimeEX", "tid type_ value tokens")
+
+
+class TimeMLReader:
+    def __init__(self, preserve_linebreaks=False):
+        self.preserve_linebreaks = preserve_linebreaks
+
+    def run(self, fname):
+        etree = ET.parse(fname)
+        root = etree.getroot()
+        if not self.preserve_linebreaks:
+            tokens = [(tok, None) for tok in root.text.split()]
+        else:
+            tokens = []
+            lines = root.text.split("\n")
+            for line in lines:
+                tokens.extend([(tok, None) for tok in line.split(" ")])
+                tokens.append(("\n", None))
+
+        for elem in root:
+            time_ex = TimeEX(
+                elem.attrib["tid"],
+                elem.attrib["type"],
+                elem.attrib["value"],
+                elem.text.split()
+            )
+            for tok in elem.text.split():
+                tokens.append((tok, time_ex))
+            if not self.preserve_linebreaks:
+                for tok in elem.tail.split():
+                    tokens.append((tok, None))
+            else:
+                lines = elem.tail.split("\n")
+                for line in lines:
+                    tokens.extend([(tok, None) for tok in line.split(" ")])
+                    tokens.append(("\n", None))
+
+        return tokens
+
+
+class DatedSentenceReader:
+    def __init__(self):
+        self.stanford_reader = StanfordXMLReader()
+        self.time_ml_reader = TimeMLReader()
+
+    def read(self, stanford_path, timeml_path, dct):
+        doc = self.stanford_reader.run(stanford_path)
+
+        timeml_tokens = self.time_ml_reader.run(timeml_path)
+
+        doc_tok_iter = (tok for sent in doc for tok in sent)
+
+        for sent in doc.sentences:
+            sent.time_expressions = []
+
+        doc_tok_iter = (tok for sent in doc for tok in sent)
+
+        for timetok, doc_tok in zip(timeml_tokens, doc_tok_iter):
+            (time_tok, timex) = timetok
+            normalized_form = time_tok.replace("&", "&amp;")
+            assert normalized_form == doc_tok.form, "{} != {}".format(normalized_form, doc_tok.form)
+
+            if timex is not None:
+                doc_tok.timex = timex
+
+                if len(doc_tok.sentence.time_expressions) == 0 or doc_tok.sentence.time_expressions[-1] != timex:
+                    doc_tok.sentence.time_expressions.append(timex)
+
+        for sent in doc.sentences:
+            available_timeexs = filter(lambda tx: tx.type_ == "DATE", sent.time_expressions)
+
+            possible_dates = []
+            for timeex in available_timeexs:
+                try:
+                    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d")
+                    possible_dates.append(date)
+                except ValueError:
+                    pass
+
+            if len(possible_dates) > 0:
+                # TODO: Find better heuristic
+                #print(sent.time_expressions[0])
+                sent.predicted_date = possible_dates[0]
+            else:
+                sent.predicted_date = dct
+
+
+        #from collections import deque
+#
+        #context = deque([], 10)
+#
+        #while True:
+        #    try:
+        #        next_doc_tok = next(doc_tok_iter)
+        #        next_time_ml_tok = next(timeml_iter)
+        #    except StopIteration:
+        #        break
+#
+        #    context.append(next_doc_tok.form)
+#
+#
+        #    if isinstance(next_time_ml_tok, TimeEX):
+        #        tid, type_, value, tokens = next_time_ml_tok
+#
+        #        for tok in tokens[1:]:
+        #            try:
+        #                next_doc_tok = next(tok)
+#
+        #                context.append(next_doc_tok.form)
+#
+        #                print(next_doc_tok.form, tok)
+        #                if next_doc_tok.form != tok:
+        #                    raise RuntimeError("Parse Error: {} != {}".format(
+        #                        next_doc_tok.form,
+        #                        tok
+        #                    ))
+#
+        #            except StopIteration:
+        #                break
+        #    elif next_doc_tok.form != next_time_ml_tok:
+        #        if next_doc_tok.form == "-LRB-" and next_time_ml_tok == "(" \
+        #            or next_doc_tok.form == "-RRB-" and next_time_ml_tok == ")":
+        #            continue
+#
+        #        if next_doc_tok.form.startswith(next_time_ml_tok):
+        #            accumulated_time_ml = next_time_ml_tok
+#
+#
+        #        raise RuntimeError("Parse Error: {} != {}. Context: {}".format(
+        #            next_doc_tok.form,
+        #            next_time_ml_tok,
+        #            " ".join(context)
+        #        ))
+
+        return doc
+
+
+class DependencyTree:
+    def __init__(self):
+        self.nodes = []
+        self.roots = []
+
+    def append_token(self, token, parent=None, edge_type=None, **args):
+        node = DependencyTreeNode(token, self, len(self.nodes), **args)
+        self.nodes.append(node)
+        if parent:
+            parent.add_child(node, edge_type)
+        else:
+            self.roots.append(node)
+
+        return node
+
+    def __str__(self):
+        return "\n".join(map(lambda n: str(n), self.roots))
+
+    def node_for_token(self, token):
+        for node in self.nodes:
+            if node.token == token:
+                return node
+        else:
+            return None
+
+
+class DependencyTreeNode:
+    def __init__(self, token, tree, idx):
+        self.token = token
+        self.children = []
+        self.tree = tree
+        self.parent = None
+        self.incoming_edge_type = None
+        self.idx = idx
+
+    def add_child(self, child, edge_type):
+        if child.parent is None:
+            self.tree.roots.remove(child)
+        else:
+            child.parent.remove_child(child)
+        self.children.append((child, edge_type))
+        child.parent = self
+        child.incoming_edge_type = edge_type
+
+    def line_repr(self, indent=0):
+        if indent == 0:
+            indent_str = ""
+        elif indent == 1:
+            indent_str = "+----"
+        else:
+            indent_str = "     " * (indent - 1) + "+----"
+        own_line = indent_str + "({}) {}".format(
+            self.incoming_edge_type, self.token)
+        lines = [(self.idx, own_line)]
+        for child, _ in self.children:
+            lines += child.line_repr(indent + 1)
+
+        return lines
+
+    def __str__(self, indent=0):
+        return "\n".join(map(lambda t: t[1], sorted(self.line_repr())))
+
 
 if __name__ == "__main__":#java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.StanfordCoreNLP -annotators tokenize,ssplit,pos,lemma -file input.txt
-    reader = DUC2005Reader(sys.argv[1])
-    target_dir = sys.argv[2]
+    from utils import iter_dirs, iter_files, fst
+    reader = TimeMLReader(True)
+    outdir = sys.argv[2]
+    for crisis_dir in iter_dirs(sys.argv[1]):
+        crisis_outdir = os.path.join(outdir, os.path.basename(crisis_dir))
+        os.mkdir(crisis_outdir)
 
-    os.mkdir(target_dir)
+        doc_dir = os.path.join(crisis_dir, "articles")
+        for date_dir in iter_dirs(doc_dir):
+            date_out_dir = os.path.join(crisis_outdir, os.path.basename(date_dir))
+            os.mkdir(date_out_dir)
+            for fname in iter_files(date_dir, "timeml"):
+                basename = os.path.basename(fname)[:-7]
+                toks = reader.run(fname)
 
-    for cluster_id, docs in reader.read_all_document_clusters():
-        cluster_dir = os.path.join(target_dir, cluster_id)
-        os.mkdir(cluster_dir)
-        for doc_name, doc in docs:
-            with open(os.path.join(cluster_dir, doc_name), "w") as f_out:
-                f_out.write(doc)
-            doc_full_path = os.path.join(cluster_dir, doc_name)
-            proc = Popen(["java", "-cp", '/Users/juliussteen/Documents/Studium/master/libs/stanford-corenlp-full-2015-12-09/*', "-Xmx2g", "edu.stanford.nlp.pipeline.StanfordCoreNLP", "-annotators", "tokenize,ssplit,pos,lemma", "-file", doc_full_path, "-outputDirectory", cluster_dir], cwd=os.curdir)
-            proc.wait()
+                with open(date_out_dir + "/" + basename, "w") as f_out:
+                    f_out.write(" ".join(map(fst, toks)))
+
+
+
+    #print(DatedSentenceReader().read(sys.argv[1], sys.argv[2]))
+#
+    #sys.exit()
+#
+    #reader = DUC2005Reader(sys.argv[1])
+    #target_dir = sys.argv[2]
+#
+    #os.mkdir(target_dir)
+#
+    #for cluster_id, docs in reader.read_all_document_clusters():
+    #    cluster_dir = os.path.join(target_dir, cluster_id)
+    #    os.mkdir(cluster_dir)
+    #    for doc_name, doc in docs:
+    #        with open(os.path.join(cluster_dir, doc_name), "w") as f_out:
+    #            f_out.write(doc)
+    #        doc_full_path = os.path.join(cluster_dir, doc_name)
+    #        proc = Popen(["java", "-cp", '/Users/juliussteen/Documents/Studium/master/libs/stanford-corenlp-full-2015-12-09/*', "-Xmx2g", "edu.stanford.nlp.pipeline.StanfordCoreNLP", "-annotators", "tokenize,ssplit,pos,lemma", "-file", doc_full_path, "-outputDirectory", cluster_dir], cwd=os.curdir)
+    #        proc.wait()
