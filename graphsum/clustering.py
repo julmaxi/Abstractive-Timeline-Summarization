@@ -48,7 +48,8 @@ def generate_affinity_matrix_from_dated_sentences(sents, similarity_measure):
         for other_s_idx, other_sent in connected_sents:
             sim = similarity_measure(sent.as_token_attr_sequence("form"), other_sent.as_token_attr_sequence("form"))
 
-            similarities[s_idx, other_s_idx] = sim
+            if sim > 0:
+                similarities[s_idx, other_s_idx] = sim
 
     return similarities
 

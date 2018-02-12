@@ -352,9 +352,9 @@ class DatedSentenceReader:
         for timetok, doc_tok in zip(timeml_tokens, doc_tok_iter):
             (time_tok, timex) = timetok
             normalized_form = time_tok.replace("&", "&amp;")
-            if normalized_form == doc_tok.form:
-                print("WARNING, unmatched text")
-            #assert normalized_form == doc_tok.form, "{} != {}".format(normalized_form, doc_tok.form)
+            #if normalized_form != doc_tok.form:
+            #    print("WARNING, unmatched text")
+            assert time_tok == doc_tok.form, "{} != {}".format(time_tok, doc_tok.form)
 
             if timex is not None:
                 doc_tok.timex = timex
@@ -404,6 +404,7 @@ class DatedSentenceReader:
                     continue
 
             sent.all_date_tags = all_date_tags
+            sent.exact_date_references = possible_exact_dates
 
             if len(possible_exact_dates) > 0:
                 # TODO: Find better heuristic

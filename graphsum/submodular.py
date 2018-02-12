@@ -121,6 +121,28 @@ class KnapsackConstraint:
         self.current_size += self.sent_sizes[new_sent]
 
 
+class SubsetKnapsackConstraint:
+    def __init__(self, knapsack_size, sent_sizes, relevant_sents):
+        self.knapsack_size = knapsack_size
+        self.sent_sizes = sent_sizes
+        self.current_size = 0
+        self.relevant_sents = set(relevant_sents)
+
+    def check(self, sent):
+        if sent not in self.relevant_sents:
+            return True
+        new_size = self.current_size + self.sent_sizes[sent]
+
+        if new_size > self.knapsack_size:
+            return False
+        else:
+            return True
+
+    def update(self, new_sent):
+        if new_sent in self.relevant_sents:
+            self.current_size += self.sent_sizes[new_sent]
+
+
 class SubModularOptimizer:
     def __init__(self, factors, constraints, selection_callback=None):
         self.factors = factors

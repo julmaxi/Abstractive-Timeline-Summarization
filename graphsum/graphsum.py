@@ -37,7 +37,9 @@ class ClusterGenerator:
         self.min_cluster_size = min_cluster_size
         self.cache_dir = cache_dir
 
-    def cluster_from_documents(self, documents, cache_key=""):
+    def cluster_from_documents(self, documents, cache_key="", clustering_input=None):
+        if clustering_input is None:
+            clustering_input = documents
         func_name = self.clustering_func.__name__
 
         cache_path = os.path.join(self.cache_dir, func_name + ":" + cache_key)
@@ -46,7 +48,7 @@ class ClusterGenerator:
             cluster_dict = read_clusters(cache_path, documents)
         else:
             os.makedirs(cache_path)
-            cluster_dict = self.clustering_func(documents)
+            cluster_dict = self.clustering_func(clustering_input)
             self._save_clusters(cluster_dict, cache_path)
 
         for cluster_id, members in list(cluster_dict.items()):
@@ -156,6 +158,7 @@ class SummarizationPipeline:
 
 
 from submodular import SubModularOptimizer, RedundancyFactor, CoverageFactor, KnapsackConstraint
+
 
 
 def select_sentences_submod(per_cluster_candidates, doc_sents, max_tokens=None, max_sents=2):

@@ -60,8 +60,8 @@ def determine_parameters(gold_dir):
 
 
 def run_full_tl_summ(timeline_func):
-    params = determine_parameters(sys.argv[2])
-    tl = timeline_func(sys.argv[1], params)
+    params = determine_parameters(sys.argv[3])
+    tl = timeline_func(sys.argv[1], sys.argv[2], params)
     with open("timeline.txt", "w") as f_out:
         f_out.write(str(tl))
 
@@ -105,62 +105,178 @@ def date_from_dirname(dirname):
 
     return datetime.date(int(year), int(month), int(day))
 
+from submodular import RedundancyFactor, CoverageFactor, KnapsackConstraint, SubsetKnapsackConstraint, SubModularOptimizer
 
-def create_timeline_sentence_level(document_dir, parameters):
+def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, max_sents_per_date=2):
+    id_sentence_map = {}
+    id_cluster_map = {}
+    date_id_map = defaultdict(list)
+    id_date_map = {}
+    id_score_map = {}
+    id_tok_count_map = {}
+    sent_id_date_map = {}
+
+    sent_idx_counter = 0
+    cluster_idx_counter = 0
+
+    for date_idx, (date, clusters) in enumerate(per_date_cluster_candidates):
+        for members in clusters:
+            for sent, score in members:
+                id_sentence_map[sent_idx_counter] = sent
+                id_cluster_map[sent_idx_counter] = cluster_idx_counter
+                date_id_map[date_idx].append(sent_idx_counter)
+                id_date_map[sent_idx_counter] = date_idx
+                id_score_map[sent_idx_counter] = score
+                id_tok_count_map[sent_idx_counter] = len(sent)
+                sent_id_date_map[sent_idx_counter] = date
+
+                sent_idx_counter += 1
+
+            cluster_idx_counter += 1
+
+    constraints = []
+
+    for date_id, member_ids in date_id_map.items():
+        constraints.append(SubsetKnapsackConstraint(max_sents_per_date, defaultdict(lambda: 1), member_ids))
+
+    #cluster_redundancy_factor = RedundancyFactor(id_score_map, id_cluster_map)
+
+    kmeans_redundancy_factor = RedundancyFactor.from_sentences(
+        id_score_map,
+        id_sentence_map)
+
+    coverage_factor = CoverageFactor.from_sentences(
+        doc_sents,
+        list(map(scnd, sorted(id_sentence_map.items(), key=fst)))
+    )
+
+    opt = SubModularOptimizer(
+        [
+            kmeans_redundancy_factor,
+            coverage_factor
+        ],
+        constraints)
+
+    sent_ids = opt.run(range(sent_idx_counter))
+
+    selected_tl_sentences = defaultdict(list)
+    for sent_id in sent_ids:
+        date = sent_id_date_map[sent_id]
+        sent = " ".join([tok for tok, pos in id_sentence_map[sent_id]])
+        selected_tl_sentences[date].append(sent)
+
+    return selected_tl_sentences
+
+
+
+from graphsum import ClusterGenerator, STOPWORDS, generate_summary_candidates
+from similarity import BinaryOverlapSimilarityModel
+
+
+def cluster_without_seed_sent_level(sentences):
+    sim_model = BinaryOverlapSimilarityModel(STOPWORDS)
+    clusters = []
+
+    for sent in sentences:
+        for seed, members in clusters:
+            cos_sim = sim_model.compute_similarity(
+                seed.as_token_attr_sequence("form"),
+                sent.as_token_attr_sequence("form")
+            )
+
+            if cos_sim > 0.7:
+                members.append(sent)
+
+        clusters.append((sent, [sent]))
+
+    return dict(enumerate(map(scnd, clusters)))
+
+
+def create_timeline_sentence_level(document_dir, timeml_dir, parameters):
     reader = DatedSentenceReader()
 
     sents_by_date = defaultdict(list)
+
+    date_ref_counts = Counter()
+    documents = []
 
     for date_dir in iter_dirs(document_dir):
         print("Reading", date_dir)
         dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d")
 
-        for timeml_fname in iter_files(date_dir, "timeml"):
-            basename = timeml_fname[:-7]
-            sentences = reader.read(basename, timeml_fname, dir_date)
+        for doc_fname in iter_files(date_dir, ".tokenized"):
+            timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
+            sentences = reader.read(doc_fname, timeml_fname, dir_date)
+            documents.append(sentences)
 
             for sent in sentences:
                 sents_by_date[sent.predicted_date].append(sent)
 
-    print(len(sents_by_date))
-    print(sum(map(lambda s: len(s), sents_by_date.values())))
-
-    #dates = select_best_date_by_doc_freq(parameters.max_date_count)
-
-
-
-    #date_summary_dict = {}
+                for date in sent.exact_date_references:
+                    date_ref_counts[date] += 1
 
     lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+
+    best_dates = list(map(lambda t: t[0], date_ref_counts.most_common(parameters.max_date_count)))
+
+    cluster_gen = ClusterGenerator(cluster_without_seed_sent_level, 5)
+
+    per_date_candidates = []
+
+    for date in best_dates:
+        date_candidates = []
+        sents = sents_by_date[date]
+        clusters = cluster_gen.cluster_from_documents(documents, cache_key=date.strftime("%Y-%m-%d"), clustering_input=sents)
+        if len(clusters) == 0:
+            continue
+
+        for cluster_sents in clusters.values():
+            candidates = generate_summary_candidates(
+                    list(
+                        map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
+                            cluster_sents)), lm)
+            date_candidates.append(candidates)
+
+        per_date_candidates.append((date, date_candidates))
+
+    date_summary_dict = select_tl_sentences_submod(
+        per_date_candidates,
+        [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in documents for sent in doc]
+    )
+
+    return timelines.Timeline(date_summary_dict)
 
 
 from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file
 from similarity import SklearnTfIdfCosineSimilarityModel
 
-def create_timeline_clustering(document_dir, parameters):
+
+def create_timeline_clustering(document_dir, timeml_dir, parameters):
     reader = DatedSentenceReader()
 
     all_sents = []
     all_doc_texts = []
 
-    for date_dir in iter_dirs(document_dir):
+    for date_dir in sorted(iter_dirs(document_dir)):
         dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d")
 
-        for timeml_fname in iter_files(date_dir, "timeml"):
-            basename = timeml_fname[:-7]
-            doc = reader.read(basename, timeml_fname, dir_date)
+        for doc_fname in iter_files(date_dir, ".tokenized"):
+            timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
+            doc = reader.read(doc_fname, timeml_fname, dir_date)
 
             all_doc_texts.append(doc.as_token_attr_sequence("form"))
 
             for sent in doc.sentences:
                 all_sents.append(sent)
 
+        break
 
     sim_model = SklearnTfIdfCosineSimilarityModel(stem=False)
     sim_model.fit(all_doc_texts)
 
     affinities = generate_affinity_matrix_from_dated_sentences(all_sents, sim_model)
     write_similarity_file("similarities.txt", affinities)
+
 
 if __name__ == "__main__":
     run_full_tl_summ(create_timeline_clustering)
