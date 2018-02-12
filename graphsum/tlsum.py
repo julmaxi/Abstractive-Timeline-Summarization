@@ -269,8 +269,6 @@ def create_timeline_clustering(document_dir, timeml_dir, parameters):
             for sent in doc.sentences:
                 all_sents.append(sent)
 
-        break
-
     sim_model = SklearnTfIdfCosineSimilarityModel(stem=False)
     sim_model.fit(all_doc_texts)
 
