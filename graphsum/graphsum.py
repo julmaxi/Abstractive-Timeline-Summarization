@@ -1048,7 +1048,7 @@ def generate_summary_candidates_preselection(sentences, lm):
     return sents_and_scores[:200]
 
 
-def select_sentences(per_cluster_candidates, sim_model, maxlen=625):
+def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
     sentences_with_index = []
 
     global_sent_idx = 0
@@ -1078,10 +1078,10 @@ def select_sentences(per_cluster_candidates, sim_model, maxlen=625):
 
         if max_term is None:
             max_term = select_switch[global_sent_idx] * score
-            maxlen_constraint = select_switch[global_sent_idx] * len(" ".join(map(fst, sent)))
+            maxlen_constraint = select_switch[global_sent_idx] * len(sent)
         else:
             max_term += select_switch[global_sent_idx] * score
-            maxlen_constraint += select_switch[global_sent_idx] * len(" ".join(map(fst, sent)))
+            maxlen_constraint += select_switch[global_sent_idx] * len(sent)
 
         cluster_idx_sum = cluster_idx_sums.get(cluster_idx)
         if cluster_idx_sum is None:
@@ -1438,7 +1438,6 @@ def summ_with_premade_clusters():
             f_out.write("\n")
 
     print(summary)
-
 
 
 

@@ -133,13 +133,19 @@ class BinaryOverlapSimilarityModel:
 
 
 class SklearnTfIdfCosineSimilarityModel:
-    def __init__(self, stem=True):
+    def __init__(self, stem=True, should_cache=False):
         self.stem = stem
+
+        self.should_cache = should_cache
+        self.vec_cache = {}
 
     def fit(self, documents):
         self.model = TfidfVectorizer(stop_words="english")
 
         self.model.fit(map(lambda d: " ".join(map(stemmer.stem, d)), documents))
+
+    def __call__(self, sent_1, sent_2):        
+        return self.compute_similarity(sent_1, sent_2)
 
     def compute_similarity(self, sent_1, sent_2):
         if self.stem:
@@ -149,9 +155,21 @@ class SklearnTfIdfCosineSimilarityModel:
             sent_1 = " ".join(sent_1)
             sent_2 = " ".join(sent_2)
 
-        vecs = self.model.transform((sent_1, sent_2)).toarray()
+        if self.should_cache:
+            vec_1 = self.vec_cache.get(sent_1)
+            vec_2 = self.vec_cache.get(sent_2)
 
-        return np.dot(vecs[0], vecs[1])  # Vectors are normalized
+            if vec_1 is None:
+                vec_1 = self.model.transform([sent_1]).toarray()[0]
+                self.vec_cache[sent_1] = vec_1
+
+            if vec_2 is None:
+                vec_2 = self.model.transform([sent_2]).toarray()[0]
+                self.vec_cache[sent_2] = vec_2
+        else:
+            vec_1, vec_2 = self.model.transform((sent_1, sent_2)).toarray()
+
+        return np.dot(vec_1, vec_2)  # Vectors are normalized
 
 
 class ModifiedIdfCosineSimilarityModel:

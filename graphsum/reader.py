@@ -60,6 +60,10 @@ class Document:
         return len(self.sentences)
 
     @property
+    def plaintext(self):
+        return " ".join(self.as_token_attr_sequence("form"))
+
+    @property
     def tokens(self):
         if self._tok_list is None:
             self._tok_list = list(it.chain(*map(lambda s: s.tokens, self.sentences)))
@@ -348,7 +352,9 @@ class DatedSentenceReader:
         for timetok, doc_tok in zip(timeml_tokens, doc_tok_iter):
             (time_tok, timex) = timetok
             normalized_form = time_tok.replace("&", "&amp;")
-            assert normalized_form == doc_tok.form, "{} != {}".format(normalized_form, doc_tok.form)
+            if normalized_form == doc_tok.form:
+                print("WARNING, unmatched text")
+            #assert normalized_form == doc_tok.form, "{} != {}".format(normalized_form, doc_tok.form)
 
             if timex is not None:
                 doc_tok.timex = timex
@@ -356,21 +362,53 @@ class DatedSentenceReader:
                 if len(doc_tok.sentence.time_expressions) == 0 or doc_tok.sentence.time_expressions[-1] != timex:
                     doc_tok.sentence.time_expressions.append(timex)
 
+        doc.dct_tag = dct.year, dct.month, dct.day
+        doc.all_date_tags = set()
         for sent in doc.sentences:
             available_timeexs = filter(lambda tx: tx.type_ == "DATE", sent.time_expressions)
 
-            possible_dates = []
+            possible_exact_dates = []
+            all_date_tags = set()
             for timeex in available_timeexs:
                 try:
                     date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d")
-                    possible_dates.append(date)
+                    possible_exact_dates.append(date)
+                    parts = "-".split(timeex.value)
+                    tag = (int(parts[0]), int(parts[1]), int(parts[2]))
+                    all_date_tags.add(tag)
+                    doc.all_date_tags.add(tag)
                 except ValueError:
                     pass
+                else:
+                    continue
 
-            if len(possible_dates) > 0:
+                try:
+                    date = datetime.datetime.strptime(timeex.value, "%Y-%m")
+                    parts = "-".split(timeex.value)
+                    tag = (int(parts[0]), int(parts[1]), None)
+                    all_date_tags.add(tag)
+                    doc.all_date_tags.add(tag)
+                except ValueError:
+                    pass
+                else:
+                    continue
+
+                try:
+                    date = datetime.datetime.strptime(timeex.value, "%Y")
+                    tag = (int(timeex.value), None, None)
+                    all_date_tags.add(tag)
+                    doc.all_date_tags.add(tag)
+                except ValueError:
+                    pass
+                else:
+                    continue
+
+            sent.all_date_tags = all_date_tags
+
+            if len(possible_exact_dates) > 0:
                 # TODO: Find better heuristic
                 #print(sent.time_expressions[0])
-                sent.predicted_date = possible_dates[0]
+                sent.predicted_date = possible_exact_dates[0]
             else:
                 sent.predicted_date = dct
 
