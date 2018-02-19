@@ -223,9 +223,12 @@ def create_timeline_sentence_level(timeline_corpus, parameters):
 
     #timeline_corpus = DatedTimelineCorpusReader().run(document_dir, timeml_dir)
 
+    sents_by_date = defaultdict(list)
+
     for doc in timeline_corpus:
         for sent in doc:
             date_ref_counts.update(sent.exact_date_references)
+            sents_by_date[sent.predicted_date].append(sent)
 
     lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
     global_tr = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form", "pos") for sents in timeline_corpus for sent in sents])
@@ -238,7 +241,7 @@ def create_timeline_sentence_level(timeline_corpus, parameters):
 
     for date in best_dates:
         date_candidates = []
-        sents = timeline_corpus.docs_for_date(date)
+        sents = sents_by_date.get(date, [])
         clusters = list(cluster_gen.cluster_from_documents(timeline_corpus, cache_key=date.strftime("%Y-%m-%d"), clustering_input=sents).values())
 
         clusters = eliminate_duplicate_clusters(clusters).values()
