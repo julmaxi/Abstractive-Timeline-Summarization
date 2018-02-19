@@ -8,7 +8,9 @@ from subprocess import Popen
 import datetime
 
 from collections.abc import Sequence
+from collections import defaultdict
 
+from utils import iter_dirs, iter_files
 
 class TokenListView(Sequence):
     def __init__(self, container, attributes):
@@ -42,6 +44,21 @@ class TokenAttrListView(Sequence):
 
     def __len__(self):
         return len(self.container.tokens)
+
+
+class TimelineCorpus:
+    def __init__(self, per_date_documents):
+        super(TimelineCorpus, self).__init__()
+        self.per_date_documents = per_date_documents
+
+    def __iter__(self):
+        return (doc for docs in self.per_date_documents.values() for doc in docs)
+
+    def iter_dates(self):
+        return iter(self.per_date_documents.keys())
+
+    def docs_for_date(self, date):
+        return self.per_date_documents[date]
 
 
 class Document:
@@ -525,6 +542,25 @@ class DependencyTreeNode:
 
     def __str__(self, indent=0):
         return "\n".join(map(lambda t: t[1], sorted(self.line_repr())))
+
+
+class DatedTimelineCorpusReader:
+    def __init__(self):
+        self.reader = DatedSentenceReader()
+
+    def run(self, document_dir, timeml_dir, ):
+        date_dict = defaultdict(list)
+        for date_dir in iter_dirs(document_dir):
+            print("Reading", date_dir)
+            dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d").date()
+
+            for doc_fname in iter_files(date_dir, ".tokenized"):
+                timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
+                sentences = self.reader.read(doc_fname, timeml_fname, dir_date)
+                date_dict[dir_date].append(sentences)
+
+        return TimelineCorpus(date_dict)
+
 
 
 if __name__ == "__main__":#java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.StanfordCoreNLP -annotators tokenize,ssplit,pos,lemma -file input.txt

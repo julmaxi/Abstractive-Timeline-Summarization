@@ -12,7 +12,7 @@ import datetime
 from graphsum import summarize_timeline_dir
 
 from langmodel import KenLMLanguageModel
-from reader import DatedSentenceReader
+from reader import DatedSentenceReader, DatedTimelineCorpusReader
 
 TimelineParameters = namedtuple("TimelineParameters", "first_date last_date max_date_count max_sent_count max_date_sent_count")
 
@@ -58,10 +58,13 @@ def determine_parameters(gold_dir):
         max_tl_sent_count,
         max_tl_date_sent_count)
 
+import pickle
 
 def run_full_tl_summ(timeline_func):
-    params = determine_parameters(sys.argv[3])
-    tl = timeline_func(sys.argv[1], sys.argv[2], params)
+    params = determine_parameters(sys.argv[2])
+    with open(sys.argv[1], "rb") as f:
+        corpus = pickle.load(f)
+    tl = timeline_func(corpus, params)
     with open("timeline.txt", "w") as f_out:
         f_out.write(str(tl))
 
@@ -213,31 +216,19 @@ def eliminate_duplicate_clusters(clusters):
     return dict(enumerate(base_clusters))
 
 
-def create_timeline_sentence_level(document_dir, timeml_dir, parameters):
+def create_timeline_sentence_level(timeline_corpus, parameters):
     reader = DatedSentenceReader()
 
-    sents_by_date = defaultdict(list)
-
     date_ref_counts = Counter()
-    documents = []
 
-    for date_dir in iter_dirs(document_dir):
-        print("Reading", date_dir)
-        dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d").date()
+    #timeline_corpus = DatedTimelineCorpusReader().run(document_dir, timeml_dir)
 
-        for doc_fname in iter_files(date_dir, ".tokenized"):
-            timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
-            sentences = reader.read(doc_fname, timeml_fname, dir_date)
-            documents.append(sentences)
-
-            for sent in sentences:
-                sents_by_date[sent.predicted_date].append(sent)
-
-                for date in sent.exact_date_references:
-                    date_ref_counts[date] += 1
+    for doc in timeline_corpus:
+        for sent in doc:
+            date_ref_counts.update(sent.exact_date_references)
 
     lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
-    global_tr = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form", "pos") for sents in documents for sent in sents])
+    global_tr = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form", "pos") for sents in timeline_corpus for sent in sents])
 
     best_dates = list(map(lambda t: t[0], date_ref_counts.most_common(parameters.max_date_count)))
 
@@ -247,8 +238,8 @@ def create_timeline_sentence_level(document_dir, timeml_dir, parameters):
 
     for date in best_dates:
         date_candidates = []
-        sents = sents_by_date[date]
-        clusters = list(cluster_gen.cluster_from_documents(documents, cache_key=date.strftime("%Y-%m-%d"), clustering_input=sents).values())
+        sents = timeline_corpus.docs_for_date(date)
+        clusters = list(cluster_gen.cluster_from_documents(timeline_corpus, cache_key=date.strftime("%Y-%m-%d"), clustering_input=sents).values())
 
         clusters = eliminate_duplicate_clusters(clusters).values()
 
