@@ -1,4 +1,8 @@
 import os
+import string
+
+
+PUNCTUATION = set(string.punctuation)
 
 
 def iter_files(dirname, suffix):
@@ -21,3 +25,6 @@ def scnd(t):
 def fst(t):
     return t[0]
 
+
+def is_punctuation(str_):
+    return all(map(lambda c: c in PUNCTUATION, str_))

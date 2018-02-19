@@ -66,7 +66,7 @@ def run_full_tl_summ(timeline_func):
         f_out.write(str(tl))
 
 
-def select_best_date_by_doc_freq(max_date_count):
+def select_best_date_by_doc_freq(document_dir, parameters):
     doc_counter = Counter()
     for dir_ in iter_dirs(document_dir):
         date = date_from_dirname(os.path.basename(dir_))
@@ -76,12 +76,12 @@ def select_best_date_by_doc_freq(max_date_count):
             print(dir_)
             doc_counter[date] = len(list(iter_files(dir_, "cont")))
 
-    dates = list(map(fst, doc_counter.most_common(max_date_count)))
+    dates = list(map(fst, doc_counter.most_common(parameters.max_date_count)))
     return dates
 
 
-def create_timeline(document_dir, parameters):
-    dates = select_best_date_by_doc_freq(parameters.max_date_count)
+def create_timeline(document_dir, timeml_dir, parameters):
+    dates = select_best_date_by_doc_freq(document_dir, parameters)
 
     date_summary_dict = {}
 
@@ -141,22 +141,27 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, max_sents
 
     #cluster_redundancy_factor = RedundancyFactor(id_score_map, id_cluster_map)
 
+    print("Selecting from {} sentences".format(sent_idx_counter))
+    print("Initializing redudancy")
     kmeans_redundancy_factor = RedundancyFactor.from_sentences(
         id_score_map,
-        id_sentence_map)
+        id_sentence_map,
+        num_clusters=max_sents_per_date * len(per_date_cluster_candidates) * 5)
 
-    coverage_factor = CoverageFactor.from_sentences(
-        doc_sents,
-        list(map(scnd, sorted(id_sentence_map.items(), key=fst)))
-    )
+    #print("Initializing coverage")
+    #coverage_factor = CoverageFactor.from_sentences(
+    #    doc_sents,
+    #    list(map(scnd, sorted(id_sentence_map.items(), key=fst)))
+    #)
 
     opt = SubModularOptimizer(
         [
             kmeans_redundancy_factor,
-            coverage_factor
+ #           coverage_factor
         ],
         constraints)
 
+    print("Running Optimizier")
     sent_ids = opt.run(range(sent_idx_counter))
 
     selected_tl_sentences = defaultdict(list)
@@ -169,7 +174,7 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, max_sents
 
 
 
-from graphsum import ClusterGenerator, STOPWORDS, generate_summary_candidates
+from graphsum import ClusterGenerator, STOPWORDS, generate_summary_candidates, calculate_keyword_text_rank
 from similarity import BinaryOverlapSimilarityModel
 
 
@@ -192,6 +197,22 @@ def cluster_without_seed_sent_level(sentences):
     return dict(enumerate(map(scnd, clusters)))
 
 
+def eliminate_duplicate_clusters(clusters):
+    base_clusters = []
+    for cluster in clusters:
+        cluster = set(cluster)
+        matched_any = False
+        for base_cluster in base_clusters:
+            if (len(base_cluster.intersection(cluster))) / len((base_cluster.union(cluster))) == 1.0:
+                base_cluster = base_cluster.union(cluster)
+                matched_any = True
+
+        if not matched_any:
+            base_clusters.append(cluster)
+
+    return dict(enumerate(base_clusters))
+
+
 def create_timeline_sentence_level(document_dir, timeml_dir, parameters):
     reader = DatedSentenceReader()
 
@@ -202,7 +223,7 @@ def create_timeline_sentence_level(document_dir, timeml_dir, parameters):
 
     for date_dir in iter_dirs(document_dir):
         print("Reading", date_dir)
-        dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d")
+        dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d").date()
 
         for doc_fname in iter_files(date_dir, ".tokenized"):
             timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
@@ -216,6 +237,7 @@ def create_timeline_sentence_level(document_dir, timeml_dir, parameters):
                     date_ref_counts[date] += 1
 
     lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+    global_tr = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form", "pos") for sents in documents for sent in sents])
 
     best_dates = list(map(lambda t: t[0], date_ref_counts.most_common(parameters.max_date_count)))
 
@@ -226,15 +248,22 @@ def create_timeline_sentence_level(document_dir, timeml_dir, parameters):
     for date in best_dates:
         date_candidates = []
         sents = sents_by_date[date]
-        clusters = cluster_gen.cluster_from_documents(documents, cache_key=date.strftime("%Y-%m-%d"), clustering_input=sents)
+        clusters = list(cluster_gen.cluster_from_documents(documents, cache_key=date.strftime("%Y-%m-%d"), clustering_input=sents).values())
+
+        clusters = eliminate_duplicate_clusters(clusters).values()
+
         if len(clusters) == 0:
             continue
 
-        for cluster_sents in clusters.values():
+        clusters = sorted(clusters, key=lambda c: len(c))[:10]
+
+        for cluster_sents in clusters:
             candidates = generate_summary_candidates(
                     list(
                         map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
-                            cluster_sents)), lm)
+                            cluster_sents)), lm,
+                    length_normalized=True,
+                    tr_scores=global_tr)
             date_candidates.append(candidates)
 
         per_date_candidates.append((date, date_candidates))
@@ -258,7 +287,7 @@ def create_timeline_clustering(document_dir, timeml_dir, parameters):
     all_doc_texts = []
 
     for date_dir in sorted(iter_dirs(document_dir)):
-        dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d")
+        dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d").date()
 
         for doc_fname in iter_files(date_dir, ".tokenized"):
             timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
@@ -277,4 +306,4 @@ def create_timeline_clustering(document_dir, timeml_dir, parameters):
 
 
 if __name__ == "__main__":
-    run_full_tl_summ(create_timeline_clustering)
+    run_full_tl_summ(create_timeline_sentence_level)

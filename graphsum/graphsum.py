@@ -20,7 +20,7 @@ import random
 import math
 from networkx.drawing.nx_pydot import to_pydot
 import functools
-from utils import iter_files, scnd, fst
+from utils import iter_files, scnd, fst, is_punctuation
 from langmodel import StoredLanguageModel, KenLMLanguageModel
 from reader import StanfordXMLReader, Sentence, Token
 from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel, BinaryCosineSimilarityModel, BinaryOverlapSimilarityModel
@@ -29,6 +29,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 import time
 
+import logging
 
 
 class ClusterGenerator:
@@ -275,7 +276,7 @@ class SentenceCompressionGraph:
         for t_idx, (form, pos) in enumerate(sentence):
             if form in self.stopwords:
                 stopword_tokens.add(t_idx)
-            elif not form.isalnum():
+            elif is_punctuation(form):
                 punctuation_tokens.add(t_idx)
             else:
                 non_stopword_tokens.add(t_idx)
@@ -414,20 +415,26 @@ class SentenceCompressionGraph:
             data["weight_sl"] = w
             data["label"] = str(w)
 
-    def generate_compression_candidates(self, n=50, minlen=8, filterfunc=lambda c: True, timeout=60):
+    def generate_compression_candidates(self, n=400, minlen=8, filterfunc=lambda c: True, use_weighting=True, timeout=60):
         self.calculate_strong_links_weights()
 
-        candidates = []
-
+        num_yielded = 0
         candidate_set = set()
 
         start_time = time.time()
 
-        for path in nx.shortest_simple_paths(self.graph, "START", "END", weight="weight_sl"):
+        logging.info("Processing graph V =", len(self.graph), "E = ", len(self.graph.edges))
+
+        if use_weighting:
+            path_iter = nx.shortest_simple_paths(self.graph, "START", "END", weight="weight_sl")
+        else:
+            path_iter = nx.shortest_simple_paths(self.graph, "START", "END")
+
+        for path in path_iter:
             if len(path) < minlen + 2:  # Account for START and END
                 continue
 
-            tokens = [self.graph.nodes[n]["token"] for n in path[1:-1]]
+            tokens = [self.graph.nodes[node]["token"] for node in path[1:-1]]
 
             for form, pos in tokens:
                 if pos[0] == "V":
@@ -439,16 +446,15 @@ class SentenceCompressionGraph:
                 continue
 
             if tuple(tokens) not in candidate_set:
-                candidates.append(tokens)
+                yield tokens
+                num_yielded += 1
                 candidate_set.add(tuple(tokens))
 
-            if len(candidates) >= n:
+            if num_yielded >= n:
                 break
 
             if time.time() - start_time >= timeout:
                 break
-
-        return candidates
 
 
 def insert_into_top_n_list(l, new_item, n):
@@ -1340,7 +1346,7 @@ def read_cluster_from_premade_files(dirname):
         if not filepath.endswith(".txt"):
             continue
 
-        clusters[cl_idx] = read_cluster_file_banerjee(filepath)
+        clusters[os.path.basename(filename)] = read_cluster_file_banerjee(filepath)
 
     return clusters
 
@@ -1390,8 +1396,6 @@ def read_cluster_file(path, document_lookup):
 
 def summ_with_premade_clusters():
     lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
-    #pipeline = SummarizationPipeline(read_cluster_from_premade_files, lm)
-    #summary = pipeline.summarize_documents(sys.argv[1])
 
     clusters = read_cluster_from_premade_files(sys.argv[1])
     outfile = sys.argv[2]
@@ -1419,7 +1423,6 @@ def summ_with_premade_clusters():
         word_graph.add_sentences(sent.as_token_tuple_sequence("form", "pos") for sent in cluster)
 
         for sent in word_graph.generate_compression_candidates(n=200, filterfunc=check_closeness):
-            print(" ".join(map(lambda x: x[0], sent)))
             lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(list(map(lambda x: x[0], sent))))
             informativeness_score = calculate_informativeness(sent, tr_scores)
             score = informativeness_score * lm_score / len(sent)

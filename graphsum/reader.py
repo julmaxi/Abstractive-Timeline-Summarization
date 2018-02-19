@@ -371,7 +371,7 @@ class DatedSentenceReader:
             all_date_tags = set()
             for timeex in available_timeexs:
                 try:
-                    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d")
+                    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d").date()
                     possible_exact_dates.append(date)
                     parts = "-".split(timeex.value)
                     tag = (int(parts[0]), int(parts[1]), int(parts[2]))
@@ -383,7 +383,7 @@ class DatedSentenceReader:
                     continue
 
                 try:
-                    date = datetime.datetime.strptime(timeex.value, "%Y-%m")
+                    date = datetime.datetime.strptime(timeex.value, "%Y-%m").date()
                     parts = "-".split(timeex.value)
                     tag = (int(parts[0]), int(parts[1]), None)
                     all_date_tags.add(tag)
@@ -394,7 +394,7 @@ class DatedSentenceReader:
                     continue
 
                 try:
-                    date = datetime.datetime.strptime(timeex.value, "%Y")
+                    date = datetime.datetime.strptime(timeex.value, "%Y").date()
                     tag = (int(timeex.value), None, None)
                     all_date_tags.add(tag)
                     doc.all_date_tags.add(tag)

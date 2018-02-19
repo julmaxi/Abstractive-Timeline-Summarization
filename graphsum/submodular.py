@@ -9,14 +9,17 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 class RedundancyFactor:
     @classmethod
-    def from_sentences(cls, rewards, id_sentence_map):
+    def from_sentences(cls, rewards, id_sentence_map, num_clusters=None):
         model = TfidfVectorizer(stop_words="english")
         sorted_sent_ids = sorted(id_sentence_map.keys())
 
         tf_idf = model.fit_transform(map(lambda sid: " ".join(
             map(lambda t: t[0], id_sentence_map[sid])), sorted_sent_ids))
 
-        clustering = KMeans(n_clusters=max(len(id_sentence_map) // 100, 2)).fit_predict(tf_idf)
+        if num_clusters is None:
+            num_clusters = max(len(id_sentence_map) // 100, 2)
+
+        clustering = KMeans(n_clusters=num_clusters).fit_predict(tf_idf)
 
         sent_partitions = {}
 
@@ -61,9 +64,7 @@ class RedundancyFactor:
 class CoverageFactor:
     @classmethod
     def from_sentences(cls, doc_sents, summary_sents):
-        print(list(map(lambda s: " ".join(
-            map(lambda t: t[0], s)), doc_sents)))
-        model = TfidfVectorizer(stop_words="english")
+        model = TfidfVectorizer(stop_words="english", max_features=1024, min_df=5)
         doc_tf_idf = model.fit_transform(map(lambda s: " ".join(
             map(lambda t: t[0], s)), doc_sents))
         summ_tf_idf = model.transform(map(lambda s: " ".join(
