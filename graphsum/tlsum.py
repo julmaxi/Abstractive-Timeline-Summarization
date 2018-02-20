@@ -264,7 +264,7 @@ def create_timeline_sentence_level(timeline_corpus, parameters):
 
     date_summary_dict = select_tl_sentences_submod(
         per_date_candidates,
-        [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in documents for sent in doc]
+        [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in timeline_corpus for sent in doc]
     )
 
     return timelines.Timeline(date_summary_dict)
