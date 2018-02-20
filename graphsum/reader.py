@@ -60,6 +60,10 @@ class TimelineCorpus:
     def docs_for_date(self, date):
         return self.per_date_documents[date]
 
+    @property
+    def sentences(self):
+        return [sent for doc in self for sent in doc]
+
 
 class Document:
     def __init__(self, new_sentences, name=None):

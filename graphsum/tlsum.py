@@ -13,6 +13,9 @@ from graphsum import summarize_timeline_dir
 
 from langmodel import KenLMLanguageModel
 from reader import DatedSentenceReader, DatedTimelineCorpusReader
+from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file
+from similarity import SklearnTfIdfCosineSimilarityModel
+
 
 TimelineParameters = namedtuple("TimelineParameters", "first_date last_date max_date_count max_sent_count max_date_sent_count")
 
@@ -270,34 +273,13 @@ def create_timeline_sentence_level(timeline_corpus, parameters):
     return timelines.Timeline(date_summary_dict)
 
 
-from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file
-from similarity import SklearnTfIdfCosineSimilarityModel
-
-
-def create_timeline_clustering(document_dir, timeml_dir, parameters):
+def create_timeline_clustering(corpus, parameters):
     reader = DatedSentenceReader()
 
-    all_sents = []
-    all_doc_texts = []
-
-    for date_dir in sorted(iter_dirs(document_dir)):
-        dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d").date()
-
-        for doc_fname in iter_files(date_dir, ".tokenized"):
-            timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
-            doc = reader.read(doc_fname, timeml_fname, dir_date)
-
-            all_doc_texts.append(doc.as_token_attr_sequence("form"))
-
-            for sent in doc.sentences:
-                all_sents.append(sent)
-
-    sim_model = SklearnTfIdfCosineSimilarityModel(stem=False)
-    sim_model.fit(all_doc_texts)
-
-    affinities = generate_affinity_matrix_from_dated_sentences(all_sents, sim_model)
+    #affinities = generate_affinity_matrix_from_dated_sentences(all_sents, sim_model)
+    affinities = generate_affinity_matrix_from_dated_sentences(corpus.sentences)
     write_similarity_file("similarities.txt", affinities)
 
 
 if __name__ == "__main__":
-    run_full_tl_summ(create_timeline_sentence_level)
+    run_full_tl_summ(create_timeline_clustering)
