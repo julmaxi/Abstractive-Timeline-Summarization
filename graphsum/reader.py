@@ -353,6 +353,71 @@ class TimeMLReader:
         return tokens
 
 
+class DateTag:
+    YEAR = 1
+    MONTH = 2
+    DAY = 3
+    WEEK = 4
+
+    @staticmethod
+    def from_timex(expr):
+        parts = expr.split("-")
+
+        if len(parts) == 1:
+            if not parts[0].isdigit():
+                raise ValueError("Expression {!r} is not a date tag".format(expr))
+
+            return DateTag(DateTag.YEAR, int(parts[0]))
+
+        if len(parts) == 3:
+            return DateTag(
+                DateTag.DAY,
+                int(parts[0]),
+                int(parts[1]),
+                int(parts[2]))
+
+        if len(parts) == 2:
+            if parts[1].startswith("W"):
+                return DateTag(DateTag.WEEK, int(parts[0]), int(parts[1][1:]))
+            else:
+                return DateTag(DateTag.MONTH, int(parts[0]), int(parts[1]))
+
+        print(expr)
+        raise ValueError("Expression {!r} is not a date tag".format(expr))
+
+    def __init__(self, dtype, *args):
+        self.dtype = dtype
+
+        self.year = None
+        self.month = None
+        self.week = None
+        self.day = None
+
+        if dtype == DateTag.YEAR:
+            self.year = args[0]
+        elif dtype == DateTag.MONTH:
+            self.year = args[0]
+            self.month = args[1]
+        elif dtype == DateTag.DAY:
+            self.year = args[0]
+            self.month = args[1]
+            self.day = args[2]
+        elif dtype == DateTag.WEEK:
+            self.year = args[0]
+            self.week = args[1]
+
+    def __eq__(self, other):
+        return self.dtype == other.dtype and self.year == other.year and self.month == other.month and self.day == other.day and self.week == other.week
+
+    def __hash__(self):
+        return hash((self.dtype, self.year, self.month, self.week, self.day))
+
+    def __repr__(self):
+        if self.dtype != DateTag.WEEK:
+            return "DateTag({}, {}, {}, {})".format(self.dtype, self.year, self.month, self.day)
+        else:
+            return "DateTag({}, {}, {})".format(self.dtype, self.year, self.week)
+
 class DatedSentenceReader:
     def __init__(self):
         self.stanford_reader = StanfordXMLReader()
@@ -383,7 +448,7 @@ class DatedSentenceReader:
                 if len(doc_tok.sentence.time_expressions) == 0 or doc_tok.sentence.time_expressions[-1] != timex:
                     doc_tok.sentence.time_expressions.append(timex)
 
-        doc.dct_tag = dct.year, dct.month, dct.day
+        doc.dct_tag = DateTag(DateTag.DAY, dct.year, dct.month, dct.day)
         doc.all_date_tags = set()
         for sent in doc.sentences:
             available_timeexs = filter(lambda tx: tx.type_ == "DATE", sent.time_expressions)
@@ -392,37 +457,43 @@ class DatedSentenceReader:
             all_date_tags = set()
             for timeex in available_timeexs:
                 try:
-                    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d").date()
-                    possible_exact_dates.append(date)
-                    parts = "-".split(timeex.value)
-                    tag = (int(parts[0]), int(parts[1]), int(parts[2]))
-                    all_date_tags.add(tag)
-                    doc.all_date_tags.add(tag)
+                    tag = DateTag.from_timex(timeex.value)
                 except ValueError:
-                    pass
-                else:
                     continue
-
-                try:
-                    date = datetime.datetime.strptime(timeex.value, "%Y-%m").date()
-                    parts = "-".split(timeex.value)
-                    tag = (int(parts[0]), int(parts[1]), None)
-                    all_date_tags.add(tag)
-                    doc.all_date_tags.add(tag)
-                except ValueError:
-                    pass
-                else:
-                    continue
-
-                try:
-                    date = datetime.datetime.strptime(timeex.value, "%Y").date()
-                    tag = (int(timeex.value), None, None)
-                    all_date_tags.add(tag)
-                    doc.all_date_tags.add(tag)
-                except ValueError:
-                    pass
-                else:
-                    continue
+                all_date_tags.add(tag)
+                doc.all_date_tags.add(tag)
+                #try:
+                #    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d").date()
+                #    possible_exact_dates.append(date)
+                #    parts = timeex.value.split("-")
+                #    tag = (int(parts[0]), int(parts[1]), int(parts[2]))
+                #    all_date_tags.add(tag)
+                #    doc.all_date_tags.add(tag)
+                #except ValueError:
+                #    pass
+                #else:
+                #    continue
+#
+                #try:
+                #    date = datetime.datetime.strptime(timeex.value, "%Y-%m").date()
+                #    parts = timeex.value.split("-")
+                #    tag = (int(parts[0]), int(parts[1]), None)
+                #    all_date_tags.add(tag)
+                #    doc.all_date_tags.add(tag)
+                #except ValueError:
+                #    pass
+                #else:
+                #    continue
+#
+                #try:
+                #    date = datetime.datetime.strptime(timeex.value, "%Y").date()
+                #    tag = (int(timeex.value), None, None)
+                #    all_date_tags.add(tag)
+                #    doc.all_date_tags.add(tag)
+                #except ValueError:
+                #    pass
+                #else:
+                #    continue
 
             sent.all_date_tags = all_date_tags
             sent.exact_date_references = possible_exact_dates

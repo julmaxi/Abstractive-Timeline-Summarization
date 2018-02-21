@@ -46,7 +46,7 @@ def evaluate_tl_main():
         corpus = pickle.load(f)
 
     for tl_fname in args.timelines:
-        with open(tl_fname) as f:
+        with open(tl_fname, encoding="latin-1") as f:
             timeline = timelines.Timeline.from_file(f)
         tl = create_timeline_sentence_level(corpus, determine_tl_parameters(timeline))
         reference_timeline = timelines.GroundTruth([timeline])
