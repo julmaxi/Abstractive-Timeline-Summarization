@@ -9,7 +9,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from reader import DateTag
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 DateIndexEntry = namedtuple("DateIndexEntry", "child_dates members exact_date_members")
 

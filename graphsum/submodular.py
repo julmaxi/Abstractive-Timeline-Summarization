@@ -20,9 +20,9 @@ class RedundancyFactor:
         if num_clusters is None:
             num_clusters = max(len(id_sentence_map) // 400, 2)
 
-        #print(num_clusters)
-
         clustering = MiniBatchKMeans(n_clusters=num_clusters).fit_predict(tf_idf)
+
+        clustering = [0] * len(sorted_sent_ids)
 
         sent_partitions = {}
 
@@ -47,6 +47,8 @@ class RedundancyFactor:
         max_reward = 0
         for reward in self.rewards.values():
             max_reward = max(reward, max_reward)
+
+            print(reward, max_reward)
 
         for sid, reward in list(self.rewards.items()):
             self.rewards[sid] = reward / max_reward
@@ -199,6 +201,8 @@ class SubModularOptimizer:
             else:
                 if self.selection_callback is not None:
                     self.selection_callback(best_sentence, best_delta_s)
+
+                print(best_sentence, best_delta_s)
                 selected_sentences.add(best_sentence)
                 for factor in self.factors:
                     factor.update_scores(best_sentence)

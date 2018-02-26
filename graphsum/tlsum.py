@@ -315,13 +315,22 @@ class APClusteringTimelineGenerator:
                 sims = cosine_similarity(similarities)
                 best_idx = sims.sum(1).argmax()
 
-                #first_dct = None
-                #last_dct = None
+                first_date = None
+                last_date = None
 
-                #for sent in cluster:
+                for sent in cluster:
+                    date = datetime.datetime(sent.document.dct_tag.year, sent.document.dct_tag.month, sent.document.dct_tag.day)
+                    if first_date is None:
+                        first_date = date
+                        last_date = date
 
+                    if first_date > date:
+                        first_date = date
 
-                candidates = [(cluster[best_idx].as_token_tuple_sequence("form_lowercase", "pos"), len(cluster))]
+                    if last_date < date:
+                        last_date = date
+
+                candidates = [(cluster[best_idx].as_token_tuple_sequence("form_lowercase", "pos"), max((last_date - first_date).days, 1))]
             else:
                 candidates = generate_summary_candidates(
                         list(

@@ -41,6 +41,7 @@ def evaluate_tl_main():
 
     rouge_1_sum = 0
     rouge_2_sum = 0
+    date_f1_sum = 0
 
     with open(args.corpus_pickle, "rb") as f:
         corpus = pickle.load(f)
@@ -56,15 +57,24 @@ def evaluate_tl_main():
     sys_timelines = tl_gen.generate_timelines(corpus, [determine_tl_parameters(tl) for tl in timelines])
     for gold_timeline, sys_timeline in zip(timelines, sys_timelines):
         reference_timeline = GroundTruth([gold_timeline])
-        print(len(gold_timeline), len(sys_timeline))
         eval_results = evaluator.evaluate_concat(sys_timeline, reference_timeline)
         rouge_1_sum += eval_results["rouge_1"]["f_score"]
         rouge_2_sum += eval_results["rouge_2"]["f_score"]
 
-        print(sys_timeline)
+        print(" ".join(map(lambda x: "{}-{}-{}".format(x.year, x.month, x.day), sorted(sys_timeline))))
+        print(" ".join(map(lambda x: "{}-{}-{}".format(x.year, x.month, x.day), sorted(gold_timeline))))
+
+        date_recall = len(set(sys_timeline) & set(gold_timeline)) / len(gold_timeline)
+        date_precision = len(set(sys_timeline) & set(gold_timeline)) / len(sys_timeline)
+
+        if date_recall + date_precision > 0:
+            date_f1_sum += 2 * (date_recall * date_precision) / (date_recall + date_precision)
+
+        #print(sys_timeline)
 
     print("ROUGE 1", rouge_1_sum / len(args.timelines))
     print("ROUGE 2", rouge_2_sum / len(args.timelines))
+    print("Date F1", date_f1_sum / len(args.timelines))
 
 
 if __name__ == "__main__":

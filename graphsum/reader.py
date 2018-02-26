@@ -626,8 +626,11 @@ class DependencyTreeNode:
 
 
 class DatedTimelineCorpusReader:
-    def __init__(self):
+    def __init__(self, parsed_suffix=".tokenized", timeml_suffix=".tokenized.timeml"):
         self.reader = DatedSentenceReader()
+
+        self.parsed_suffix = parsed_suffix
+        self.timeml_suffix = timeml_suffix
 
     def run(self, document_dir, timeml_dir, ):
         date_dict = defaultdict(list)
@@ -635,8 +638,10 @@ class DatedTimelineCorpusReader:
             print("Reading", date_dir)
             dir_date = datetime.datetime.strptime(os.path.basename(date_dir), "%Y-%m-%d").date()
 
-            for doc_fname in iter_files(date_dir, ".tokenized"):
-                timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), os.path.basename(doc_fname) + ".timeml")
+            for doc_fname in iter_files(date_dir, self.parsed_suffix):
+                fname = os.path.basename(doc_fname)
+                prefix = fname[:-len(self.parsed_suffix)]
+                timeml_fname = os.path.join(timeml_dir, os.path.basename(date_dir), prefix + self.timeml_suffix)
                 sentences = self.reader.read(doc_fname, timeml_fname, dir_date)
                 date_dict[dir_date].append(sentences)
 
