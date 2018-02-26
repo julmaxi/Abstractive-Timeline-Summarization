@@ -1,8 +1,8 @@
-from tilse.data import timelines
+from tilse.data.timelines import Timeline, GroundTruth
 from tilse.evaluation import rouge
 import argparse
 
-from tlsum import create_timeline_sentence_level, TimelineParameters
+from tlsum import create_timeline_sentence_level, TimelineParameters, APClusteringTimelineGenerator
 
 import pickle
 
@@ -45,14 +45,23 @@ def evaluate_tl_main():
     with open(args.corpus_pickle, "rb") as f:
         corpus = pickle.load(f)
 
+    timelines = []
+
     for tl_fname in args.timelines:
         with open(tl_fname, encoding="latin-1") as f:
-            timeline = timelines.Timeline.from_file(f)
-        tl = create_timeline_sentence_level(corpus, determine_tl_parameters(timeline))
-        reference_timeline = timelines.GroundTruth([timeline])
-        eval_results = evaluator.evaluate_concat(tl, reference_timeline)
+            timeline = Timeline.from_file(f)
+            timelines.append(timeline)
+
+    tl_gen = APClusteringTimelineGenerator(True)
+    sys_timelines = tl_gen.generate_timelines(corpus, [determine_tl_parameters(tl) for tl in timelines])
+    for gold_timeline, sys_timeline in zip(timelines, sys_timelines):
+        reference_timeline = GroundTruth([gold_timeline])
+        print(len(gold_timeline), len(sys_timeline))
+        eval_results = evaluator.evaluate_concat(sys_timeline, reference_timeline)
         rouge_1_sum += eval_results["rouge_1"]["f_score"]
         rouge_2_sum += eval_results["rouge_2"]["f_score"]
+
+        print(sys_timeline)
 
     print("ROUGE 1", rouge_1_sum / len(args.timelines))
     print("ROUGE 2", rouge_2_sum / len(args.timelines))

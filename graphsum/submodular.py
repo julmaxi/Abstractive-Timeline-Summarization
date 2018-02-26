@@ -3,9 +3,10 @@ import numpy as np
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
 from sklearn.metrics.pairwise import cosine_similarity
 
+from collections import Counter
 
 class RedundancyFactor:
     @classmethod
@@ -17,9 +18,11 @@ class RedundancyFactor:
             map(lambda t: t[0], id_sentence_map[sid])), sorted_sent_ids))
 
         if num_clusters is None:
-            num_clusters = max(len(id_sentence_map) // 100, 2)
+            num_clusters = max(len(id_sentence_map) // 400, 2)
 
-        clustering = KMeans(n_clusters=num_clusters).fit_predict(tf_idf)
+        #print(num_clusters)
+
+        clustering = MiniBatchKMeans(n_clusters=num_clusters).fit_predict(tf_idf)
 
         sent_partitions = {}
 
@@ -142,6 +145,24 @@ class SubsetKnapsackConstraint:
     def update(self, new_sent):
         if new_sent in self.relevant_sents:
             self.current_size += self.sent_sizes[new_sent]
+
+
+class MaxDateCountConstraint:
+    def __init__(self, max_date_count, sent_dates):
+        self.selected_dates = set()
+        self.sent_dates = sent_dates
+        self.max_date_count = max_date_count
+
+    def check(self, sent):
+        date = self.sent_dates[sent]
+        if date not in self.selected_dates and len(self.selected_dates) >= self.max_date_count:
+            return False
+
+        return True
+
+    def update(self, new_sent):
+        date = self.sent_dates[new_sent]
+        self.selected_dates.add(date)
 
 
 class SubModularOptimizer:

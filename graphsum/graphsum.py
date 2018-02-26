@@ -415,7 +415,7 @@ class SentenceCompressionGraph:
             data["weight_sl"] = w
             data["label"] = str(w)
 
-    def generate_compression_candidates(self, n=400, minlen=8, filterfunc=lambda c: True, use_weighting=True, timeout=60):
+    def generate_compression_candidates(self, n=300, minlen=8, filterfunc=lambda c: True, use_weighting=True, timeout=60):
         self.calculate_strong_links_weights()
 
         num_yielded = 0
@@ -423,12 +423,12 @@ class SentenceCompressionGraph:
 
         start_time = time.time()
 
-        logging.info("Processing graph V =", len(self.graph), "E = ", len(self.graph.edges))
+        logging.info("Processing graph V = {}, E = {}".format(len(self.graph), len(self.graph.edges)))
 
         if use_weighting:
             path_iter = nx.shortest_simple_paths(self.graph, "START", "END", weight="weight_sl")
         else:
-            path_iter = nx.shortest_simple_paths(self.graph, "START", "END")
+            path_iter = nx.all_simple_paths(self.graph, "START", "END")
 
         for path in path_iter:
             if len(path) < minlen + 2:  # Account for START and END
@@ -979,7 +979,7 @@ def calculate_informativeness(sent, tr_scores):
     return informativeness_score
 
 
-def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized=False):
+def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized=False, use_weighting=True):
     compressor = SentenceCompressionGraph(STOPWORDS)
     print("Building Graph...")
     compressor.add_sentences(sentences)
@@ -1005,7 +1005,7 @@ def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized
 
         return all(sims[0,:] < 0.8)
 
-    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_closeness):
+    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_closeness, use_weighting=use_weighting):
         plaintext_sent = list(map(lambda x: x[0], proposed_sent))
         lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(plaintext_sent))
 

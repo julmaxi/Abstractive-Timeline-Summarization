@@ -1,7 +1,7 @@
 import logging
 
 import networkx as nx
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -11,7 +11,7 @@ from reader import DateTag
 
 logging.basicConfig(level=logging.DEBUG)
 
-DateIndexEntry = namedtuple("DateIndexEntry", "child_dates members")
+DateIndexEntry = namedtuple("DateIndexEntry", "child_dates members exact_date_members")
 
 
 def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.2):
@@ -21,24 +21,27 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.2):
         # TODO: How exactly do we deal with undated sentences?
         all_tags = sent.all_date_tags
         if len(all_tags) == 0:
-            all_tags = list(sent.document.all_date_tags)
-            all_tags.append(sent.document.dct_tag)
+#            all_tags = list(sent.document.all_date_tags)
+            all_tags.add(sent.document.dct_tag)
 
         for tag in all_tags:
             year = tag.year
             month = tag.month
             day = tag.day
 
-            year_index_entry = date_sent_index.setdefault(year, DateIndexEntry({}, []))
+            year_index_entry = date_sent_index.setdefault(year, DateIndexEntry({}, [], []))
             year_index_entry.members.append((s_idx, sent))
 
             if month is not None:
-                month_index_entry = year_index_entry.child_dates.setdefault(month, DateIndexEntry({}, []))
+                month_index_entry = year_index_entry.child_dates.setdefault(month, DateIndexEntry({}, [], []))
                 month_index_entry.members.append((s_idx, sent))
 
                 if day is not None:
-                    day_index_entry = month_index_entry.child_dates.setdefault(day, DateIndexEntry({}, []))
+                    day_index_entry = month_index_entry.child_dates.setdefault(day, DateIndexEntry({}, [], []))
                     day_index_entry.members.append((s_idx, sent))
+                    year_index_entry.exact_date_members.append((s_idx, sent))
+                    month_index_entry.exact_date_members.append((s_idx, sent))
+                    day_index_entry.exact_date_members.append((s_idx, sent))
 
     vectors = TfidfVectorizer().fit_transform(map(lambda s: s.as_tokenized_string(), sents))
     similarities = {}
@@ -61,21 +64,23 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.2):
 
         all_tags = sent.all_date_tags
         if len(all_tags) == 0:
-            all_tags = list(sent.document.all_date_tags)
-            all_tags.append(sent.document.dct_tag)
+        #    all_tags = list(sent.document.all_date_tags)
+            all_tags.add(sent.document.dct_tag)
 
         connected_sents = []
         for tag in all_tags:
             if tag.dtype == DateTag.DAY:
                 pass # handled separatly
-                #connected_sents.extend(date_sent_index[year].child_dates[month].child_dates[day].members)
+                #connected_sents.extend(date_sent_index[tag.year].child_dates[tag.month].child_dates[tag.day].members)
             elif tag.dtype == DateTag.MONTH:
-                connected_sents.extend(date_sent_index[year].child_dates[month].members)
+                connected_sents.extend(date_sent_index[tag.year].child_dates[tag.month].exact_date_members)
             else:  # year only
-                connected_sents.extend(date_sent_index[year].members)
+                connected_sents.extend(date_sent_index[tag.year].exact_date_members)
 
         if len(connected_sents) == 0:
             continue
+
+        print(all_tags)
 
         connected_vecs = vectors[tuple(sid for sid, sent in connected_sents),:]
 
@@ -87,8 +92,27 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.2):
     return similarities
 
 
-def write_similarity_file(fname, affinities):
+def write_similarity_file(fname, num_sents, affinities):
     with open(fname, "w") as f_out:
+        f_out.write(str(num_sents))
+        f_out.write("\n")
         for (idx1, idx2), sim in affinities.items():
             f_out.write("{} {} {}\n".format(idx1, idx2, sim))
 
+
+def read_ap_file(fname, sentences):
+    clusters = defaultdict(list)
+    with open(fname) as f:
+        representatives = f.read().strip().split()
+
+        for idx, representative in enumerate(representatives):
+            representative = int(representative)
+            if idx != representative:
+                clusters[representative].append(sentences[idx])
+
+    clustering = []
+    for cluster_idx, vals in clusters.items():
+        vals.append(sentences[cluster_idx])
+        clustering.append(vals)
+
+    return clustering

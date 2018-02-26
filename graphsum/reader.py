@@ -64,6 +64,10 @@ class TimelineCorpus:
     def sentences(self):
         return [sent for doc in self for sent in doc]
 
+    @property
+    def sorted_sentences(self):
+        return [sent for doc in sorted(self, key=lambda d: d.name) for sent in doc]
+
 
 class Document:
     def __init__(self, new_sentences, name=None):
@@ -462,6 +466,8 @@ class DatedSentenceReader:
                     continue
                 all_date_tags.add(tag)
                 doc.all_date_tags.add(tag)
+                if tag.dtype == DateTag.DAY:
+                    possible_exact_dates.append(tag)
                 #try:
                 #    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d").date()
                 #    possible_exact_dates.append(date)

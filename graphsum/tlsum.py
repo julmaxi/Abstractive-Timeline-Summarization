@@ -1,4 +1,4 @@
-from tilse.data import timelines
+from tilse.data.timelines import Timeline
 from tilse.evaluation import rouge
 
 import os
@@ -13,8 +13,9 @@ from graphsum import summarize_timeline_dir
 
 from langmodel import KenLMLanguageModel
 from reader import DatedSentenceReader, DatedTimelineCorpusReader
-from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file
+from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file, read_ap_file
 from similarity import SklearnTfIdfCosineSimilarityModel
+from submodular import RedundancyFactor, CoverageFactor, KnapsackConstraint, SubsetKnapsackConstraint, SubModularOptimizer, MaxDateCountConstraint
 
 
 TimelineParameters = namedtuple("TimelineParameters", "first_date last_date max_date_count max_sent_count max_date_sent_count")
@@ -32,7 +33,7 @@ def determine_parameters(gold_dir):
     all_timelines = []
     for fpath in iter_files(gold_dir, ".txt"):
         with open(fpath, encoding="latin-1") as f:
-            timeline = timelines.Timeline.from_file(f)
+            timeline = Timeline.from_file(f)
         all_timelines.append(timeline)
 
         dateset = timeline.get_dates()
@@ -99,7 +100,7 @@ def create_timeline(document_dir, timeml_dir, parameters):
         if len(summarization.strip()) > 0:
             date_summary_dict[date] = summarization.split("\n")
 
-    return timelines.Timeline(date_summary_dict)
+    return Timeline(date_summary_dict)
 
 
 def date_from_dirname(dirname):
@@ -111,9 +112,8 @@ def date_from_dirname(dirname):
 
     return datetime.date(int(year), int(month), int(day))
 
-from submodular import RedundancyFactor, CoverageFactor, KnapsackConstraint, SubsetKnapsackConstraint, SubModularOptimizer
-
-def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, max_sents_per_date=2):
+def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameters):
+    #first_date last_date max_date_count max_sent_count max_date_sent_count
     id_sentence_map = {}
     id_cluster_map = {}
     date_id_map = defaultdict(list)
@@ -126,6 +126,9 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, max_sents
     cluster_idx_counter = 0
 
     for date_idx, (date, clusters) in enumerate(per_date_cluster_candidates):
+        if date < parameters.first_date or date > parameters.last_date:
+            continue
+
         for members in clusters:
             for sent, score in members:
                 id_sentence_map[sent_idx_counter] = sent
@@ -143,7 +146,9 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, max_sents
     constraints = []
 
     for date_id, member_ids in date_id_map.items():
-        constraints.append(SubsetKnapsackConstraint(max_sents_per_date, defaultdict(lambda: 1), member_ids))
+        constraints.append(SubsetKnapsackConstraint(parameters.max_date_sent_count, defaultdict(lambda: 1), member_ids))
+
+    constraints.append(MaxDateCountConstraint(parameters.max_date_count, sent_id_date_map))
 
     #cluster_redundancy_factor = RedundancyFactor(id_score_map, id_cluster_map)
 
@@ -152,7 +157,7 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, max_sents
     kmeans_redundancy_factor = RedundancyFactor.from_sentences(
         id_score_map,
         id_sentence_map,
-        num_clusters=max_sents_per_date * len(per_date_cluster_candidates) * 5)
+        num_clusters=10)
 
     #print("Initializing coverage")
     #coverage_factor = CoverageFactor.from_sentences(
@@ -270,15 +275,122 @@ def create_timeline_sentence_level(timeline_corpus, parameters):
         [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in timeline_corpus for sent in doc]
     )
 
-    return timelines.Timeline(date_summary_dict)
+    return Timeline(date_summary_dict)
+
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+class APClusteringTimelineGenerator:
+    def __init__(self, extractive=False):
+        self.extractive = extractive
+
+
+    def generate_timelines(self, corpus, all_parameters):
+        lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+        clustering = read_ap_file("clustering.txt", corpus.sorted_sentences)
+        per_date_candidates = defaultdict(list)
+
+        tfidf = TfidfVectorizer()
+        tfidf.fit([doc.plaintext for doc in corpus])
+
+        for cluster in clustering:
+            if len(cluster) < 5:
+                continue
+
+            referenced_dates = Counter()
+            for sent in cluster:
+                if len(sent.exact_date_references) > 0:
+                    referenced_dates.update(sent.exact_date_references)
+                elif len(sent.all_date_tags) == 0:
+                    referenced_dates.update([sent.document.dct_tag])
+            if len(referenced_dates) == 0:
+                continue
+
+            cluster_tag, _ = referenced_dates.most_common(1)[0]
+            cluster_date = datetime.date(cluster_tag.year, cluster_tag.month, cluster_tag.day)
+
+            if self.extractive:
+                similarities = tfidf.fit_transform([sent.as_tokenized_string() for sent in cluster])
+                sims = cosine_similarity(similarities)
+                best_idx = sims.sum(1).argmax()
+
+                #first_dct = None
+                #last_dct = None
+
+                #for sent in cluster:
+
+
+                candidates = [(cluster[best_idx].as_token_tuple_sequence("form_lowercase", "pos"), len(cluster))]
+            else:
+                candidates = generate_summary_candidates(
+                        list(
+                            map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
+                                cluster)), lm,
+                        length_normalized=True,
+                        use_weighting=True)
+
+            per_date_candidates[cluster_date].append(candidates)
+
+        timelines = []
+        for params in all_parameters:
+            timeline = select_tl_sentences_submod(
+                list(per_date_candidates.items()),
+                [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in corpus for sent in doc],
+                params
+            )
+            timelines.append(Timeline(timeline))
+
+        return timelines
 
 
 def create_timeline_clustering(corpus, parameters):
     reader = DatedSentenceReader()
+    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
 
     #affinities = generate_affinity_matrix_from_dated_sentences(all_sents, sim_model)
-    affinities = generate_affinity_matrix_from_dated_sentences(corpus.sentences)
-    write_similarity_file("similarities.txt", affinities)
+    #affinities = generate_affinity_matrix_from_dated_sentences(corpus.sorted_sentences)
+    #write_similarity_file("similarities.txt", len(corpus.sentences), affinities)
+
+    clustering = read_ap_file("clustering.txt", corpus.sorted_sentences)
+
+    per_date_candidates = defaultdict(list)
+    for cluster in clustering:
+        if len(cluster) < 5:
+            continue
+        referenced_dates = Counter()
+
+        for sent in cluster:
+            if len(sent.exact_date_references) > 0:
+                referenced_dates.update(sent.exact_date_references)
+            elif len(sent.all_date_tags) == 0:
+                referenced_dates.update([sent.document.dct_tag])
+
+        cluster_date = None
+        for cluster_tag, _ in sorted(referenced_dates.items(), key=lambda i: i[1], reverse=True):
+            cluster_date = datetime.date(cluster_tag.year, cluster_tag.month, cluster_tag.day)
+            if cluster_date > parameters.last_date or cluster_date < parameters.first_date:
+                cluster_date = None
+
+        if cluster_date is None:
+            continue
+
+        candidates = generate_summary_candidates(
+                list(
+                    map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
+                        cluster)), lm,
+                length_normalized=True,
+                use_weighting=True)
+
+        per_date_candidates[cluster_date].append(candidates)
+
+    date_summary_dict = select_tl_sentences_submod(
+        list(per_date_candidates.items()),
+        [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in corpus for sent in doc],
+        parameters
+    )
+
+    return timelines.Timeline(date_summary_dict)
 
 
 if __name__ == "__main__":
