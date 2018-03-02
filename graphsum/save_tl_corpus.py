@@ -8,8 +8,8 @@ if __name__ == "__main__":
     arg_parser.add_argument("timeml_dir")
     arg_parser.add_argument("outfile")
 
-    arg_parser.add_argument("-d", dest="doc_prefix")
-    arg_parser.add_argument("-t", dest="timeml_prefix")
+    arg_parser.add_argument("-d", dest="doc_prefix", default="tokenized")
+    arg_parser.add_argument("-t", dest="timeml_prefix", default="tokenized.timeml")
 
     args = arg_parser.parse_args()
 

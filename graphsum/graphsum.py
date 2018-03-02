@@ -415,7 +415,7 @@ class SentenceCompressionGraph:
             data["weight_sl"] = w
             data["label"] = str(w)
 
-    def generate_compression_candidates(self, n=300, minlen=8, filterfunc=lambda c: True, use_weighting=True, timeout=60):
+    def generate_compression_candidates(self, n=300, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=60, return_weight=False):
         self.calculate_strong_links_weights()
 
         num_yielded = 0
@@ -431,7 +431,12 @@ class SentenceCompressionGraph:
             path_iter = nx.all_simple_paths(self.graph, "START", "END")
 
         for path in path_iter:
+            if time.time() - start_time >= timeout:
+                break
             if len(path) < minlen + 2:  # Account for START and END
+                continue
+
+            if maxlen is not None and len(path) - 2 > maxlen:   # Account for START and END
                 continue
 
             tokens = [self.graph.nodes[node]["token"] for node in path[1:-1]]
@@ -446,14 +451,19 @@ class SentenceCompressionGraph:
                 continue
 
             if tuple(tokens) not in candidate_set:
-                yield tokens
+                if return_weight is True:
+                    full_len = 0
+                    prev_node = path[0]
+                    for node in path[1:]:
+                        full_len += self.graph[prev_node][node]["weight_sl"]
+                        prev_node = node
+                    yield tokens, full_len
+                else:
+                    yield tokens
                 num_yielded += 1
                 candidate_set.add(tuple(tokens))
 
             if num_yielded >= n:
-                break
-
-            if time.time() - start_time >= timeout:
                 break
 
 
@@ -601,6 +611,8 @@ STOPWORDS.add(".")
 STOPWORDS.add("''")
 STOPWORDS.add("``")
 STOPWORDS.update(string.punctuation)
+STOPWORDS.add("'s")
+STOPWORDS.add("n't")
 
 
 def compute_neighbourhood_overlap(sent, graph, token_idx, node_idx, window_size=2, include_stopwords=True):
@@ -979,7 +991,7 @@ def calculate_informativeness(sent, tr_scores):
     return informativeness_score
 
 
-def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized=False, use_weighting=True):
+def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized=False, use_weighting=True, include_path_weight=True):
     compressor = SentenceCompressionGraph(STOPWORDS)
     print("Building Graph...")
     compressor.add_sentences(sentences)
@@ -1005,13 +1017,18 @@ def generate_summary_candidates(sentences, lm, tr_scores=None, length_normalized
 
         return all(sims[0,:] < 0.8)
 
-    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_closeness, use_weighting=use_weighting):
+    for proposed_sent in compressor.generate_compression_candidates(filterfunc=check_closeness, use_weighting=use_weighting, maxlen=55, return_weight=include_path_weight):
+        if include_path_weight:
+            proposed_sent, path_weight = proposed_sent
+
         plaintext_sent = list(map(lambda x: x[0], proposed_sent))
         lm_score = 1 / (1.0 - lm.estimate_sent_log_proba(plaintext_sent))
 
         informativeness_score = calculate_informativeness(proposed_sent, tr_scores)
 
         score = informativeness_score * lm_score
+        if include_path_weight:
+            score *= path_weight
         if length_normalized:
             score /= len(proposed_sent)
 

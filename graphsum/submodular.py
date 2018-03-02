@@ -8,6 +8,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from collections import Counter
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 class RedundancyFactor:
     @classmethod
     def from_sentences(cls, rewards, id_sentence_map, num_clusters=None):
@@ -48,8 +52,6 @@ class RedundancyFactor:
         for reward in self.rewards.values():
             max_reward = max(reward, max_reward)
 
-            print(reward, max_reward)
-
         for sid, reward in list(self.rewards.items()):
             self.rewards[sid] = reward / max_reward
 
@@ -74,17 +76,23 @@ class CoverageFactor:
             map(lambda t: t[0], s)), doc_sents))
         summ_tf_idf = model.transform(map(lambda s: " ".join(
             map(lambda t: t[0], s)), summary_sents))
-        cosine = cosine_similarity(summ_tf_idf, doc_tf_idf)
 
-        return CoverageFactor(cosine)
+        #cosine = cosine_similarity(summ_tf_idf, doc_tf_idf)
 
-    def __init__(self, similarity_matrix, normalize=True):
-        self.similarity_matrix = similarity_matrix
+        overlaps = {}
 
-        self.overlaps = {}
+        for idx, summ_tf_idf_vec in enumerate(summ_tf_idf):
+            cosine = cosine_similarity(summ_tf_idf_vec, doc_tf_idf)
+            overlaps[idx] = np.sum(cosine) / doc_tf_idf.shape[0]
 
-        for sent_id, sent_row in enumerate(self.similarity_matrix):
-            self.overlaps[sent_id] = sum(sent_row) / self.similarity_matrix.shape[1]
+        return CoverageFactor(overlaps)
+
+    def __init__(self, overlaps, normalize=True):
+        self.overlaps = overlaps
+        #self.overlaps = {}
+#
+        #for sent_id, sent_row in enumerate(similarity_matrix):
+        #    self.overlaps[sent_id] = sum(sent_row) / similarity_matrix.shape[1]
 
         if normalize:
             self._normalize_scores()
@@ -149,6 +157,18 @@ class SubsetKnapsackConstraint:
             self.current_size += self.sent_sizes[new_sent]
 
 
+class ClusterMembershipConstraint:
+    def __init__(self, id_cluster_map):
+        self.id_cluster_map = id_cluster_map
+        self.included_clusters = set()
+
+    def check(self, sent):
+        return self.id_cluster_map[sent] not in self.included_clusters
+
+    def update(self, new_sent):
+        self.included_clusters.add(self.id_cluster_map[new_sent])
+
+
 class MaxDateCountConstraint:
     def __init__(self, max_date_count, sent_dates):
         self.selected_dates = set()
@@ -202,7 +222,7 @@ class SubModularOptimizer:
                 if self.selection_callback is not None:
                     self.selection_callback(best_sentence, best_delta_s)
 
-                print(best_sentence, best_delta_s)
+                logger.info("Selecting sent {} (delta: {})".format(best_sentence, best_delta_s))
                 selected_sentences.add(best_sentence)
                 for factor in self.factors:
                     factor.update_scores(best_sentence)

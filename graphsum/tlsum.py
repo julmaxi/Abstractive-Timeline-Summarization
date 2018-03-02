@@ -13,9 +13,9 @@ from graphsum import summarize_timeline_dir
 
 from langmodel import KenLMLanguageModel
 from reader import DatedSentenceReader, DatedTimelineCorpusReader
-from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file, read_ap_file
+from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file, read_ap_file, cluster_sentences_ap
 from similarity import SklearnTfIdfCosineSimilarityModel
-from submodular import RedundancyFactor, CoverageFactor, KnapsackConstraint, SubsetKnapsackConstraint, SubModularOptimizer, MaxDateCountConstraint
+from submodular import RedundancyFactor, CoverageFactor, KnapsackConstraint, SubsetKnapsackConstraint, SubModularOptimizer, MaxDateCountConstraint, ClusterMembershipConstraint
 
 
 TimelineParameters = namedtuple("TimelineParameters", "first_date last_date max_date_count max_sent_count max_date_sent_count")
@@ -112,8 +112,7 @@ def date_from_dirname(dirname):
 
     return datetime.date(int(year), int(month), int(day))
 
-def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameters):
-    #first_date last_date max_date_count max_sent_count max_date_sent_count
+def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameters, disallow_cluster_repetition=True):
     id_sentence_map = {}
     id_cluster_map = {}
     date_id_map = defaultdict(list)
@@ -149,15 +148,23 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
         constraints.append(SubsetKnapsackConstraint(parameters.max_date_sent_count, defaultdict(lambda: 1), member_ids))
 
     constraints.append(MaxDateCountConstraint(parameters.max_date_count, sent_id_date_map))
+    constraints.append(KnapsackConstraint(parameters.max_sent_count, defaultdict(lambda: 1)))
+
+    if disallow_cluster_repetition:
+        constraints.append(ClusterMembershipConstraint(id_cluster_map))
 
     #cluster_redundancy_factor = RedundancyFactor(id_score_map, id_cluster_map)
 
     print("Selecting from {} sentences".format(sent_idx_counter))
     print("Initializing redudancy")
+    factors = []
     kmeans_redundancy_factor = RedundancyFactor.from_sentences(
         id_score_map,
         id_sentence_map,
-        num_clusters=10)
+        num_clusters=max(sent_idx_counter // 800, 2))
+    factors.append(kmeans_redundancy_factor)
+
+
 
     #print("Initializing coverage")
     #coverage_factor = CoverageFactor.from_sentences(
@@ -168,7 +175,7 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     opt = SubModularOptimizer(
         [
             kmeans_redundancy_factor,
- #           coverage_factor
+    #        coverage_factor
         ],
         constraints)
 
@@ -281,23 +288,63 @@ def create_timeline_sentence_level(timeline_corpus, parameters):
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+
+class SentenceScorer:
+    def __init__(self, config):
+        self.lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+
+    def prepare(self, corpus):
+        pass
+
+    def score_function_for_cluster(self, cluster):
+        local_tr_scores = calculate_keyword_text_rank(cluster)
+
+        def calc_local_informativeness(sent):
+            local_informativeness_score = 0
+            for token in set(sent):
+                local_informativeness_score += tr_scores.get(token, 0)
+
+            return local_informativeness_score
+
+        def sfunc(sent):
+            lm_score = 1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(sent)))
+
+            return lm_score * local_informativeness_score
+
+        return sfunc
+
+
 class APClusteringTimelineGenerator:
-    def __init__(self, extractive=False):
-        self.extractive = extractive
+    def __init__(self, config):
+        self.extractive = config.get("extractive", False)
+
+    def _score_clusters(self, clusters):
+        scored_clusters = []
+        maxlen = max(map(lambda c: len(c), clusters))
+        for cluster in clusters:
+            scored_clusters.append((cluster, len(cluster) / maxlen))
+
+        return scored_clusters
 
 
     def generate_timelines(self, corpus, all_parameters):
         lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
-        clustering = read_ap_file("clustering.txt", corpus.sorted_sentences)
+
+        clustering = cluster_sentences_ap(corpus.sentences)
+
+        #ap_matrix = generate_affinity_matrix_from_dated_sentences()
+
+        #clustering = read_ap_file("clustering.txt", corpus.sorted_sentences)
         per_date_candidates = defaultdict(list)
 
         tfidf = TfidfVectorizer()
         tfidf.fit([doc.plaintext for doc in corpus])
 
-        for cluster in clustering:
+        clustering = self._score_clusters(clustering)
+
+        for cluster, cluster_score in clustering:
             if len(cluster) < 5:
                 continue
-
             referenced_dates = Counter()
             for sent in cluster:
                 if len(sent.exact_date_references) > 0:
@@ -330,25 +377,35 @@ class APClusteringTimelineGenerator:
                     if last_date < date:
                         last_date = date
 
-                candidates = [(cluster[best_idx].as_token_tuple_sequence("form_lowercase", "pos"), max((last_date - first_date).days, 1))]
+                    print(sent.as_tokenized_string())
+
+                #score = max((last_date - first_date).days, 1)
+                score = len(cluster)
+
+                candidates = [(cluster[best_idx].as_token_tuple_sequence("form_lowercase", "pos"), score)]
             else:
                 candidates = generate_summary_candidates(
                         list(
                             map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
                                 cluster)), lm,
-                        length_normalized=True,
-                        use_weighting=True)
+                        length_normalized=False,
+                        use_weighting=False)
+
+                candidates = [(cand, cluster_score * sent_score) for cand, sent_score in candidates]
 
             per_date_candidates[cluster_date].append(candidates)
 
         timelines = []
         for params in all_parameters:
+            print(params)
             timeline = select_tl_sentences_submod(
                 list(per_date_candidates.items()),
                 [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in corpus for sent in doc],
                 params
             )
             timelines.append(Timeline(timeline))
+
+            print(Timeline(timeline))
 
         return timelines
 
@@ -388,8 +445,8 @@ def create_timeline_clustering(corpus, parameters):
                 list(
                     map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
                         cluster)), lm,
-                length_normalized=True,
-                use_weighting=True)
+                length_normalized=False,
+                use_weighting=False)
 
         per_date_candidates[cluster_date].append(candidates)
 
