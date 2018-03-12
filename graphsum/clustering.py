@@ -13,7 +13,9 @@ import string
 
 PUNCTUATION = set(string.punctuation)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
 
 DateIndexEntry = namedtuple("DateIndexEntry", "child_dates members exact_date_members")
 
@@ -23,8 +25,13 @@ import subprocess
 AP_PATH = "libs/affinity-propagation-sparse/ap"
 
 
-def cluster_sentences_ap(sents):
-    ap_matrix = generate_affinity_matrix_from_dated_sentences(sents)
+def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag_only=False):
+    if predicted_tag_only:
+        ap_matrix = generate_localized_predicted_ap_matrix(sents)
+    else:
+        ap_matrix = generate_affinity_matrix_from_dated_sentences(sents, include_uncertain_date_edges=include_uncertain_date_edges)
+
+    logger.debug("Computed {} similarities".format(len(ap_matrix)))
 
     in_lines = [str(len(sents))]
 
@@ -48,14 +55,47 @@ def cluster_sentences_ap(sents):
     return clustering
 
 
+def generate_localized_predicted_ap_matrix(sents, threshold=0.1):
+    similarities = {}
 
-def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.01):
+    dated_sentences = defaultdict(list)
+
+    for sidx, sent in enumerate(sents):
+        dated_sentences[sent.predicted_date].append((sidx, sent))
+
+    sim_model = TfidfVectorizer()
+    all_vecs = sim_model.fit_transform(map(lambda s: s.as_tokenized_string(), sents))
+
+    for sents in dated_sentences.values():
+        logger.debug("Computing similarities for {} sentences".format(len(sents)))
+        local_vecs = all_vecs[list(map(lambda s: s[0], sents)),:]
+
+        sims = cosine_similarity(local_vecs)
+
+        for idx1, vals in enumerate(sims):
+            for idx2, sim in enumerate(vals):
+                if idx1 == idx2:
+                    continue
+
+                if sim < threshold:
+                    continue
+
+                sent_idx_1 = sents[idx1][0]
+                sent_idx_2 = sents[idx2][0]
+
+                similarities[sent_idx_1, sent_idx_2] = sim
+                similarities[sent_idx_2, sent_idx_1] = sim
+
+    return similarities
+
+
+def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.1, include_uncertain_date_edges=True):
     date_sent_index = {}
 
     for s_idx, sent in enumerate(sents):
         # TODO: How exactly do we deal with undated sentences?
         all_tags = set(sent.all_date_tags)
-        if len(all_tags) == 0:
+        if len(sent.exact_date_references) == 0: # TODO: maybe revert to "all tags"?
 #            all_tags = list(sent.document.all_date_tags)
             all_tags.add(sent.document.dct_tag)
 
@@ -90,8 +130,15 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.01):
                 for x_idx in range(sims.shape[0]):
                     for y_idx in range(x_idx, sims.shape[1]):
                         if sims[x_idx, y_idx] >= threshold:
-                            similarities[x_idx, y_idx] = sims[x_idx, y_idx]
-                            similarities[y_idx, x_idx] = sims[x_idx, y_idx]
+                            sim_x_idx = day_index_entry.members[x_idx][0]
+                            sim_y_idx = day_index_entry.members[y_idx][0]
+                            similarities[sim_x_idx, sim_y_idx] = sims[x_idx, y_idx]
+                            similarities[sim_y_idx, sim_x_idx] = sims[x_idx, y_idx]
+
+    logger.debug("Computed {} similarities in dates".format(len(similarities)))
+
+    if not include_uncertain_date_edges:
+        return similarities
 
     for s_idx, sent in enumerate(sents):
         if (s_idx + 1) % 100 == 0:
@@ -151,8 +198,8 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.01):
 
         _, relevant_indices, _ = find(sims >= threshold)
 
-        for other_s_idx in relevant_indices:
-            similarities[s_idx, other_s_idx] = sims[0, other_s_idx]
+        #for other_s_idx in relevant_indices:
+        #    similarities[s_idx, other_s_idx] = sims[0, other_s_idx]
 
         for (other_s_idx, other_sent), sim in zip(connected_sents, sims[0]):
             if sim >= threshold:
@@ -170,6 +217,28 @@ def write_similarity_file(fname, num_sents, affinities):
 
 
 def read_ap_file(fname, sentences):
+    clusters = defaultdict(list)
+    with open(fname) as f:
+        representatives = f.read().strip().split()
+
+        for idx, representative in enumerate(representatives):
+            representative = int(representative)
+            if idx != representative:
+                clusters[representative].extend(clusters[idx])
+                clusters[idx] = clusters[representative]
+            clusters[idx].append(sentences[idx])
+
+    clustering = []
+    for cluster_idx, vals in clusters.items():
+        if len(vals) < 2:
+            continue
+        vals.append(sentences[cluster_idx])
+        clustering.append(vals)
+
+    return clustering
+
+
+def read_ap_file_single(fname, sentences):
     clusters = defaultdict(list)
     with open(fname) as f:
         representatives = f.read().strip().split()

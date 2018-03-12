@@ -415,7 +415,7 @@ class SentenceCompressionGraph:
             data["weight_sl"] = w
             data["label"] = str(w)
 
-    def generate_compression_candidates(self, n=300, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=60, return_weight=False):
+    def generate_compression_candidates(self, n=300, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=60, return_weight=False, max_tries=2500):
         self.calculate_strong_links_weights()
 
         num_yielded = 0
@@ -430,7 +430,13 @@ class SentenceCompressionGraph:
         else:
             path_iter = nx.all_simple_paths(self.graph, "START", "END")
 
+        num_tries = 0
+
         for path in path_iter:
+            if max_tries is not None and num_tries > max_tries:
+                break
+            num_tries += 1
+
             if time.time() - start_time >= timeout:
                 break
             if len(path) < minlen + 2:  # Account for START and END
@@ -465,6 +471,8 @@ class SentenceCompressionGraph:
 
             if num_yielded >= n:
                 break
+
+        logging.debug("Needed {} tries to create {} items".format(num_tries, num_yielded))
 
 
 def insert_into_top_n_list(l, new_item, n):

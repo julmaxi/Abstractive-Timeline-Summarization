@@ -54,6 +54,10 @@ class TimelineCorpus:
     def __iter__(self):
         return (doc for docs in self.per_date_documents.values() for doc in docs)
 
+    @property
+    def num_documents(self):
+        return sum(map(lambda l: len(l), self.per_date_documents.values()))
+
     def iter_dates(self):
         return iter(self.per_date_documents.keys())
 
@@ -468,6 +472,7 @@ class DatedSentenceReader:
                 doc.all_date_tags.add(tag)
                 if tag.dtype == DateTag.DAY:
                     possible_exact_dates.append(tag)
+                    print(timeex.value)
                 #try:
                 #    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d").date()
                 #    possible_exact_dates.append(date)
@@ -507,7 +512,11 @@ class DatedSentenceReader:
             if len(possible_exact_dates) > 0:
                 # TODO: Find better heuristic
                 #print(sent.time_expressions[0])
-                sent.predicted_date = possible_exact_dates[0]
+                pred_date = possible_exact_dates[0]
+                try:                
+                    sent.predicted_date = datetime.date(pred_date.year, pred_date.month, pred_date.day)
+                except ValueError:
+                    sent.predicted_date = dct
             else:
                 sent.predicted_date = dct
 

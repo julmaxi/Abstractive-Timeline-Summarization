@@ -22,7 +22,7 @@ class RedundancyFactor:
             map(lambda t: t[0], id_sentence_map[sid])), sorted_sent_ids))
 
         if num_clusters is None:
-            num_clusters = max(len(id_sentence_map) // 400, 2)
+            num_clusters = max(len(id_sentence_map) // 5, 2)
 
         clustering = MiniBatchKMeans(n_clusters=num_clusters).fit_predict(tf_idf)
 
@@ -39,7 +39,7 @@ class RedundancyFactor:
         self.rewards = rewards
         self.sent_partitions = sent_partitions
 
-        self.all_partitions = set(sent_partitions.values())
+        #self.all_partitions = set(sent_partitions.values())
 
         if normalize:
             self._normalize_rewards()
