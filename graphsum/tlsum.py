@@ -264,10 +264,10 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     constraints = []
 
     for date_id, member_ids in date_id_map.items():
-        constraints.append(SubsetKnapsackConstraint(parameters.max_date_sent_count, defaultdict(lambda: 1), member_ids))
+        constraints.append(SubsetKnapsackConstraint(parameters.max_date_sent_count, dict((i, 1) for i in range(sent_idx_counter)), member_ids))
 
     constraints.append(MaxDateCountConstraint(parameters.max_date_count, sent_id_date_map))
-    constraints.append(KnapsackConstraint(parameters.max_sent_count, defaultdict(lambda: 1)))
+    constraints.append(KnapsackConstraint(parameters.max_sent_count, dict((i, 1) for i in range(sent_idx_counter))))
 
     if disallow_cluster_repetition:
         constraints.append(ClusterMembershipConstraint(id_cluster_map))
@@ -551,6 +551,14 @@ class APClusterer:
             predicted_tag_only=self.predicted_tag_only)
 
 
+class IdentityClusterer:
+    def __init__(self, config):
+        pass
+
+    def cluster_corpus(self, corpus):
+        return [[sent] for sent in corpus.sentences]
+
+
 class AgglomerativeClusterer:
     def __init__(self, config):
         self.clustering_threshold = config.get("clustering_threshold", 0.3)
@@ -650,6 +658,16 @@ class GlobalSubModularSentenceSelector:
         return select_tl_sentences_submod(per_date_clusters, self.corpus, parameters)
 
 
+class IdentityCandidateGenerator:
+    def __init__(self, config):
+        pass
+
+    def prepare(self, corpus):
+        pass
+
+    def generate_candidates(self, cluster):
+        return [(s.as_token_tuple_sequence("form", "pos"), None) for s in cluster]
+
 
 class ROUGEOracleScorer(TLSumModuleBase):
     def __init__(self, config):
@@ -691,6 +709,7 @@ class ROUGEOracleScorer(TLSumModuleBase):
 
         return list(scored_per_date_cluster_candidates.items())
 
+
 class GloballyClusteredSentenceCompressionTimelineGenerator:
     def clusterer_from_config(self, config):
         method = config["method"]
@@ -699,6 +718,8 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             return APClusterer(config)
         elif method == "agglo":
             return AgglomerativeClusterer(config)
+        elif method == "identity":
+            return IdentityClusterer(config)
         else:
             raise ValueError("Method {!r} not recognized".format(method))
 
@@ -717,6 +738,8 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             return GraphCandidateGenerator(config)
         elif method == "centroid":
             return CentroidCandidateGenerator(config)
+        elif method == "identity":
+            return IdentityCandidateGenerator(config)
         else:
             raise ValueError("Method {!r} not recognized".format(method))
 
@@ -795,10 +818,11 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
         return all_timelines
 
     def create_clusters(self, corpus):
-        cache_path = os.path.join(self.config["cluster_cache_path"], corpus.name)
-        if cache_path is None:
+        base_cache_path = self.config.get("cluster_cache_path")
+        if base_cache_path is None:
             clusters = self.clusterer.cluster_corpus(corpus)
             return clusters
+        cache_path = os.path.join(base_cache_path, corpus.name)
 
         if not os.path.isdir(cache_path):
             clusters = self.clusterer.cluster_corpus(corpus)

@@ -123,6 +123,11 @@ class KnapsackConstraint:
         self.sent_sizes = sent_sizes
         self.current_size = 0
 
+        self.buckets = defaultdict(list)
+
+        for sent, length in self.sent_sizes.items():
+            self.buckets[length].append(sent)
+
     def check(self, sent):
         new_size = self.current_size + self.sent_sizes[sent]
 
@@ -131,8 +136,12 @@ class KnapsackConstraint:
         else:
             return True
 
-    def update(self, new_sent):
+    def update(self, new_sent, filtered_sentences):
         self.current_size += self.sent_sizes[new_sent]
+
+        #print([sent for length, sents in self.buckets.items() for sent in sents], self.current_size, self.knapsack_size)
+
+        return [sent for length, sents in self.buckets.items() for sent in sents if self.current_size + length > self.knapsack_size]
 
 
 class SubsetKnapsackConstraint:
@@ -141,6 +150,12 @@ class SubsetKnapsackConstraint:
         self.sent_sizes = sent_sizes
         self.current_size = 0
         self.relevant_sents = set(relevant_sents)
+
+        self.buckets = defaultdict(list)
+
+        for sent, length in self.sent_sizes.items():
+            if sent in self.relevant_sents:
+                self.buckets[length].append(sent)
 
     def check(self, sent):
         if sent not in self.relevant_sents:
@@ -152,21 +167,32 @@ class SubsetKnapsackConstraint:
         else:
             return True
 
-    def update(self, new_sent):
+    def update(self, new_sent, filtered_sentences):
         if new_sent in self.relevant_sents:
             self.current_size += self.sent_sizes[new_sent]
 
+            return [sent for length, sents in self.buckets.items() for sent in sents if self.current_size + length > self.knapsack_size]
+
+        return []
 
 class ClusterMembershipConstraint:
     def __init__(self, id_cluster_map):
         self.id_cluster_map = id_cluster_map
         self.included_clusters = set()
 
+        self.cluster_sentences = defaultdict(list)
+
+        for sent, cluster in self.id_cluster_map.items():
+            self.cluster_sentences[cluster].append(sent)
+
     def check(self, sent):
         return self.id_cluster_map[sent] not in self.included_clusters
 
-    def update(self, new_sent):
+    def update(self, new_sent, filtered_sentences):
         self.included_clusters.add(self.id_cluster_map[new_sent])
+        return self.cluster_sentences[self.id_cluster_map[new_sent]]
+
+from collections import defaultdict
 
 
 class MaxDateCountConstraint:
@@ -175,6 +201,13 @@ class MaxDateCountConstraint:
         self.sent_dates = sent_dates
         self.max_date_count = max_date_count
 
+        self.date_sents = defaultdict(list)
+
+        self.has_reached_limit = False
+
+        for sent, date in self.sent_dates.items():
+            self.date_sents[date].append(sent)
+
     def check(self, sent):
         date = self.sent_dates[sent]
         if date not in self.selected_dates and len(self.selected_dates) >= self.max_date_count:
@@ -182,9 +215,17 @@ class MaxDateCountConstraint:
 
         return True
 
-    def update(self, new_sent):
+    def update(self, new_sent, filtered_sentences):
         date = self.sent_dates[new_sent]
         self.selected_dates.add(date)
+
+        if len(self.selected_dates) < self.max_date_count:
+            return []
+        elif not self.has_reached_limit:
+            self.has_reached_limit = True
+            return [sent for date, sents in self.date_sents.items() for sent in sents if date not in self.selected_dates]
+        else:
+            return []
 
 
 class SubModularOptimizer:
@@ -198,17 +239,19 @@ class SubModularOptimizer:
         selected_sentences = set()
         filtered_sentences = set()
 
+        #was_filtered = [False for _ in sentences]
+
         while True:
             best_sentence = None
             best_delta_s = 0
-            for sent in sentences:
+            for idx, sent in enumerate(sentences):
                 if sent in filtered_sentences or sent in selected_sentences:
                     continue
-                fullfills_constr = self._does_pass_constraints(sent)
-
-                if not fullfills_constr:
-                    filtered_sentences.add(sent)
-                    continue
+                #fullfills_constr = self._does_pass_constraints(sent)
+#
+                #if not fullfills_constr:
+                #    was_filtered[idx] = True
+                #    continue
 
                 delta_s = self._determine_delta_s(sent)
 
@@ -227,7 +270,8 @@ class SubModularOptimizer:
                 for factor in self.factors:
                     factor.update_scores(best_sentence)
                 for constraint in self.constraints:
-                    constraint.update(best_sentence)
+                    new_excluded_sentences = constraint.update(best_sentence, filtered_sentences)
+                    filtered_sentences.update(new_excluded_sentences)
 
         return selected_sentences
 
