@@ -33,6 +33,15 @@ def determine_tl_parameters(timeline):
     )
 
 
+def load_corpus(fname):
+    with open(fname, "rb") as f:
+        corpus = pickle.load(f)
+        corpus.name = fname
+
+    return corpus
+
+
+
 def evaluate_tl_main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", dest="timelines", nargs="+")
@@ -61,9 +70,7 @@ def evaluate_tl_main():
     date_f1_r_sum = 0
     date_f1_p_sum = 0
 
-    with open(args.corpus_pickle, "rb") as f:
-        corpus = pickle.load(f)
-        corpus.name = args.corpus_pickle
+    corpus = load_corpus(args.corpus_pickle)
 
     timelines = []
 
@@ -176,8 +183,46 @@ def evaluate_tl_main():
     print("ROUGE 2", rouge_2_sum / len(args.timelines))
     print("Date F1", date_f1_sum / len(args.timelines))
 
+from utils import iter_files
 
+def cross_eval_main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("corpus_def")
+    parser.add_argument("config")
+
+    args = parser.parse_args()
+
+    corpora_and_timelines = []
+
+    with open(args.corpus_def) as f:
+        corpus_defs = json.load(f)
+
+    for corpus_def in corpus_defs["corpora"]:
+        timeline_dir = corpus_def["tl_dir"]
+        corpus_pickle = corpus_def["corpus_pkl"]
+
+        corpus = load_corpus(corpus_pickle)
+
+        timelines = []
+        for tl_fname in iter_files(timeline_dir, ".txt"):
+            with open(tl_fname, encoding="latin-1") as f:
+                timeline = Timeline.from_file(f)
+                timelines.append((os.path.basename(tl_fname), timeline))
+
+        corpora_and_timelines.append((corpus, timelines))
+
+    with open(args.config) as f:
+        config = json.load(f)
+
+    tl_gen = GloballyClusteredSentenceCompressionTimelineGenerator(config)
+
+    parameters = tl_gen.run_scoring_cv_train_mode(corpora_and_timelines)
+
+    with open("all-parameters.pkl", "wb") as f_out:
+        pickle.dump(parameters, f_out)
 
 
 if __name__ == "__main__":
-    evaluate_tl_main()
+    cross_eval_main()
+    #evaluate_tl_main()

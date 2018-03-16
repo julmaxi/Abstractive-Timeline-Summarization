@@ -1,0 +1,437 @@
+\documentclass[a4paper,BCOR=10mm]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\usepackage{caption}
+
+\usepackage{natbib}
+\usepackage{algorithm,algorithmic}
+
+\usepackage{multirow}
+
+\usepackage{graphicx}
+\usepackage{csquotes}
+\usepackage[begintext=``, endtext='']{quoting}
+\SetBlockEnvironment{quoting}
+\SetBlockThreshold{1} 
+
+\newcounter{quotecount}
+\newcommand{\countquote}[1]{\vspace{1cm}\refstepcounter{quotecount}%
+     \parbox{9cm}{#1}\hspace*{1cm}(Excerpt \arabic{quotecount})\\[1cm]}
+
+\renewcommand{\mkcitation}[1]{#1}
+\renewcommand{\mkblockquote}[4]{\enquote{#1}#2\ifterm{\relax}{#3}#4}
+
+
+%\renewcommand{\baselinestretch}{1.5}
+
+
+\begin{document}
+
+\begin{titlepage}
+\pagenumbering{Roman} 
+\begin{center}
+ 
+\Large\textbf{\\
+University of Heidelberg}
+\vspace{2cm}
+
+\Huge\textbf{
+Abstractive Timeline Summarization
+}
+
+\vspace{10cm}
+
+\normalsize
+Masters Thesis in Computational Linguistics\\
+submitted by\\
+\vspace{0.5cm}
+\Large\textbf{Julius Steen}\\
+\normalsize
+\vspace{0.5cm}
+born in Stadthagen (Germany)\\
+\normalsize
+Matr-Nr.: 3219620 \\
+\vspace{0.5cm}
+\Large\textbf{May 2018} \\
+\normalsize
+
+\newpage
+
+\normalsize
+This Masters Thesis has been carried out by Julius Steen at the\\
+Institut für Computerlinguistik in Heidelberg\\
+under the supervision of\\
+Dr. Katja Markert
+\vfill
+\end{center}
+
+\newpage
+\noindent
+\Large\textbf{Abstract}\\
+\\
+
+Timeline summarization (TLS) is the task of taking a set of documents related to some large incident, for example a military conflict or natural disaster, and returning summaries for the most important events from that incident, aranged along a timeline. Each event is tagged with a timestamp, usually the day that it has occured.
+Almost all prior work in the area of TLS has thus far focused on directly extracting intersting sentences from the original documents, an approach that is called extractive summarization. A more human-like approach to summarization is abstractive summarization which generates novel sentences to form a summarization. While many abstractive systems have been proposed for generic summarization tasks, we are not aware of any that have been used for TLS.
+In this thesis we present an abstractive approach to timeline summarization that builds on existing systems for multi-document summarization. We adapt the system to better handle and take advantage of the special properties of TLS and charaterise the system in a general framework for abstractive TLS. We then evaluate this modified system and compare it to the original, unmodified system on two large copora.
+We also conduct an annotation study to determine the lingustic quality of the generated summaries.
+
+
+\newpage
+\noindent
+\Large\textbf{Zusammenfassung}\\
+\\
+
+\newpage
+\normalsize
+\tableofcontents
+
+\end{titlepage}
+
+\pagenumbering{arabic} 
+
+
+\chapter{Introduction}
+
+Many important events are not contained within a small timeframe but span multiple weeks, month or even years. In these long timespans many small events occur that contribute the overall development of the larger event. Often information about these incidents is spread out across a large number of different articles. This can make it difficult for users wanting to inform themselves to get an overview of the sequence of events. Many publications offer a solution to the problem by creating timelines of the events. %(EXAMPLES!)
+A timeline lists the dates which are important to the event (or which the timeline creator cosinders important) along with brief summaries of the dates.
+While such timelines are very useful, they must be created by hand and may not be available for all interesting topics and even if there are timelines available, they might not cover the period of time interesting to the reader.
+Consequently there has been a number of attempts to generate such timelines automatically from large corpora of news articles pertaining to an event. See section \ref{sec:prior-work} for an overview.
+
+As \citet{markert} note, the task of TLS is closely related to Multi Document Summarization.
+A Multi Document Summarization is a system that takes a number of documents pertaining to some common topic and outputs a summary of their content that meets some length constraint. Generally, there are two classes of MDS systems, abstractive systems and extractive systems \citep{a-brief-survey}. Extractive systems work by selecting a subset of sentences from the original documents that best represent their content. This is the approach that has been employed by the mayority of TLS systems so far.
+There are, however, inherent limits to the performance of purely extractive systems. While a recent study \citep{hirao+nishino} using an oracle of extractive summaries to determine an upper bound for extractive summarization has shown that there is still room for improvement of ROUGE \citep{lin} scores, another study by \citet{ceylan+mihalcea} suggest achieving meaningful improvements may be difficult. Their approach exhaustively generates all possible extractive summaries for documents in multiple domains and generates a probability density function from a histogram of ROUGE scores. They find that both the basic lead baseline and the realtively old TextRank \citet{textrank} system already fall into the 99th percentile of the function.
+
+In comparison, abstractive summarization systems work much closer to the way we would expect a human to summarize a text. Instead of just selecting the sentences from the original document, they construct new sentences based on the information from the input documents. While they are not limited in the same way as extractive summarization systems, they are more difficult to design. A perfect abstractive system would arguably require almost human-like text understanding, in addition to the ability to determine relevance and to generate readable and coherent text based on that understanding. However, a number of abstractive systems has been proposed that tackle the task, for example by not constructing new sentences from scratch, but by merging sentences from the corpus and deleting unimportant constituents. To our knowledge, no such system has thus far been applied to TLS. Considering the availability of such systems for summarization and the limits of extractive summarization, it is interesting to investigate the application of such systems to the problem of timeline summarization.
+
+A very basic approach to introduce abstractive timeline summarization is to take an existing abstractive MDS system and couple it with an algorithm that determines important dates within an event. This process is called date selection. We elaborate on this idea in section \ref{sec:tls-as-mds}. This approach, however, ignores the temporal aspect of TLS, which has previously shown to be important to the problem. For example, \citet{markert} have shown that temporalizing similarity functions used in an extractive summarization system can improve over just using the MDS system outright.
+We thus structure our investigation into abstractive TLS as follows:
+Starting from a state-of-the-art abstractive summarization system we first apply it to the TLS task without modifications, in a pipeline with a date-selection algorithm.
+We then derive a general frameworks for abstractive TLS based on this original system and propose a number of adaptions to take advantage of the special structure of the TLS task.
+Both the unmodified system and the adapted version are evaluated on two timeline summarization corpora. We also conduct an annotation study to determine the linguistic quality, which abstractive summarization systems, unlike their extractive counterparts, can not guarantee even on sentence level.
+
+
+\chapter{Prior Work}
+
+\section{Prior Work in Abstractive Document Summarization}
+
+There is a great variety of models for abstractive summarization. One common approach is to combine existing sentences by fusing them or deleting parts. Usually this is is combined with some kind of learned function that determines which deletions lead to good summaries.
+For example, \citet{almeida} work on dependency trees and solve an ILP to determine both which sentences should be included in the summarization and which nodes can be deleted based on a learned scoring function. They use a multi-task learning setup to learn appropriate scores using both corpora for extractive summarization and sentence compression to increase available training data. Similarly \citet{berg-kirkpatrick} work on parse trees and also solve an ILP to jointly choose sentences to extract and nodes to discard from a sentence based on scores learned on a training set.
+\citet{bing} also work on parse trees but combine NPs and VPs from different sentences if they are similar enough. They select the best combinations based on salience of the included phrases.
+
+Another approach to this kind of summarization, using the original documents to form new sentences, is based around graph modelling. \citet{filippova} suggests a model for headline generation that is based around finding shortest paths in a word graph derived from a set of sentences.
+Each node is one of the words from the original sentences and directed edges indicate adjacency of two words in at least one of the sentences. Edges are weighted so that more frequently cooccuring words are connected by shorter edges. By running a k-shortest path algorithm, \citeauthor{filippova} generates a set of candidate summaries, which are then reweighted according to their length.
+\citet{banerjee}, which we base our investigation on, builds on this approach and integrates this method in an abstractive multi document summarization, by first clustering the sentenences of the input documents and then using the graph compression method to generate a large number of candidate summary sentences for each cluster. They then formulate an ILP to select the most salient sentences for inclusion in the summary. See section \ref{sec:mds-baseline} 
+
+The idea of building graphs from sentences has also been explored in other domains, for example \citet{opinosis} extract short summaries from highly opinated sentences from product reviews by using a similar method.
+
+%OPINOSIS, that acyclic method!
+
+
+Finally, a very recent avenue of research is the use of neural networks for abstractive summarization. A typical architecture is to use an encoder-decoder architecture with some kind of recurrent neural network, for example an LSTM. See \citet{nallapati, rush} for examples of such approaches.
+While many early models were limited to summarize only short passages of texts, recent developments combining this architecture with methods from reinforment learning have substantially increased performance of neural summarizers for longer summaries. \citet{paulus}
+
+
+
+\section{Prior Work in Timeline Summarization}
+
+One of the earliest approaches to timeline summarization, which still provides a very strong baseline in many cases (see, for example, the evaluation of \citet{markert}), are the measures proposed by \citet{chieu}.
+\citeauthor{chieu} proposes that the importance of a sentence for a timeline can be determined by two measures, \textit{interest} and \textit{burstiness}.
+Interest is the measure of overall similarity of a sentence $s$ to those sentences in the corpus, which lie in a specified window around the date of $s$.
+Burstiness measures whether a sentence reports an event that is strongly clustered around one specific date in the corpus, instead of spread out over the whole extent of the corpus.
+
+
+\citet{yan-evo} model the summarization as a graph centrality problem. For each date, two separate graphs, are constructed: a local biased graph, that encodes the similarities of sentences refering to that date and a global biased graph that encodes the similarities of the sentences of that date (''intra-date similarities'') to all sentences outside that date (''inter-date similarities'').
+They then use the DivRank \citep{divrank} algorithm to determine centrality scores for each sentence within one date for each graph, which are used to tank the sentences.
+A final rank for each sentence is computed by a weighted average of the ranks obtained from both graphs. To determine which dates should be included in the timeline, they give preference to sentences from dates which have been mentioned often in their corpus. As they themselves note, this corresponds to the notion of burstiness introduced by \citeauthor{chieu}.
+
+\citet{multimodal} have proposed a multimodal approach to timeline summarization by integrating image information. They cast the task as a collaborative filtering task. During training, they construct a matrix of textual features and image embeddings derived from a deep neural network for each sentence in the corpus, including a column of their rouge scores. They then factorize the matrix into two embedding matrices, one for sentences and one for the features, which together approximate the original matrix. During prediction the rouge column of a sentence is left empty and a new embedding is computed for the sentence. By then multiplying that embedding with the feature embedding for rouge, they can derive a score for each sentence. They then include the sentences with the highest scores and order them chronologically.
+
+
+
+
+\chapter{Abstractive Timeline Summarization as Abstractive Multi-Document Summarization}
+
+\section{Overview}
+
+Timeline summarization is closely related to the field of multi-document summarization. As mentioned in the introduction already, any multi-document summarization system can be directly used for timeline summarization by first selecting a set of dates the timeline should include and then summarizing the set of documents that were published on that date.
+While this procedure is bound to ignore the global aspects of timeline summarization, as each date summary is created in isolation, it is a convinient baseline for the problem.
+
+However, while there are many different approaches to abstractive multi-document summarization, not all are immediatly suited to the nature of current timeline summarization tasks. Neural methods, while recently successfull in abstractive document summarization (CITE!), usually require a large ammount of training date, which is difficult to obtain given the limited number of reference timelines in current timeline corpora.
+We thus focus on methods that work in an unsupervised way.
+
+We opt to extend the work of \citep{banerjee} for two reasons:
+
+\begin{enumerate}
+\item{It does not require any training or parameter tuning}
+\item{It can easily be decomposed into contained subproblems, which can independently be adapted to the challenge of timeline summarization}
+\end{enumerate}.
+
+
+\section{Multi-Document Baseline System} \label{sec:mds-baseline}
+
+The reference system of \citet{banerjee} we have choosen for our task generates summaries in three steps. The clustering phase, the sentence generation phase and the selection phase. In the clustering phase similar sentences of the input documents are grouped into clusters. In the second step a graph-based compression algorithm is used on the clusters and 
+
+
+
+
+\section{Date selection}
+
+
+\chapter{System}
+
+\section{Architectural Overview}
+
+Our approach can broadly be divided into four distinct subproblems, generalizing the setup of \citet{banerjee}.
+The first one is the \textbf{clustering step} where we seek to partition the sentences of the corpus into clusters, where each cluster ideally represents one distinct event.
+The second step is to generate a set of \textbf{candidate sentences} that coincisely describe a single cluster. Note, that many more candidates are generated than can be included in the final summary.
+In the third step, each generated sentence is assigned a score, which represents its importance for the summary.
+Finally, we must \textbf{select} a number of sentences to be included in the timeline, so that the resulting summary is both informative and readable.
+
+\section{Clustering}
+
+\subsection{Introduction}
+
+While the problem of clustering is very well researched in computational science, the requirements of this application make it arguably more challenging then the generic task. Sentences in one cluster must be both similar, so the compression can generate meaningful and correct sentences, as well as sufficiently different to allow for variations in the generated sentences, lest the system will just reproduce the original sentences.
+Furthermore the system must automatically detect the number of clusters on a wide varity of datasets with different sizes and characteristics.
+Choosing too few large clusters may make it impossible to generate a sufficient ammount of sentences to fill a timeline, while too many small clusters may not be diverse enough to allow for new sentences.
+All these factors make the clustering step of the system quite challenging and essential for the overall working of the system.
+
+
+\subsection{Document-based clustering}
+
+We can directly apply the clustering method of our reference MDS system as described in section \ref{sec:baseline-system} by treating each date as an isolated clustering problem.
+Each date that has at least two articles in the corpus is treated as an independet clustering problem.
+We first determine the most-important document by finding the document which has the highest cosine similarity to the concatenation of all documents in the date.
+Afterwards the sentences of the remaining documents are clustered to the most similar sentence of the most-important document, provided they have a cosine similarity of $0.5$. Cosine similarity is computed based on a Tf-idf model fitted on the entire corpus of input documents.
+This setup corresponds to the best-performing system of \citet{banerjee}.
+
+One drawback of this clustering method is that it ignores possible date tagging on the sentence level and assumes instead that all sentences refer to the publication date. 
+
+\subsection{Agglomerative Multi-Clustering}
+
+When moving to a more fine-grained date tagging level, we can no longer rely on documents to guide our clustering. Sentences refering to one date may hail from many different documents and the sentences of one document may be spread across many dates.
+We thus can also no longer rely on one document to guide the number of clusters. We can, however, partly avoid the resulting problem of having to choose the number of clusters, by relaxing the problem so that one sentence may be included in more than one cluster.
+This means that we do not have to decide which cluster a given sentence fits best to, but just whether it fits into a given cluster or not.
+
+The relaxation seems reasonable if we analyse the effects of placing a sentence in a cluster it does not belong to versus not placing it in such a cluster.
+In the first case, the generation step will probably produce a few nonsensical sentences, because it combines sentences which have very little in common.
+It might also generate redudant sentences, because two clusters can have similar content. Both problems, however, can conceivably be handled at the later selection state.
+The second problem, on the other hand, is much more difficult to correct at a later step. If a sentence carrying information that could be useful to construct new sentences in the generation step is not included, that information is essentially lost to the summarizer. It seems thus reasonable to choose a generation strategy that prefers making mistakes of the former kind instead of the latter.
+
+Based on this observation, we formulate the following clustering strategy. We first partition all sentences of the input document into multiple sets, so that all sentences that refer to the same date are in one partition. We follow prior work on TLS in assuming that the correct date tag for each sentence is the first complete date tag encountered in the sentence, or the document creation time, if there is no such tag.
+
+We then iterate over all sentences in one partition and build a cluster by gathering all sentences from the same partition that have a similarity of at least $0.5$ to the sentence.
+
+After the first pass of the algorithm, we have at most $|P_d|$ potential clusters with more than one member, one for each sentence in the original document.
+Many of these clusters, however, are bound to be very similar. While this is not a theoretical problem for the system, besides complicating redundancy avoidance in later steps, it is undesirable from a performance perspective, because this would lead to a lot of unnecessary duplication of candidate sentences in the generation step.
+We thus eliminate any clusters, which is a subset of another cluster in the same partition. See algorithm \ref{alg:multi-clustering} for a sketch of the whole process.
+
+
+ \begin{algorithm}
+ \caption{Agglomerative Multi-Clustering}
+ \ref{alg:multi-clustering}
+ \begin{algorithmic}
+    \STATE Partition the input sentences into sets $P_d = \{ s \in S | date(s) = d \}$ for each date $d$ in the corpus
+    \STATE $\bar{C} = \emptyset$
+    \FOR{all sets $P_d$}
+        \FOR{$s_1 \in P_d$}
+            \STATE Let $C = \{  \}$
+            \FOR{$s_2 \in P_d \setminus \{ s_1 \}$}
+                \IF{$sim(s_1, s_2) > 0.5$}
+                    \STATE $C \leftarrow C \cup \{ s_2 \}$
+                \ENDIF
+            \ENDFOR
+
+            \IF{$|C| \geq 2$}
+                \STATE $\bar{C} \leftarrow \bar{C} \cup \{ C \}$
+            \ENDIF
+        \ENDFOR
+
+    \ENDFOR
+    \STATE $\bar{C} \leftarrow \text{EliminateDuplicates}(\bar{C})$
+    \RETURN $\bar{C}$
+
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Graph-based Clustering}
+
+All previously discussed methods have in common that they assume that each sentence has an unambigous date reference (either a date tag, or the document creation date).
+This assumption is not always correct, however. Many date references are incomplete in that they do not refer to an exact date, but instead to a timespan. Take the following example from the crisis corpus: ''A hospital source and an activist reported 17 dead in Deraa , where protests began last month before spreading across the country.'' % corpora/syria/articles/2011-04-08/100.htm.txt: (TABLE!)
+Instead of refering to an exact date, the article instead contains an approximate reference to ''last month''. While this construction would be recognized by a time expression tagger, most traditional TLS systems would discard this reference, because it does not refer to an exact date.
+ It should be noted though, that this is not always the case. For example, \citet{chieu} do in fact handle such cases, although they only take them into account for similarity computations, and do not offer a way to assign exact dates to them.
+A small corpus study shown in \ref{tab:ambigous-date-ref} shows, that those constructions are not uncommon . %(TABLE!).
+Handling these constructions becomes even more attractive when we consider that prior work has argued that events which are referenced a long time after they have happened are likely to be very important. %(CITE!)
+
+We try to tackle that problem by exploiting sentence similarities to the sentences in the referred to timespan to find the exact date the ambigous reference is likely to refer to. In order to do this, we cast the problem of clustering all sentences in a document as a graph-clustering problem, where nodes are candidate sentences and nodes are preferences for two sentences to be clustered in the same cluster. By restricting which nodes are included in the cluster, we can ensure that sentences are only clustered in the same cluster if their dates match.
+
+We define the function $daterefs(s)$ to return the set of date references of sentence $s$. These references include all TimeML-expressions contained in the sentence of type ''date''. If there is no exact date reference in the sentence, $daterefs(s)$ contains any inexact date references that might be contained in $s$ and the document creation time.
+A reference $r$ is defined to be exact, iff it corresponds to the resolution of the timeline. Usually this resolution is one day. We assume the document creation times are always exact references.
+
+Intuitively this encodes that a sentence that mentions one ore more exact dates will refer to one of these dates. A sentence with one or more inexact tags might refer to a point in time inside the mentioned timespan, or it might refer to events happening at the time of publication. A sentence without any tags will always assumed to refer to the date of publication.
+Note that this definition is not set in stone. For example one may assume that an untagged sentence would be likely to refer to any date mentioned in the same document. However, constructing a graph for two many date references quickly becomes computationally expensive, so we restrict ourselves to the above mentioned defintion.
+
+We define the notion of a date reference $r_1$ being contained in a date reference $r_2$ iff $r_1$ falls within the timespan covered by $r_2$, or both references reference the same timespan. For example, if $r_2$ refers to the month of January, all references to days of January are contained in $r_2$.
+
+Using these notions, we define a weighted directed graph $G = (V, E)$ with weight function $w$ as follows:
+\begin{align*}
+V = \cap{S} \\
+E = \{ (s_1, s_2) s_1, s_2 \in V | \exists r_1 \in \text{daterefs}(s_1), r_2 \in \text{daterefs}(s_2): r_2 \text{contains} r_1 \land r_1 \text{is exact} \} \\ % Inexact to inexact edges?
+w(s_1, s_2) = \text{sim}(s_1, s_2)
+\end{align*}
+
+
+Note, that while we introduce edges from inexact to exact references, we never do this the other way around. This means that while sentences with inexact references have a preference to be grouped with similar sentences with exact date references within their refered timespan, this is not true the other way around.
+This ensures that no two sentences with different exact date references are grouped in the same cluster via the sentence with the inexact reference.
+
+Having constructed the graph, we now need to compute an appropriate clustering of the nodes. While we could theoretically use any algorithm that can cluster nodes in a directed graph, in this work we adopt Affinity Propagation for this task.
+
+Affinity Propagation (AP) \citep{ap} is a clustering method that is based on the concept of massage passing. It identifies a set of exemplars from the input instances which define the centers of the clusters. Each instance chooses its examplar based on its affinities to other points $s(i, k)$.
+The total number of examplars is not fixed but is instead controlled by the diagonal of the similarity matrix $s(k, k)$, the \textit{preferences}. Larger values on the diagonal lead to the corresponding instance to be more likely to be an exemplar.
+As we have no preference for the number of clusters, we set the diagonal to the median of similarities for each instance, as suggested by \citeauthor{ap}.
+In each step of the algorithm, two matrices are updated, responsibility $r$ and availability $a$. The responsibility $r(i, k)$ indicates the degree to which the instance $i$ believes it should choose $k$ as an examplar over other potential examplars. It is updates according to the following rule:
+\begin{displaymath}
+r(i, k) \leftarrow s(i, k) - max_{k' \neq k}( a(i, k') + s(i, k') )
+\end{displaymath}
+
+The availability $a(i, k)$ indicates how appropriate it is for point $i$ to choose $k$ as an exemplar.
+It is updated as follows for $i \neq k$:
+\begin{displaymath}
+a(i, k) \leftarrow \min 0, r(k, k) + \sum_{i' \not\in \{i, k\}} \max(0, r(i', k))
+\end{displaymath}
+
+For $k = i$ we have:
+\begin{displaymath}
+a(k, k) \leftarrow \sum_{i' \neq k} \max(0, r(i', k))
+\end{displaymath}
+
+The procedure is then repeated until convergence.
+
+Affinity Propagation is well suited to our task, as it does not need the number of clusters to be specified beforehand. Furthermore it has been used for clustering in NLP before (CITE that update summ.) and can be implemented in a sparse manner so that each iteration of the AP algorithm is only linear in the number of similarities, instead of quadratic in the number of instances.
+As our graph is very sparse, as most nodes refer to different dates and are thus not connected, this is a very useful property.
+
+We further introduce a requirement for the similarity of two sentences to be at least $0.1$ for two nodes to be connected. While this is not strictly required from a theoretical standpoint, it greatly speeds up computation of the clustering and reduces storage requirements for the whole graph.
+
+As before, we compute the similarity on tf-idf vector representations of the sentences.
+
+\section{Candidate Generation}
+
+\section{Scoring} \label{sec:scoring}
+
+\subsection{TLS inspired scores}
+
+While the pure MDS objective functions are already likely to carry useful information for the system, we also wish to investigate the effect of timeline specific functions on the system.
+One metric that has proven efficient so far, is date reference (CITE!). It encodes the basic notion that a date that is mentioned often in the corpus is probably important for the event in question.
+This notion can be very naturally encoded in our framework by considering cluster size. % What about multiple clusters for the same date?
+
+\section{Selection}
+
+\subsection{Integer Linear Programming}
+
+Formulating an Integer Linear Program (ILP) for infering an optimal summary given some sentences and associated importance scores is a common approach in document summarization. %(CITE!)
+
+Given the set of generated sentences $G$ and the scoring function $f_{score}$ (s. \ref{sec:scoring}) we formulate the following maximization problem.
+
+\begin{displaymath}
+\text{maximize} \sum_{g \in G} p_g * f_{score}(g)
+\end{displaymath}
+
+where $p_g$ is a boolean indicator variable indicating whether the generated sentence $g$ should be included into the summary or not.
+
+Following \citet{banerjee}, we also include two sets of constraints into the problem.
+The first constraint ensures non-redundancy by enforcing that of any two sentences with a similarity greather than some threshold $t$ only one may be included in a summary:
+
+\begin{displaymath}
+p_g + p_{g'} \leq 1 \forall g \neq g' \land sim(g, g') > t
+\end{displaymath}
+
+Following \citet{banerjee}, we set $t = 0.8$ and use cosine similarities between vector representations of the two sentences for similarity computation.
+The vector representations are derived from a tf-idf model fitted on the entire collection of input documents.
+
+The second set of constraints ensures that only one sentence from the same cluster may be included in the final summary:
+
+\begin{displaymath}
+\sum_{g \in C} p_g \leq 1 \forall C \in \bar{C}
+\end{displaymath}
+
+Finally, we also need to add a length constraint. We introduce a per-day summary length constraint:
+
+\begin{displaymath}
+\sum_{g} p_g \leq k
+\end{displaymath}
+
+
+As \citet{mcdonald} has shown, running ILP to find a summarization is challenging even for a moderate amount of textual units for the purpose of MDS quickly becomes infeasible.
+This problem is aggrevated on TLS corpora, as they can contain hundreds of thousands of sentences, compared to a few hundred in typical MDS datasets. Additionally, generating a huge number of candidate sentences can increase the number of sentences even more, further limiting the usefulness of ILPs.
+To alleviate this problem, we only run the solver for the set of candidates generated for a single date. As a consequence the system with the ILP can not be run without external date selection. Furthermore, iter-date redundancy is not prevented by the constraints.
+
+\subsection{Submodular Functions}
+
+While ILP systems are guaranteed to return an optimal solution to the posed optimization problem, their complexity makes them less attractive for the huge amount of data in typical timeline summarization. \citet{markert} have demonstrated that the objective for timeline summarization can be cast as a monotone, positive submodular function whose optimum can be reasonably well approximated by a greedy algorithm.
+
+The submodularity property is defined as follows:
+ Let $U$ be a finite set. A function $f: 2^{U} \rightarrow \mathbb{R}$ is submodular, if it fulfills the diminishing returns property. For $A \subset B \subseteq U$ and some $e \in U \setminus B$ $f(A) \leq f(B)$ implies $f(A \cup e) - f(A) \geq f(B \cup \{e\}) - f(\{B\})$.
+
+A submodular function for TLS is a function $f: 2^{S} \rightarrow \mathbb{R}$, where $S$ is the set of sentences available for summarization and $X$ is a candidate summary.
+The objective of the summarization algorithm is then to maximize $f$.
+
+In our case we adapt a function from a submodular MDS system by \citet{lin+blimes} designed to avoid redundancy:
+
+\begin{displaymath}
+f_{\text{submod}}(X) = \sum_{i = 1}^{m} \sqrt{\sum{g \in X \cap P_i} f_{score}(g)}
+\end{displaymath}
+
+where $P_1, ..., P_m$ are a partitioning of the generated sentences into $m$ distinct sets. By partitioning semantically similar sentences into the same partition, including a sentence that is similar to one already present in the set will have diminished value, because the square root saturates quickly.
+
+ For the usual timeline length constraints \citet{markert} have shown that a greedy algorithm can solve the problem with a guaranteed lower bound of $1 / (k + 1)$ of the optimal value.
+ In addition to these constraints, we also introduce a cluster constraint as mentioned in section \ref{sec:ilp}:
+
+\begin{displaymath}
+C \cap G \leq 1 \forall C \in \bar{C}
+\end{displaymath}
+
+\chapter{Experimental Setup}
+
+\section{Corpora}
+
+We use two different timeline corpora for all our experiments, the \textit{Timeline 17} corpus \citet{tran-tl17} and the \textit{crisis} corpus. They both have a similar structure. Each covers a set of different events and has between one and five(?) timelines per event that were crawled from large news websites. The timelines all have different lengths and often cover different periods of time. The corpus also ships with a set of news documents that were crawled from news articles relating to the timeline. All articles were stripped of HTML tags and annotated with the time they were published, the document creation time. (CHECK!)
+
+While the \textit{crisis} dataset focuses on several uprisings resulting from the arab spring, the timeline 17 dataset covers a more diverse range of topics from natural disasters to the death of Michael Jackson and subsequent legal procedings. See table \ref{tab:corpus-topics} for an overview over the events covered in the two corpora.
+
+\section{Preprocessing}
+
+Our approach needs all input documents to be annotated with part-of-speech tags, which we obtain by running the POS-tagger included in the Stanford CoreNLP suite of NLP tools \citep{stanford-corenlp}. The suite also takes care of proper tokenization and sentence splitting for us.
+To obtain sentence level date annotations, we run the HeidelTime tagger \citet{heideltime}. Heideltime is a rule based system that tags date expressions in a corpus and labels them according to the TimeEX3 annotation standard.
+
+\section{System Configurations}
+
+
+\chapter{Automatic Evaluation}
+
+\section{Setup}
+
+\section{Results}
+
+\chapter{Manual Evaluation}
+
+\section{Setup}
+
+\section{Results}
+
+\chapter{Error Analysis}
+
+\section{Inherent Shortcommings of Current Corpora}
+
+\section{Shortcommings of the Algorithm}
+
+\section{Problems with Current Evaluation Metrics}
+
+\chapter{Conclusion}
+
+\end{document}
