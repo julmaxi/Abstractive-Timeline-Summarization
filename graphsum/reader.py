@@ -52,7 +52,7 @@ class TimelineCorpus:
         self.per_date_documents = per_date_documents
 
     def __iter__(self):
-        return (doc for docs in self.per_date_documents.values() for doc in docs)
+        return (doc for _, docs in sorted(self.per_date_documents.items()) for doc in docs)
 
     @property
     def num_documents(self):

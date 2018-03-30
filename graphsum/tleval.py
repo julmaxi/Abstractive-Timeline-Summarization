@@ -10,11 +10,13 @@ import json
 import os
 
 
-def determine_tl_parameters(timeline):
+def determine_tl_parameters(timeline, use_average=True):
     dateset = timeline.get_dates()
     earliest_date = min(*dateset)
     last_date = max(*dateset)
     tl_date_count = len(dateset)
+
+    date_sent_counts = []
 
     max_date_sent_count = 0
     total_sent_len = 0
@@ -23,13 +25,21 @@ def determine_tl_parameters(timeline):
         total_sent_len += len(sents)
 
         max_date_sent_count = max(max_date_sent_count, len(sents))
+        date_sent_counts.append(len(sents))
+
+    date_sent_count = None
+
+    if use_average:
+        date_sent_count = int(sum(date_sent_counts) / len(date_sent_counts))
+    else:
+        date_sent_count = max_date_sent_count
 
     return TimelineParameters(
         earliest_date,
         last_date,
         tl_date_count,
         total_sent_len,
-        max_date_sent_count
+        date_sent_count
     )
 
 
@@ -190,6 +200,7 @@ def cross_eval_main():
 
     parser.add_argument("corpus_def")
     parser.add_argument("config")
+    parser.add_argument("param_file")
 
     args = parser.parse_args()
 
@@ -219,10 +230,10 @@ def cross_eval_main():
 
     parameters = tl_gen.run_scoring_cv_train_mode(corpora_and_timelines)
 
-    with open("all-parameters.pkl", "wb") as f_out:
+    with open(args.param_file, "wb") as f_out:
         pickle.dump(parameters, f_out)
 
 
 if __name__ == "__main__":
-    cross_eval_main()
-    #evaluate_tl_main()
+    #cross_eval_main()
+    evaluate_tl_main()

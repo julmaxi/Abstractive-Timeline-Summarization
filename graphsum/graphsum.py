@@ -390,6 +390,8 @@ class SentenceCompressionGraph:
         return tokens
 
     def calculate_strong_links_weights(self):
+        max_freq = 0
+
         for src, trg, data in self.graph.edges(data=True):
             if src == "START" or trg == "END":
                 data["weight_sl"] = 1.0 / data["frequency"]  # TODO: Check what this should be
@@ -406,7 +408,7 @@ class SentenceCompressionGraph:
                     if sent_1 == sent_2 and t_idx_1 < t_idx_2:
                         diff += (t_idx_2 - t_idx_1) ** -1
 
-            #diff **= -1
+            max_freq = max(max_freq, data["frequency"])
 
             w = (src_freq + trg_freq) / diff  #data["frequency"]
 
@@ -415,7 +417,10 @@ class SentenceCompressionGraph:
             data["weight_sl"] = w
             data["label"] = str(w)
 
-    def generate_compression_candidates(self, n=300, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=60, return_weight=False, max_tries=2500):
+        for src, trg, data in self.graph.edges(data=True):
+            data["rel_frequency"] = data["frequency"] / max_freq
+
+    def generate_compression_candidates(self, n=2500, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=600, return_weight=False, max_tries=2500):
         self.calculate_strong_links_weights()
 
         num_yielded = 0
@@ -460,10 +465,12 @@ class SentenceCompressionGraph:
                 if return_weight is True:
                     full_len = 0
                     prev_node = path[0]
+                    freq_sum = 0
                     for node in path[1:]:
                         full_len += self.graph[prev_node][node]["weight_sl"]
+                        freq_sum += self.graph[prev_node][node]["rel_frequency"]
                         prev_node = node
-                    yield tokens, full_len
+                    yield tokens, {"weight": full_len, "avg_rel_frequency": freq_sum / len(path)}
                 else:
                     yield tokens
                 num_yielded += 1
@@ -1133,8 +1140,9 @@ def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
                 sent_2_toks = list(map(lambda x: x[0], sent_2))
                 sim = sim_model.compute_similarity(sent_1_toks, sent_2_toks)
 
-                #if sim > 0.5:
-                #    select_switch[global_sent_idx] + select_switch[global_sent_idx_2] <= 1.0
+                # Why was this commented out?
+                if sim > 0.5:
+                    select_switch[global_sent_idx] + select_switch[global_sent_idx_2] <= 1.0
 
     p.maximize(max_term)
     maxlen_constraint <= maxlen
