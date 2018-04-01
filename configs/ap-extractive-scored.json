@@ -1,0 +1,19 @@
+{
+    "clustering": {
+        "method": "ap"
+    },
+    "min_cluster_size": 0,
+    "scoring": {
+        "use_local_info": false,
+        "use_temporalized_informativeness": true,
+        "use_date_frequency": true,
+        "use_cluster_size": true
+    },
+    "generation": {
+        "method": "identity"
+    },
+    "selection": {
+        "method": "global_submod"
+    },
+    "cluster_cache_path": "caches/tl-clustering/global-date-ap"
+}

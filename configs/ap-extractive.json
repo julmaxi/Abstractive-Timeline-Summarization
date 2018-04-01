@@ -1,0 +1,16 @@
+{
+    "clustering": {
+        "method": "ap"
+    },
+    "min_cluster_size": 0,
+    "scoring": {
+        "global_only": true
+    },
+    "generation": {
+        "method": "centroid"
+    },
+    "selection": {
+        "method": "global_submod"
+    },
+   "cluster_cache_path": "caches/tl-clustering/global-date-ap"
+}

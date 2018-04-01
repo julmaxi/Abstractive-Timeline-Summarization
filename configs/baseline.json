@@ -1,0 +1,14 @@
+{
+    "clustering": {
+        "method": "document"
+    },
+    "min_cluster_size": 2,
+    "selection": {
+        "method": "ilp"
+    },
+    "scoring": {
+    },
+    "date_selection": {
+        "method": "dateref_freq"
+    }
+}

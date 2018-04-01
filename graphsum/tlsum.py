@@ -435,6 +435,8 @@ class SentenceScorer:
         self.use_per_date_informativeness = config.get("use_per_date_informativeness", False)
         self.use_date_frequency = config.get("use_date_frequency", False)
 
+        self.temporalized_informativeness_cache_dir = config.get("temporalized_informativeness_cache_dir")
+
         if config.get("global_only", False):
             self.use_lm = False
             self.use_local_informativeness = False
@@ -443,6 +445,8 @@ class SentenceScorer:
     def prepare(self, corpus):
         if self.use_date_frequency:
             self.relative_date_frequencies = compute_relative_date_frequencies(corpus)
+
+        self.corpus_name = corpus.name
 
     def prepare_for_clusters(self, clusters):
         self.max_cluster_size = max(map(lambda c: len(c[0]), clusters))
@@ -453,14 +457,31 @@ class SentenceScorer:
                 sentences_per_date[date].extend(cluster)
 
         if self.use_temporalized_informativeness or self.use_per_date_informativeness:
-            self.per_date_tr_scores = {}
+            must_recompute_tr = True
+            if self.temporalized_informativeness_cache_dir is not None:
+                temporalized_informativeness_cache_path = os.path.join(self.temporalized_informativeness_cache_dir, self.corpus_name.replace("/", "_") + ".pkl")
 
-            for date, sentences in sentences_per_date.items():
-                self.per_date_tr_scores[date] = calculate_keyword_text_rank([s.as_token_tuple_sequence("form", "pos") for s in sentences])
+                if os.path.isfile(temporalized_informativeness_cache_path):
+                    with open(temporalized_informativeness_cache_path, "rb") as f:
+                        self.per_date_tr_scores = pickle.load(f)
+                        must_recompute_tr = False
 
-            self.per_date_temporalized_tr_scores = {}
+            if must_recompute_tr:
+                self.per_date_tr_scores = {}
+
+                for date, sentences in sentences_per_date.items():
+                    #self.per_date_tr_scores[date] = {}
+                    self.per_date_tr_scores[date] = calculate_keyword_text_rank([s.as_token_tuple_sequence("form", "pos") for s in sentences])
+
+                if self.temporalized_informativeness_cache_dir is not None:
+                    if not os.path.isdir(self.temporalized_informativeness_cache_dir):
+                        os.makedirs(self.temporalized_informativeness_cache_dir)
+                    temporalized_informativeness_cache_path = os.path.join(self.temporalized_informativeness_cache_dir, self.corpus_name.replace("/", "_") + ".pkl")
+                    with open(temporalized_informativeness_cache_path, "wb") as f:
+                        pickle.dump(self.per_date_tr_scores, f)
 
         if self.use_temporalized_informativeness:
+            self.per_date_temporalized_tr_scores = {}
             logger.debug("Computing temp tr")
             for date, tr_scores in self.per_date_tr_scores.items():
                 weighted_tr_score_sums = defaultdict(lambda: 0)
@@ -909,7 +930,7 @@ class TLSumModuleBase:
 class GraphCandidateGenerator(TLSumModuleBase):
     def __init__(self, config):
         self.use_weighting = config.get("use_weighting", False)
-        self.maxlen = config.get("sent_maxlen", 55)
+        self.maxlen = config.get("sent_maxlen", None)
 
     def prepare(self, corpus):
         self.tfidf_model = TfidfVectorizer()
@@ -1396,17 +1417,17 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
         cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
 
-        for idx, (vals, candidates) in enumerate(sorted(zip(clusters, cluster_candidates), key=lambda x: len(x[0]), reverse=True)):
-            print("====Cluster {}====".format(idx))
-            print(self.cluster_dater.date_cluster(vals))
-            for val in vals:
-                print(val.as_tokenized_string())
-            print("\n")
-
-            for candidate, info in candidates:
-                print(" ".join(map(fst, candidate)))
-
-            print("\n")
+        #for idx, (vals, candidates) in enumerate(sorted(zip(clusters, cluster_candidates), key=lambda x: len(x[0]), reverse=True)):
+        #    print("====Cluster {}====".format(idx))
+        #    print(self.cluster_dater.date_cluster(vals))
+        #    for val in vals:
+        #        print(val.as_tokenized_string())
+        #    print("\n")
+#
+        #    for candidate, info in candidates:
+        #        print(" ".join(map(fst, candidate)))
+#
+        #    print("\n")
 
 
         dated_clusters = list(((cluster, self.cluster_dater.date_cluster(cluster)) for cluster in clusters))

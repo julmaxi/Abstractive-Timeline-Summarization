@@ -1,0 +1,15 @@
+{
+    "clustering": {
+        "method": "identity"
+    },
+    "min_cluster_size": 1,
+    "selection": {
+        "method": "global_submod"
+    },
+    "scoring": {
+        "method": "rouge_oracle"
+    },
+    "generation": {
+        "method": "identity"
+    }
+}

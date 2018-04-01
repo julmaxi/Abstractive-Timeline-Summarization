@@ -1,0 +1,16 @@
+{
+    "clustering": {
+        "method": "ap"
+    },
+    "min_cluster_size": 2,
+    "selection": {
+        "method": "global_submod"
+    },
+    "scoring": {
+        "method": "weighted-gl",
+        "rouge_cache_path": "tl-cand-rouge/",
+        "tr_cache_path": "tl-local-tr/"
+    },
+    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap",
+    "candidate_cache_dir": "caches/tl-candidates/transitive-global-date-ap"
+}

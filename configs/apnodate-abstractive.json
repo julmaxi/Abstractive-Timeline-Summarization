@@ -1,0 +1,15 @@
+{
+    "clustering": {
+        "method": "ap",
+        "include_uncertain_date_edges": false,
+        "predicted_tag_only": true
+    },
+    "min_cluster_size": 2,
+    "selection": {
+        "method": "global_submod"
+    },
+    "scoring": {
+        "use_cluster_size": true
+    },
+    "cluster_cache_path": "caches/tl-clustering/local-date-ap"
+}
