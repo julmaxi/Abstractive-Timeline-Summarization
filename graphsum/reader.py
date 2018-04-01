@@ -12,6 +12,7 @@ from collections import defaultdict
 
 from utils import iter_dirs, iter_files
 
+
 class TokenListView(Sequence):
     def __init__(self, container, attributes):
         self.container = container
@@ -27,6 +28,10 @@ class TokenListView(Sequence):
 
     def __len__(self):
         return len(self.container.tokens)
+
+    def __repr__(self):
+        content = ", ".join(map(lambda x: repr(x), self))
+        return "TokenListView([{}])".format(content)
 
 
 class TokenAttrListView(Sequence):

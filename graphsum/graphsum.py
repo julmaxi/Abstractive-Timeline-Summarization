@@ -1411,7 +1411,8 @@ def read_clusters(path, documents):
     clusters = dict()
 
     for fname in iter_files(path, ".txt"):
-        clusters[fname] = read_cluster_file(fname, document_lookup)
+        basename = os.path.basename(fname)
+        clusters[int(basename.split(".")[0])] = read_cluster_file(fname, document_lookup)
 
     return clusters
 

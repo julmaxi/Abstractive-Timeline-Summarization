@@ -32,7 +32,7 @@ def print_results_table(all_entries):
 
 
 def analyze_main():
-    results_basedir = "old_evaluation_results"
+    results_basedir = "evaluation_results"
 
     all_entries = {}
 

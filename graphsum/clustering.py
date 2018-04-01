@@ -25,7 +25,7 @@ import subprocess
 AP_PATH = "libs/affinity-propagation-sparse/ap"
 
 
-def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag_only=False):
+def cluster_sentences_ap(sents, include_uncertain_date_edges=False, predicted_tag_only=False):
     if predicted_tag_only:
         ap_matrix = generate_localized_predicted_ap_matrix(sents)
     else:
@@ -178,18 +178,6 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.1, include_
         if len(connected_sents) == 0:
             continue
 
-        #print(len(connected_sents))
-        #print(sent.as_tokenized_string())
-        #print(connected_sents[0][1].as_tokenized_string())
-        #print(set(connected_sents[0][1].as_tokenized_string().split()) & tok_set)
-        #print("-" * 10)
-
-        #print(len(connected_sents), all_tags, sent.as_tokenized_string(), sent.all_date_tags)
-        #print("-" * 10)
-        #print(sent.as_tokenized_string())
-        #print("\n".join(map(lambda s: s[1].as_tokenized_string(), connected_sents)))
-        #print("-" * 10)
-
         connected_vecs = vectors[tuple(sid for sid, sent in connected_sents),:]
 
         sims = cosine_similarity(vectors[s_idx], connected_vecs)
@@ -197,9 +185,6 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.1, include_
         from scipy.sparse import csr_matrix, find
 
         _, relevant_indices, _ = find(sims >= threshold)
-
-        #for other_s_idx in relevant_indices:
-        #    similarities[s_idx, other_s_idx] = sims[0, other_s_idx]
 
         for (other_s_idx, other_sent), sim in zip(connected_sents, sims[0]):
             if sim >= threshold:
