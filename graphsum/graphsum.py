@@ -1243,13 +1243,13 @@ def calculate_keyword_text_rank(sentences, window_size=None):
     for sent in sentences:
         context = sent
         for tok, pos in sent:
-            if tok in STOPWORDS or not tok.isalnum():
+            if tok.lower() in STOPWORDS or not tok.isalnum():
                 continue
             graph.add_node((tok, pos))
             for context_tok, context_pos in context:
                 if context_tok == tok and context_pos == pos:
                     continue
-                if context_tok not in STOPWORDS and tok.isalnum():
+                if (context_tok.lower() not in STOPWORDS and context_tok.isalnum()):
                     graph.add_edge((context_tok, context_pos), (tok, pos))
 
     pr = nx.pagerank(graph)

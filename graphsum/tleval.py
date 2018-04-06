@@ -9,6 +9,11 @@ import pickle
 import json
 import os
 
+from getsize import getsize
+
+from utils import iter_files
+
+
 
 def determine_tl_parameters(timeline, use_average=True):
     dateset = timeline.get_dates()
@@ -192,8 +197,6 @@ def evaluate_tl_main():
     print("ROUGE 1", rouge_1_sum / len(args.timelines))
     print("ROUGE 2", rouge_2_sum / len(args.timelines))
     print("Date F1", date_f1_sum / len(args.timelines))
-
-from utils import iter_files
 
 def cross_eval_main():
     parser = argparse.ArgumentParser()

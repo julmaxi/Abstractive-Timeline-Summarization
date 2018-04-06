@@ -7,7 +7,7 @@
         "method": "global_submod"
     },
     "scoring": {
-        "use_local_info": false,
+        "use_local_informativeness": false,
         "use_temporalized_informativeness": true,
         "use_date_frequency": true,
         "use_cluster_size": true,

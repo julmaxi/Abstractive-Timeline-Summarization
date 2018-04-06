@@ -285,7 +285,7 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     kmeans_redundancy_factor = RedundancyFactor.from_sentences(
         id_score_map,
         id_sentence_map,
-        num_clusters=min(max(sent_idx_counter // 5, 2), 2 * parameters.max_date_sent_count * parameters.max_date_count))
+        num_clusters=min(max(sent_idx_counter // 5, 2), cluster_idx_counter * 2))
     factors.append(kmeans_redundancy_factor)
 
 
@@ -428,14 +428,19 @@ class SentenceScorer:
         self.use_cluster_size = False
 
         self.use_lm = config.get("use_lm", True)
-        self.use_local_informativeness = config.get("use_local_info", True)
+        self.use_local_informativeness = config.get("use_local_informativeness", True)
+        assert "use_local_info" not in config
         self.use_cluster_size = config.get("use_cluster_size", False)
 
         self.use_temporalized_informativeness = config.get("use_temporalized_informativeness", False)
         self.use_per_date_informativeness = config.get("use_per_date_informativeness", False)
         self.use_date_frequency = config.get("use_date_frequency", False)
 
+        self.use_path_weight = config.get("use_path_weight", False)
+
         self.temporalized_informativeness_cache_dir = config.get("temporalized_informativeness_cache_dir")
+
+        self.use_rel_frequency = config.get("use_rel_frequency", False)
 
         if config.get("global_only", False):
             self.use_lm = False
@@ -490,7 +495,7 @@ class SentenceScorer:
                 import math
 
                 for other_date, tr_scores in self.per_date_tr_scores.items():
-                    factor = 1.0 / math.sqrt(abs((other_date - date).days) + 1)
+                    factor = 1.0 / (abs((other_date - date).days) + 1)
 
                     for term, score in tr_scores.items():
                         weighted_tr_score_sums[term] += score * factor
@@ -498,6 +503,18 @@ class SentenceScorer:
                     factor_sum += factor
 
                 self.per_date_temporalized_tr_scores[date] = dict((term, weight / factor_sum) for term, weight in weighted_tr_score_sums.items())
+
+        for date, scores in sorted(self.per_date_temporalized_tr_scores.items()):
+            print(date)
+            for word, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)[:10]:
+                print(word, score)
+
+            print(".........")
+            for word, score in sorted(self.per_date_tr_scores.get(date, {}).items(), key=lambda x: x[1], reverse=True)[:10]:
+                print(word, score)
+
+            print("----")
+            print("\n")
 
             #for tr_scores in self.per_date_temporalized_tr_scores.values():
             #    for term in list(tr_scores.keys()):
@@ -531,43 +548,62 @@ class SentenceScorer:
             return local_informativeness_score
 
         def sfunc_mult(sent, info):
+            score_info = {}
+
             score = 1
 
             if self.use_local_informativeness:
                 local_informativeness_score = calc_local_informativeness(sent)
                 score *= local_informativeness_score
+                score_info["local_informativeness_score"] = local_informativeness_score
 
             if self.use_per_date_informativeness:
-                score *= calc_date_informativeness(sent)
+                date_informativeness = calc_date_informativeness(sent)
+                score *= date_informativeness
+                score_info["date_informativeness"] = date_informativeness
 
             if self.use_temporalized_informativeness:
-                score *= calc_temporalized_informativeness(sent)
+                temp_informativeness = calc_temporalized_informativeness(sent)
+                score *= temp_informativeness
+                score_info["temp_informativeness"] = temp_informativeness
 
             if self.use_lm:
                 lm_score = 1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent))))
                 score *= lm_score
+                score_info["lm_score"] = lm_score
 
             if self.use_cluster_size:
-                score *= len(cluster) / self.max_cluster_size
+                cluster_size_score = len(cluster) / self.max_cluster_size
+                score *= cluster_size_score
+                score_info["cluster_size_score"] = cluster_size_score
 
             if self.use_date_frequency:
                 score *= self.relative_date_frequencies.get(cluster_date, 0)
+                score_info["relative_date_frequency"] = self.relative_date_frequencies.get(cluster_date, 0)
 
-            if self.use_date_frequency and self.use_temporalized_informativeness and self.use_lm:
-                print(
-                    " ".join(map(fst, sent)),
-                    score,
-                    len(cluster),
-                    lm_score,
-                    self.relative_date_frequencies.get(cluster_date, 0),
-                    calc_temporalized_informativeness(sent))
+            if self.use_rel_frequency:
+                score *= info["rel_frequency"]
+                score_info["rel_frequency"] = info["rel_frequency"]
 
-            return score
+            if self.use_path_weight:
+                score *= 1.0 / (1 + info["weight"])
+                score_info["path_weight"] = info["weight"]
+
+            #if self.use_date_frequency and self.use_temporalized_informativeness and self.use_lm:
+            #    print(
+            #        " ".join(map(fst, sent)),
+            #        score,
+            #        len(cluster),
+            #        lm_score,
+            #        self.relative_date_frequencies.get(cluster_date, 0),
+            #        calc_temporalized_informativeness(sent))
+
+            return score, score_info
 
         return sfunc_mult
 
 from sklearn.linear_model import SGDRegressor
-
+from sklearn.svm import SVR
 
 class ROUGESenteneScorer:
     def compute_rouge_scores(self, corpus, per_date_clusters, per_date_candidates, timelines):
@@ -612,9 +648,11 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
 
     def prepare(self, corpus):
         with open("all-parameters.pkl", "rb") as f:
-            parameters = pickle.load(f)
-
-        self.local_informativeness_factor, self.lm_factor, self.cluster_size_factor, self.dateref_factor, self.path_weight_factor = parameters[corpus.name]
+            self.svm = pickle.load(f)[corpus.name]
+        #with open("all-parameters.pkl", "rb") as f:
+        #    parameters = pickle.load(f)
+#
+        #self.local_informativeness_factor, self.lm_factor, self.cluster_size_factor, self.dateref_factor, self.path_weight_factor = parameters[corpus.name]
 
         self.relative_date_frequencies = compute_relative_date_frequencies(corpus)
 
@@ -627,16 +665,21 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
 
         logger.debug("Generating Samples")
 
+        per_corpus_factors = []
+        per_corpus_targets = []
+
         for corpus, per_date_clusters, per_date_candidates, timelines in preprocessed_corpora:
             samples, targets = self._generate_samples(corpus, per_date_clusters, per_date_candidates, timelines, n_max=10000)
 
             training_samples.extend(samples)
             training_targets.extend(targets)
 
+            per_corpus_factors.append((samples, targets))
+
         X = np.stack(training_samples)
         y = np.stack(training_targets)
 
-        regressor = SGDRegressor()
+        regressor = SVR(kernel="rbf")
 
         #sorted_indices = np.argsort(y)
         #sorted_indices = sorted_indices[-int(0.2 * len(y)):]
@@ -644,13 +687,34 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
         #X = X[sorted_indices]
         #y = y[sorted_indices]
 
+        print(y.shape)
+
+        #import matplotlib.pyplot as plt
+
+        #for factor in range(0, 5):
+        #    for c_idx, (samples, targets) in enumerate(per_corpus_factors):
+        #        plt.subplot(len(preprocessed_corpora), 5, (c_idx * 5) + factor + 1)
+        #        plt.scatter(samples[:,factor], targets)
+        #plt.show()
+
         X = X[y > 0]
         y = y[y > 0]
+
+        import random
+
+        indices = np.array(random.sample(list(range(y.shape[0])), min(50000, y.shape[0])))
+
+        X = X[indices,:]
+        y = y[indices]
+
+        print(y.shape)
+
         regressor.fit(X, y)
 
-        self.local_informativeness_factor, self.lm_factor, self.cluster_size_factor, self.dateref_factor, self.path_weight_factor = regressor.coef_
 
-        return regressor.coef_
+        #self.local_informativeness_factor, self.lm_factor, self.cluster_size_factor, self.dateref_factor, self.path_weight_factor = regressor.coef_
+
+        return regressor
 
     def _generate_samples(self, corpus, per_date_clusters, per_date_candidates, timelines, n_max=10000):
         dateref_scores = compute_relative_date_frequencies(corpus)
@@ -693,6 +757,9 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
 
                 for tl_scores in per_timeline_rouge_scored_per_date_clusters.values():
                     for cand_idx, candidate in enumerate(candidates):
+                        #print(tl_scores[date][cl_idx][cand_idx][0])
+                        #print(candidate)
+                        #print("----")
                         candidates_rouge_scores[cand_idx].append(tl_scores[date][cl_idx][cand_idx][1])
 
                 candidates_rouge = list(map(lambda l: max(l), candidates_rouge_scores))
@@ -728,6 +795,18 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
             return local_informativeness_score
 
         def sfunc_add(sent, info):
+            return self.svm.predict(
+                [
+                    [
+                        calc_local_informativeness(sent),
+                        1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent)))),
+                        len(cluster) / self.max_cluster_size,
+                        (self.relative_date_frequencies.get(cluster_date, 0)),
+                        info["rel_frequency"]
+                    ]
+                ]
+            )[0]
+
             score = 0
             score += self.local_informativeness_factor * calc_local_informativeness(sent)
             score += self.lm_factor * 1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent))))
@@ -760,20 +839,37 @@ class GlobalLocalSentenceScorer(ROUGESenteneScorer):
         self.lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
 
     def train(self, preprocessed_corpora):
+        logger.debug("Fitting Global Coef")
+        global_coef = self.train_global(preprocessed_corpora)
+        logger.debug("Fitting Local Coef")
+        local_coef = self.train_local(preprocessed_corpora)
+        return global_coef, local_coef
+
+    def train_local(self, preprocessed_corpora):
         local_samples = []
         local_targets = []
         for corpus, per_date_clusters, per_date_candidates, timelines in preprocessed_corpora:
             per_timeline_rouge_scored_per_date_clusters = self.compute_rouge_scores(corpus, per_date_clusters, per_date_candidates, timelines)
-            samples, targets = self._generate_local_samples(corpus, per_date_clusters, per_date_candidates, per_timeline_rouge_scored_per_date_clusters)
+            samples, targets = self._generate_local_samples(corpus, per_date_clusters, per_date_candidates, per_timeline_rouge_scored_per_date_clusters, n=250)
             local_samples.extend(samples)
             local_targets.extend(targets)
 
         local_samples = np.stack(local_samples)
         local_targets = np.array(local_targets)
 
+        import matplotlib.pyplot as plt
+
+        for factor in range(0, 3):
+            plt.subplot(1, 3, factor + 1)
+            plt.scatter(local_samples[:,factor], local_targets)
+        plt.show()
+
         local_regressor = SGDRegressor()
         local_regressor.fit(local_samples, local_targets)
 
+        return local_regressor.coef_
+
+    def train_global(self, preprocessed_corpora):
         training_samples = []
         training_targets = []
 
@@ -792,13 +888,20 @@ class GlobalLocalSentenceScorer(ROUGESenteneScorer):
 
         training_targets /= np.max(training_targets)
 
-        training_targets *= 10
+        import matplotlib.pyplot as plt
+
+        for factor in range(0, 2):
+            plt.subplot(1, 2, factor + 1)
+            plt.scatter(training_samples[:,factor], training_targets)
+        plt.show()
+
+        #training_targets *= 10
 
         global_regressor = SGDRegressor()
 
         global_regressor.fit(training_samples, training_targets)
 
-        return global_regressor.coef_, local_regressor.coef_
+        return global_regressor.coef_
 
     def _generate_global_samples(self, corpus, per_date_clusters, per_date_candidates, per_timeline_rouge_scored_per_date_clusters):
         dateref_scores = compute_relative_date_frequencies(corpus)
@@ -815,7 +918,7 @@ class GlobalLocalSentenceScorer(ROUGESenteneScorer):
 
         return all_samples, all_targets
 
-    def _generate_local_samples(self, corpus, per_date_clusters, per_date_candidates, per_timeline_rouge_scored_per_date_clusters):
+    def _generate_local_samples(self, corpus, per_date_clusters, per_date_candidates, per_timeline_rouge_scored_per_date_clusters, n=None):
         tr_cache_file_basepath = self.config.get("tr_cache_path")
 
         all_local_tr_scores = None
@@ -870,6 +973,13 @@ class GlobalLocalSentenceScorer(ROUGESenteneScorer):
 
                 with open(tr_cache_file, "wb") as f_out:
                     pickle.dump(all_local_tr_scores, f_out)
+
+        if n is not None:
+            import random
+            indices = random.sample(list(range(len(all_targets))), n)
+
+            all_samples = [all_samples[idx] for idx in indices]
+            all_targets = [all_targets[idx] for idx in indices]
 
         return all_samples, all_targets
 
@@ -929,7 +1039,7 @@ class TLSumModuleBase:
 
 class GraphCandidateGenerator(TLSumModuleBase):
     def __init__(self, config):
-        self.use_weighting = config.get("use_weighting", False)
+        self.use_weighting = config.get("use_weighting", True)
         self.maxlen = config.get("sent_maxlen", None)
 
     def prepare(self, corpus):
@@ -947,8 +1057,7 @@ class GraphCandidateGenerator(TLSumModuleBase):
             sent_vec = self.tfidf_model.transform([" ".join(map(lambda x: x[0], sent))])
             sims = cosine_similarity(sent_vec, cluster_vectors)
 
-            # TODO: Reset to 0.8
-            return all(sims[0,:] <= 0.99)
+            return all(sims[0,:] <= 0.8)
 
         for proposed_sent, path_info in compressor.generate_compression_candidates(
                 filterfunc=check_closeness,
@@ -1164,11 +1273,16 @@ from pymprog import model
 
 class ILPSentenceSelector:
     def __init__(self, config):
-        pass
+        self.max_per_cluster_candidates = config.get("max_per_cluster_candidates", 200)
 
     def prepare(self, corpus):
         self.tfidf_model = TfidfVectorizer()
         self.tfidf_model.fit(map(lambda d: d.plaintext, corpus))
+
+        self.date_doc_counts = dict((date, len(docs)) for date, docs in corpus.per_date_documents.items())
+
+        #for doc in corpus:
+        #    date_doc_counts[datetime.date(doc.dct_tag.year, doc.dct_tag.month, doc.dct_tag.day)] += 1
 
     def select_sentences_from_clusters(self, per_date_clusters, parameters):
         all_dates = [date for date, _ in per_date_clusters]
@@ -1179,11 +1293,21 @@ class ILPSentenceSelector:
         summaries = {}
 
         for date, clusters in per_date_clusters:
-            summaries[date] = [" ".join(map(fst, s)) for s in self.select_from_clusters(clusters, parameters)]
+            summaries[date] = [" ".join(map(fst, s)) for s in self.select_from_clusters(clusters, parameters, self.date_doc_counts.get(date, 0) // 2)]
 
         return summaries
 
-    def select_from_clusters(self, clusters, parameters):
+    def select_from_clusters(self, clusters, parameters, min_size):
+        reduced_clusters = []
+
+        for cluster in clusters:
+            if len(cluster) < min_size:
+                continue
+            new_sentences = sorted(cluster, key=lambda x: x[1], reverse=True)
+            reduced_clusters.append(new_sentences[:self.max_per_cluster_candidates])
+
+        clusters = reduced_clusters
+
         if sum(map(len, clusters)) == 0:
             return []
 
@@ -1200,7 +1324,7 @@ class ILPSentenceSelector:
 
         sum(select_switch[c_idx, s_idx] for c_idx, s_idx in selection_indices) <= parameters.max_sent_count
 
-        print([clusters[c_idx][s_idx][0] for c_idx, s_idx in selection_indices])
+        #print([clusters[c_idx][s_idx][0] for c_idx, s_idx in selection_indices])
 
         all_sent_reprs = self.tfidf_model.transform(" ".join(map(fst, clusters[c_idx][s_idx][0])) for c_idx, s_idx in selection_indices)
         all_sims = cosine_similarity(all_sent_reprs)
@@ -1415,8 +1539,6 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
         clusters = self.create_clusters(corpus)
 
-        cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
-
         #for idx, (vals, candidates) in enumerate(sorted(zip(clusters, cluster_candidates), key=lambda x: len(x[0]), reverse=True)):
         #    print("====Cluster {}====".format(idx))
         #    print(self.cluster_dater.date_cluster(vals))
@@ -1432,11 +1554,13 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
         dated_clusters = list(((cluster, self.cluster_dater.date_cluster(cluster)) for cluster in clusters))
 
+        cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
+
         per_date_cluster_candidates = defaultdict(list)
 
         self.scorer.prepare_for_clusters(dated_clusters)
 
-        for (cluster, cluster_date), candidates_and_info in zip(dated_clusters, cluster_candidates):
+        for (cluster, cluster_date), candidates_and_info in sorted(zip(dated_clusters, cluster_candidates), key=lambda x: len(x[0][0]), reverse=True):
             #cluster_date = self.cluster_dater.date_cluster(cluster)
             if cluster_date is None:
                 continue
@@ -1445,13 +1569,25 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             if hasattr(self.scorer, "score_function_for_cluster"):
                 score_func = self.scorer.score_function_for_cluster(cluster, cluster_date)
                 for candidate, info in candidates_and_info:
-                    score = score_func(candidate, info)
-                    cluster_candidates.append((candidate, score))
+                    score, info = score_func(candidate, info)
+                    cluster_candidates.append((candidate, score, info))
+
+                print(cluster_date)
+                for item in cluster:
+                    print(item.as_tokenized_string(), item.document.dct_tag)
+                print("\n")
+                for cand, score, info in sorted(cluster_candidates, key=lambda x: x[1], reverse=True):
+                    print(" ".join(map(lambda x: x[0], cand)), score)
+                    print(info)
+
+                cluster_candidates = list(map(lambda x: (x[0], x[1]), cluster_candidates))
             else:
                 cluster_candidates = candidates_and_info
 
             if len(cluster) < self.min_cluster_size:
                 continue
+
+            cluster_candidates.extend(map(lambda s: (s.as_token_tuple_sequence("form", "pos"), {}), cluster))
 
             per_date_cluster_candidates[cluster_date].append(cluster_candidates)
 
@@ -1468,7 +1604,7 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
             if hasattr(self.scorer, "score_clusters_for_timeline") and reference_timelines is not None:
                 # For oracle summarization
-                per_date_cluster_candidates = self.scorer.score_clusters_for_timeline(local_per_date_cluster_candidates, reference_timelines[timeline_idx])
+                local_per_date_cluster_candidates = self.scorer.score_clusters_for_timeline(local_per_date_cluster_candidates, reference_timelines[timeline_idx])
 
             timeline = self.sentence_selector.select_sentences_from_clusters(local_per_date_cluster_candidates, parameters)
             all_timelines.append(Timeline(timeline))
@@ -1504,7 +1640,10 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             cache_path = os.path.join(base_cache_path, (corpus.name + ".txt").replace("/", "_"))
 
             if os.path.isfile(cache_path):
-                return list(self.read_candidate_file(cache_path, clusters))
+                candidates = list(self.read_candidate_file(cache_path, clusters))
+                from getsize import getsize
+                #print(getsize(candidates))
+                return candidates
             else:
                 if not os.path.isdir(base_cache_path):
                     os.makedirs(base_cache_path)
@@ -1526,8 +1665,11 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
         return all_candidates_and_info
 
     def read_candidate_file(self, fname, clusters):
+        from getsize import getsize
         with open(fname) as f:
             for cluster in clusters:
+                tok_cache = {}
+
                 sentences = []
 
                 first_subset_iter = True
@@ -1545,16 +1687,26 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                     pos_line = next(f).strip()
                     pos = pos_line.split()
 
-                    sentence = list(zip(tokens, pos))
+                    sentence = list(map(lambda x: tok_cache.setdefault(x, x), zip(tokens, pos)))
 
                     info = json.loads(next(f))
 
                     sentences.append((sentence, info))
 
+                    #print(sentence)
+                    #if sentence[0] == ('coastal', 'NNP'):
+                    #    print(id(sentence[0][0]))
+                    #    print(id(sentence[0][1]))
+                    #    print("----")
+                    ##print("S", getsize(sentence))
+                    #print("I", getsize(info))
+
                     first_subset_iter = False
 
                 if first_subset_iter:
                     raise RuntimeError("Candidate file corrupted")
+
+                #print(getsize(sentences), len(sentences))
 
                 yield sentences
 

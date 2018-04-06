@@ -175,13 +175,56 @@ We opt to extend the work of \citep{banerjee} for two reasons:
 
 \section{Multi-Document Baseline System} \label{sec:mds-baseline}
 
-The reference system of \citet{banerjee} we have choosen for our task generates summaries in three steps. The clustering phase, the sentence generation phase and the selection phase. In the clustering phase similar sentences of the input documents are grouped into clusters. In the second step a graph-based compression algorithm is used on the clusters and 
+The reference system of \citet{banerjee} we have choosen for our task generates summaries in three steps. The clustering phase, the sentence generation phase and the selection phase. In the clustering phase similar sentences of the input documents are grouped into clusters. In the second step a graph-based compression algorithm is used on the clusters and novel candidate sentences are generated to summarize the cluster content. In the last step, sentences are scored for informativeness and linguistic quality and an optimal subset of non-redundant candidate sentences is choosen as a summary for the document. In the rest of this section we describe the above mentioned steps in more detail and also mention any decisions we made during our reimplementation of their system where the original documentation was unclear.
+While \citeauthor{banerjee} suggest multiple variations to their system, we only reimplemented their best performing configuration. Note, that we leave out the sentence ordering step of the original system, because of the tearse structure of most timelines, where most events are described in only one sentence.
+
+\subsection{Clustering}
+
+The clustering phase is divided in two distinct steps. In the first step, \citeauthor{banerjee} select what they call a most important document $D_{imp}$. This document is expected to contain the most important content of the input document set and is used to guide the actual clustering process. The second step is the assignment of sentences to appropriate clusters.
+
+The best performing method for identifying the most important document on an evaluation conducted on DUC data is what \citeauthor{banerjee} call document set similarity.
+The document set similarity of a document $d_i \in D$, is the cosine similarity between some vector representation for $d_i$ and the representation for the concatenation of all documents in $D$.
+Following \citeauthor{banerjee} we represent each document as a tf-idf vector, where we fit the document frequency on the documents of the input document set.
+
+In the clustering phase, we initialize one cluster for each sentence $s_j \in D_{imp}$. For all sentences $s_i \in D \setminus D_{imp}$ from other documents we iterate over each sentence of $D_{imp}$ and find $\argmax_{s_j} \text{CosSim}(s_i, s_j)$. The sentence is then added to the cluster induced by sentence $s_j$, as long as the similarity is above a certain level, to exclude sentences $s_i$ from the final clustering that are irrelevant to the summarization.
+Again, we follow \citeauthor{banerjee} and reject all sentences which have a similarity of less than $0.5$ to their most similar sentence.
+
+The last step of the clustering method is to filter out any unimportant clusters. This is achieved by eliminating all clusters which do not have at least $\frac{|D|}{2}$ members.
 
 
+\subsection{Candidate Generation}
+
+The candidate generation step uses the method of \citet{fillipova}, which is based around the idea of summarizing sentences being paths in a graph of words and their adjaceny relations in the summarized sentences.
+
+\citeauthor{fillipova} incrementally grows a directed graph of word adjanceny relations. Each word is represented as a tuple of surface form and POS tag. When a sentence is added to the graph, we test for each word of the newly added sentence if it matches one of the vertices in the graph. This is done in four phases, for four groups of words:
+
+\begin{enumerate}
+\item{Content words, which have exactly one matching node in the graph}
+\item{Content words, which have more than one matching node in the graph, or which occur multiple times in the sentence}
+\item{Stopwords and punctuation} % Punct not in fillipova!
+\end{enumerate}
+
+For ambigous nodes, the precedessors and succesors of the candidate nodes and the neighbours word to be mapped are compared and the word is mapped to the node with the largest overlap.
+Similarly, stopwords and punctuation are only mapped to a node, if there is at least one word in their immediate neighbourhood, that is also a graph neighbour of the candidate node.
+
+If no match can be found for a node, a new node is introduced to the graph. Note, that each node can only be mapped to once.
+
+After the mapping and optional creation of new nodes, edges are introduced between every two nodes that two neighbouring words were mapped to.
+
+Finally, we introduce edges from a special start node to the node of the first word in the sentence and from the node of the last word to a special terminal node.
+
+In order to find summarizations from this graph, one must find loopless paths from the start node to the terminal node. \citeauthor{fillipova} then uses a k-shortest path algorithm to select candidate sentences. Note, that while \citeauthor{banerjee} follows the same approach, it is unclear, if and how they weigh edges for frequency and importance, which is an essential part of the generation process for \citeauthor{fillipova}.
+In our reimplementation we choose the following conversion function to weight a sentence based on it's
 
 
 \section{Date selection}
 
+While date selection is often integrated in the 
+
+Date selection has been investigated both as part of end-to-end TLS systems (see, for example \citet{trans}), as well as a standalone problem.
+
+
+In this work we opt for a simple variant of the above mentioned principle and rank each date by number of mentions of the date in the corpus.
 
 \chapter{System}
 
@@ -324,11 +367,37 @@ As before, we compute the similarity on tf-idf vector representations of the sen
 
 \section{Scoring} \label{sec:scoring}
 
-\subsection{TLS inspired scores}
+\subsection{TLS inspired scores} \label{sec:tls-scores}
 
 While the pure MDS objective functions are already likely to carry useful information for the system, we also wish to investigate the effect of timeline specific functions on the system.
 One metric that has proven efficient so far, is date reference (CITE!). It encodes the basic notion that a date that is mentioned often in the corpus is probably important for the event in question.
 This notion can be very naturally encoded in our framework by considering cluster size. % What about multiple clusters for the same date?
+
+\subsection{Temporalized TextRank}
+
+The MDS function described in \ref{sec:mds-scores} score candidates based on their importance in relation to the sentence in their cluster. However, this score is not informative about the importance of the sentence in relation to the summarization as a whole.
+We thus extend the TextRank scoring to be computed per date. We first collect all sentences that pertain to one date, as per their cluster membership, and then run text TextRank algorithm to obtain keyword scores for all non-stopwords.
+
+We call this per-date TextRank $TR_{date}$.
+
+Previous research \citet{yan, markert} has show that the sentence similarity based scoring methods can be improved if similarity is not only computed for sentences with the same timestamp, but includes similarities to sentences from nearby timestamps as well with some discounting based on the temporal distance between the two sentences.
+We build on this idea to temporalize the TextRank algorithm by allowing the TextRank scores of one date to be influenced by neighbouring dates, where the influence is determined by the distance in days between the two dates and a soft cutoff function $g: \mathbb{N} \rightarrow \mathbb{R}$ that decreases with large date differences.
+The final TextRank score is the average score of a word, weighted by this factor.
+Let $V$ be the vocabulary of the entire corpus, we define the temporalized TextRank score $TR_{temp}(w), w \in V$ as
+
+\begin{displaymath}
+    TR_{temp_d}(w) = \frac{\sum_{d' \in T} TR_{{timestamp}_t}(w) * g(|d - d'|)}{\sum_{d' \in T} g(|d - d'|)}
+\end{displaymath}
+
+Following prior work \citep{yan}, we use $g(x) = \frac{1}{\sqrt{x + 1}}$.
+
+Using these values, we can define the scoring function $f_{dateTR}(s) = \sum_{w \in s} TR_{date_{d(s)}}(w)$ for $TR_{date}$ and analogously $f_{tempTR}$ for $TR_{temp}$.
+
+\subsection{Path Weight}
+
+While we already consider path weight in the generation stage, this does not always guarantee that proposed candidates were generated by a low weight path, if the generation graph is small enough for all or most paths to be generated.
+
+We thus integrate the path weight. To align with the notion common in other scores that larger values are preferable, we invert the path weight: $f_{path}(s) = (\text{pathweight}(s) + 1)^-1$
 
 \section{Selection}
 

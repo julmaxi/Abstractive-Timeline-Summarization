@@ -25,7 +25,7 @@ import subprocess
 AP_PATH = "libs/affinity-propagation-sparse/ap"
 
 
-def cluster_sentences_ap(sents, include_uncertain_date_edges=False, predicted_tag_only=False):
+def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag_only=False):
     if predicted_tag_only:
         ap_matrix = generate_localized_predicted_ap_matrix(sents)
     else:
@@ -40,12 +40,26 @@ def cluster_sentences_ap(sents, include_uncertain_date_edges=False, predicted_ta
 
     output = subprocess.check_output([AP_PATH], input="\n".join(in_lines).encode("utf-8"))
 
+    connection_graph = nx.Graph()
+
     clusters = defaultdict(list)
     examplars = output.decode("utf-8").split()
     for idx, examplar in enumerate(examplars):
         examplar = int(examplar)
         if idx != examplar:
-            clusters[examplar].append(sents[idx])
+            #connection_graph[examplar].append(sents[idx])
+            connection_graph.add_edge(idx, examplar)
+
+    connected_components = nx.connected_components(connection_graph)
+
+    clustering = []
+
+    for component in connected_components:
+        cluster_sents = []
+        for idx in component:
+            cluster_sents.append(sents[idx])
+        clustering.append(cluster_sents)
+    return clustering
 
     clustering = []
     for cluster_idx, vals in clusters.items():
@@ -89,15 +103,17 @@ def generate_localized_predicted_ap_matrix(sents, threshold=0.1):
     return similarities
 
 
-def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.1, include_uncertain_date_edges=True):
+def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.2, include_uncertain_date_edges=True):
     date_sent_index = {}
+
+    week_index = defaultdict(list)
 
     for s_idx, sent in enumerate(sents):
         # TODO: How exactly do we deal with undated sentences?
         all_tags = set(sent.all_date_tags)
-        if len(sent.exact_date_references) == 0: # TODO: maybe revert to "all tags"?
+        #if len(sent.exact_date_references) == 0: # TODO: maybe revert to "all tags"?
 #            all_tags = list(sent.document.all_date_tags)
-            all_tags.add(sent.document.dct_tag)
+        all_tags.add(sent.document.dct_tag)
 
         for tag in all_tags:
             year = tag.year
@@ -117,8 +133,12 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.1, include_
                     year_index_entry.exact_date_members.append((s_idx, sent))
                     month_index_entry.exact_date_members.append((s_idx, sent))
                     day_index_entry.exact_date_members.append((s_idx, sent))
+                    import datetime
+                    year, week, _ = datetime.date(year, month, day).isocalendar()
 
-    vectors = TfidfVectorizer().fit_transform(map(lambda s: s.as_tokenized_string(), sents))
+                    week_index[year, week].append((s_idx, sent))
+
+    vectors = TfidfVectorizer().fit_transform(map(lambda s: " ".join([tok.form for tok in s if not hasattr(tok, "timex") or tok.timex is None]), sents))
     similarities = {}
 
     for year_index_entry in date_sent_index.values():
@@ -145,9 +165,9 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.1, include_
             logging.info("Processing sent {} of {}".format(s_idx + 1, len(sents)))
 
         all_tags = set(sent.all_date_tags)
-        if len(all_tags) == 0:
+        #if len(all_tags) == 0:
             #all_tags = set(sent.document.all_date_tags)
-            all_tags.add(sent.document.dct_tag)
+        all_tags.add(sent.document.dct_tag)
         #print(all_tags, sent.as_tokenized_string())
 
         connected_sents = []
@@ -157,9 +177,11 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.1, include_
                 pass # handled separatly
                 #connected_sents.extend(date_sent_index[tag.year].child_dates[tag.month].child_dates[tag.day].members)
             elif tag.dtype == DateTag.MONTH:
-                sents_to_add = date_sent_index[tag.year].child_dates[tag.month].exact_date_members
+                sents_to_add.extend(date_sent_index[tag.year].child_dates[tag.month].exact_date_members)
             elif tag.dtype == DateTag.YEAR:
-                sents_to_add = date_sent_index[tag.year].exact_date_members
+                sents_to_add.extend(date_sent_index[tag.year].exact_date_members)
+            elif tag.dtype == DateTag.WEEK:
+                sents_to_add.extend(week_index[tag.year, tag.week])
 
         tok_set = set(filter(lambda t: t.lower() not in STOPWORDS and not all(map(lambda c: c in PUNCTUATION, t)), sent.as_token_attr_sequence("form_lowercase")))
         for sidx, other_sent in sents_to_add:

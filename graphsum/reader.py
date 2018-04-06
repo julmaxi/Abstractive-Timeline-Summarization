@@ -662,7 +662,6 @@ class DatedTimelineCorpusReader:
         return TimelineCorpus(date_dict)
 
 
-
 if __name__ == "__main__":#java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.StanfordCoreNLP -annotators tokenize,ssplit,pos,lemma -file input.txt
     from utils import iter_dirs, iter_files, fst
     reader = TimeMLReader(True)

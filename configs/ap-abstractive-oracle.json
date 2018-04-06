@@ -9,5 +9,6 @@
     "scoring": {
         "method": "rouge_oracle"
     },
-    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap"
+    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap",
+    "candidate_cache_dir": "caches/tl-candidates/transitive-global-date-ap"
 }

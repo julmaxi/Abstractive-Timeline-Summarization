@@ -28,3 +28,17 @@ def fst(t):
 
 def is_punctuation(str_):
     return all(map(lambda c: c in PUNCTUATION, str_))
+
+
+def avg(l):
+    s = 0
+    c = 0
+
+    for i in l:
+        s += i
+        c += 1
+
+    if c == 0:
+        return 0
+
+    return s / c

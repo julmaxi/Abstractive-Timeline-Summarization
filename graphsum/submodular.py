@@ -24,7 +24,7 @@ class RedundancyFactor:
         if num_clusters is None:
             num_clusters = max(len(id_sentence_map) // 5, 2)
 
-        clustering = MiniBatchKMeans(n_clusters=num_clusters).fit_predict(tf_idf)
+        clustering = MiniBatchKMeans(n_clusters=num_clusters, batch_size=1000).fit_predict(tf_idf)
 
         clustering = [0] * len(sorted_sent_ids)
 
