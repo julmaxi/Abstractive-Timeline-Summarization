@@ -285,7 +285,7 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     kmeans_redundancy_factor = RedundancyFactor.from_sentences(
         id_score_map,
         id_sentence_map,
-        num_clusters=min(max(sent_idx_counter // 5, 2), cluster_idx_counter * 2))
+        num_clusters=min(max(sent_idx_counter // 5, 2), 2 * parameters.max_date_sent_count * parameters.max_date_count))
     factors.append(kmeans_redundancy_factor)
 
 
@@ -504,17 +504,17 @@ class SentenceScorer:
 
                 self.per_date_temporalized_tr_scores[date] = dict((term, weight / factor_sum) for term, weight in weighted_tr_score_sums.items())
 
-        for date, scores in sorted(self.per_date_temporalized_tr_scores.items()):
-            print(date)
-            for word, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)[:10]:
-                print(word, score)
+        #for date, scores in sorted(self.per_date_temporalized_tr_scores.items()):
+        #    print(date)
+        #    for word, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)[:10]:
+        #        print(word, score)
 
-            print(".........")
-            for word, score in sorted(self.per_date_tr_scores.get(date, {}).items(), key=lambda x: x[1], reverse=True)[:10]:
-                print(word, score)
+#        #    print(".........")
+        #    for word, score in sorted(self.per_date_tr_scores.get(date, {}).items(), key=lambda x: x[1], reverse=True)[:10]:
+        #        print(word, score)
 
-            print("----")
-            print("\n")
+#        #    print("----")
+        #    print("\n")
 
             #for tr_scores in self.per_date_temporalized_tr_scores.values():
             #    for term in list(tr_scores.keys()):
@@ -1097,9 +1097,9 @@ class MayorityClusterDater:
         referenced_dates = Counter()
 
         for sent in cluster:
-            if len(sent.exact_date_references) > 0:
+            #if len(sent.exact_date_references) > 0:
                 referenced_dates.update(sent.exact_date_references)
-            elif len(sent.all_date_tags) == 0:
+            #elif len(sent.all_date_tags) == 0:
                 referenced_dates.update([sent.document.dct_tag])
 
         if len(referenced_dates) == 0:
@@ -1554,7 +1554,15 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
         dated_clusters = list(((cluster, self.cluster_dater.date_cluster(cluster)) for cluster in clusters))
 
+        for cluster, date in sorted(dated_clusters, key=lambda x: len(x[0]), reverse=True):
+            for item in cluster:
+                print(item.as_tokenized_string(), item.document.dct_tag)
+            print("\n")
+
+
         cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
+
+        cluster_candidates.extend([(doc.as_token_tuple_sequence("form", "pos"), {})] for doc in corpus for sent in doc)
 
         per_date_cluster_candidates = defaultdict(list)
 
@@ -1584,10 +1592,12 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             else:
                 cluster_candidates = candidates_and_info
 
-            if len(cluster) < self.min_cluster_size:
-                continue
+            #if len(cluster) < self.min_cluster_size:
+            #    continue
 
-            cluster_candidates.extend(map(lambda s: (s.as_token_tuple_sequence("form", "pos"), {}), cluster))
+            #!!!!!!!!!! only for testing
+            
+            #cluster_candidates.extend(map(lambda s: (s.as_token_tuple_sequence("form", "pos"), {}), cluster))
 
             per_date_cluster_candidates[cluster_date].append(cluster_candidates)
 

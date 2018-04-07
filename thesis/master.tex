@@ -27,6 +27,9 @@
 \renewcommand{\mkcitation}[1]{#1}
 \renewcommand{\mkblockquote}[4]{\enquote{#1}#2\ifterm{\relax}{#3}#4}
 
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
 
 %\renewcommand{\baselinestretch}{1.5}
 
@@ -214,8 +217,34 @@ After the mapping and optional creation of new nodes, edges are introduced betwe
 Finally, we introduce edges from a special start node to the node of the first word in the sentence and from the node of the last word to a special terminal node.
 
 In order to find summarizations from this graph, one must find loopless paths from the start node to the terminal node. \citeauthor{fillipova} then uses a k-shortest path algorithm to select candidate sentences. Note, that while \citeauthor{banerjee} follows the same approach, it is unclear, if and how they weigh edges for frequency and importance, which is an essential part of the generation process for \citeauthor{fillipova}.
-In our reimplementation we choose the following conversion function to weight a sentence based on it's
+In our reimplementation we choose the following conversion function proposed by \citeauthor{fillipova} to weight an edge based on its frequency $\text{freq}$:
 
+\begin{displaymath}
+w(e_{ij}) = \frac{\text{freq}(i) + \text{freq}(j)} {\text{freq}(i) * \text{freq}(j) * (\sum_{s \in C} \text{diff}(s, i, j)^{-1})}
+\end{displaymath}
+
+Where diff is a function that rewards edges between nodes that are often close in sentences. It is defined in terms of the position $\text{pos}(s, i)$ of the word in sentence $s$ that was mapped to vertex $v_i$.
+The function is designed to reward edges which connect words which are often close by in the source sentences.
+
+\begin{displaymath}
+\text{diff}(s, i, j) = \begin{cases}
+\text{pos}(s, j) - \text{pos}(s, i) & \text{if }\text{pos}(s, i) < \text{pos}(s, j) \\
+0 & \text{else}
+\end{cases}
+\end{displaymath}
+
+After the k-shortest paths have been obtained, two heuristics are applied to remove ungramatical sentences:
+
+\begin{itemize}
+    \item {Sentences with fewer than $8$ words}
+    \item {Sentences which do not have a verb}
+\end{itemize}
+
+Additionally, \citet{banerjee} retain only the 200 shortest paths of each graph for computational reasons.
+
+In our implementation we use the algorithm of \citet{kshortestpath} as implemented in the networkx library \citep{networkx} to generate the $k$-shortest paths.
+
+\subsection{Candidate Selection}
 
 \section{Date selection}
 

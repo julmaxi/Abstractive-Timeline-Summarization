@@ -410,7 +410,7 @@ class SentenceCompressionGraph:
 
             max_freq = max(max_freq, data["frequency"])
 
-            w = (src_freq + trg_freq) / diff  #data["frequency"]
+            w = (src_freq + trg_freq) / diff  # data["frequency"]
 
             w /= src_freq * trg_freq
 
@@ -628,6 +628,8 @@ STOPWORDS.add("``")
 STOPWORDS.update(string.punctuation)
 STOPWORDS.add("'s")
 STOPWORDS.add("n't")
+STOPWORDS.add("-LRB-")
+STOPWORDS.add("-RRB-")
 
 
 def compute_neighbourhood_overlap(sent, graph, token_idx, node_idx, window_size=2, include_stopwords=True):
