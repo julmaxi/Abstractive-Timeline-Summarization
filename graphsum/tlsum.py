@@ -432,6 +432,7 @@ class SentenceScorer:
         assert "use_local_info" not in config
         self.use_cluster_size = config.get("use_cluster_size", False)
 
+        self.use_global_informativeness = config.get("use_global_informativeness", False)
         self.use_temporalized_informativeness = config.get("use_temporalized_informativeness", False)
         self.use_per_date_informativeness = config.get("use_per_date_informativeness", False)
         self.use_date_frequency = config.get("use_date_frequency", False)
@@ -450,6 +451,9 @@ class SentenceScorer:
     def prepare(self, corpus):
         if self.use_date_frequency:
             self.relative_date_frequencies = compute_relative_date_frequencies(corpus)
+
+        if self.use_global_informativeness:
+            self.global_tr_scores = calculate_keyword_text_rank([sent.as_token_tuple_sequence("form", "pos") for doc in corpus for sent in doc])
 
         self.corpus_name = corpus.name
 
@@ -547,6 +551,13 @@ class SentenceScorer:
 
             return local_informativeness_score
 
+        def calc_global_informativeness(sent):
+            local_informativeness_score = 0
+            for token in set(sent):
+                local_informativeness_score += self.global_tr_scores.get(token, 0)
+
+            return local_informativeness_score
+
         def sfunc_mult(sent, info):
             score_info = {}
 
@@ -566,6 +577,11 @@ class SentenceScorer:
                 temp_informativeness = calc_temporalized_informativeness(sent)
                 score *= temp_informativeness
                 score_info["temp_informativeness"] = temp_informativeness
+
+            if self.use_global_informativeness:
+                global_informativeness = calc_global_informativeness(sent)
+                score *= global_informativeness
+                score_info["global_informativeness"] = global_informativeness
 
             if self.use_lm:
                 lm_score = 1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent))))
@@ -1298,6 +1314,9 @@ class ILPSentenceSelector:
         return summaries
 
     def select_from_clusters(self, clusters, parameters, min_size):
+        if len(clusters) > 20:
+            clusters = sorted(clusters, key=lambda x: len(x))[:20]
+
         reduced_clusters = []
 
         for cluster in clusters:
@@ -1553,19 +1572,12 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
 
         dated_clusters = list(((cluster, self.cluster_dater.date_cluster(cluster)) for cluster in clusters))
-
-        for cluster, date in sorted(dated_clusters, key=lambda x: len(x[0]), reverse=True):
-            for item in cluster:
-                print(item.as_tokenized_string(), item.document.dct_tag)
-            print("\n")
-
-
         cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
 
-        cluster_candidates.extend([(doc.as_token_tuple_sequence("form", "pos"), {})] for doc in corpus for sent in doc)
+        #dated_clusters.extend((sent.as_token_tuple_sequence("form", "pos"), self.cluster_dater.date_cluster([sent])) for doc in corpus for sent in doc)
+        #cluster_candidates.extend([(sent.as_token_tuple_sequence("form", "pos"), {})] for doc in corpus for sent in doc)
 
         per_date_cluster_candidates = defaultdict(list)
-
         self.scorer.prepare_for_clusters(dated_clusters)
 
         for (cluster, cluster_date), candidates_and_info in sorted(zip(dated_clusters, cluster_candidates), key=lambda x: len(x[0][0]), reverse=True):
@@ -1592,8 +1604,8 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             else:
                 cluster_candidates = candidates_and_info
 
-            #if len(cluster) < self.min_cluster_size:
-            #    continue
+            if len(cluster) < self.min_cluster_size:
+                continue
 
             #!!!!!!!!!! only for testing
             
@@ -1661,7 +1673,12 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
         all_candidates_and_info = []
 
-        for cluster in clusters:
+        import time
+        start = time.time()
+        for cluster_idx, cluster in enumerate(clusters):
+            if (cluster_idx + 1) % 100 == 0:
+                logger.debug("Generating sentences for cluster {} of {} ({})".format(cluster_idx, len(clusters), datetime.timedelta(seconds=time.time() - start)))
+
             candidates_and_info = self.generator.generate_candidates(cluster)
 
             if outfile is not None:

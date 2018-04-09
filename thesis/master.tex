@@ -242,9 +242,59 @@ After the k-shortest paths have been obtained, two heuristics are applied to rem
 
 Additionally, \citet{banerjee} retain only the 200 shortest paths of each graph for computational reasons.
 
-In our implementation we use the algorithm of \citet{kshortestpath} as implemented in the networkx library \citep{networkx} to generate the $k$-shortest paths.
+In our reimplementation we use the algorithm of \citet{kshortestpath} as implemented in the networkx library \citep{networkx} to generate the $k$-shortest paths.
 
 \subsection{Candidate Selection}
+
+\subsection{Scoring}
+
+Given the set of generated sentences, we need to select the best candidates to be included in the final summary. \citet{banerjee} use two features to measure the quality of a sentence, linguistic quality and informativeness. This setup is supposed to balance readability of the sentences with their informative content.
+
+Linguistic quality is measured by a trigram language model. Given such a model $P$ and a sentence $s = w_1, ..., w_n$ the lingistic quality $LQ(s)$ is defined as follows.
+\begin{align*}
+LQ(w_1, ..., w_n) = \frac{1}{1 - (\frac{1}{L} \log \prod_{i > 3}^{n} P(w_i | w_{i - 1}, w_{i - 2}))}
+\end{align*}
+
+Informativeness $I$ is measured by computing TextRank \citet{textrank} keyword scores and summing them over all tokens of a sentence.
+TextRank scores are computed by applying the PageRank \citet{pagerank} algorithm to a an unweighted graph of the content words of the input sentences, in which those words that cooccur within a certain window of text are connected.
+In our implementation we let the window cover the entire sentence.
+Note that the TextRank scores are computed individually for each cluster, instead of globally for the entire document collection.
+
+The final score is computed as $\text{score}(s) = I(s) * LQ(s)$. Note that we have slightly altered the original function by leaving out the division by length in the original formulation. This takes into account the different length constraints of our TLS setup and the DUC setup, which is used by \citeauthor{banerjee}. While DUC has a length limit in tokens, we instead limit the number of sentences for each entry.
+This means it becomes less attractive to formulate many small sentences, instead rewarding the formulation of longer sentences.
+
+
+\subsection{Selection}
+
+For selection our baseline system uses an Integer Linear Program (ILP), which is widely employed in summarization tasks.
+The objective is to optimize the following function:
+
+\begin{displaymath}
+\sum_{i = 1}^{i = |G|} \text{score}(s_i) * p_i
+\end{displaymath}
+
+where $p_i \in \{0, 1\}$ are binary indicators, where $p_i = 1$ indicates sentence $s_i$ should be included in the final summary.
+
+To avoid redundancy, the following set of constraints is imposed:
+
+\begin{displaymath}
+p_i + p_{j} \leq 1 \forall i \neq j \land sim(s_i, s_j) > t
+\end{displaymath}
+
+Following \citet{banerjee}, we set $t = 0.8$ and use cosine similarities between vector representations of the two sentences for similarity computation.
+
+A second set of constraints ensures that only one sentence from the same cluster may be included in the final summary:
+
+\begin{displaymath}
+\sum_{s_i \in C} p_i \leq 1 \forall C \in \bar{C}
+\end{displaymath}
+
+Finally, we also need to add an appropriate length constraint. We introduce a per-day summary length constraint in sentences:
+
+\begin{displaymath}
+\sum_{i} p_i \leq k
+\end{displaymath}
+
 
 \section{Date selection}
 
@@ -400,7 +450,7 @@ As before, we compute the similarity on tf-idf vector representations of the sen
 
 While the pure MDS objective functions are already likely to carry useful information for the system, we also wish to investigate the effect of timeline specific functions on the system.
 One metric that has proven efficient so far, is date reference (CITE!). It encodes the basic notion that a date that is mentioned often in the corpus is probably important for the event in question.
-This notion can be very naturally encoded in our framework by considering cluster size. % What about multiple clusters for the same date?
+This notion can be very naturally encoded in our framework by considering cluster size. % What about multiple clusters for the same date as a scoring metric?
 
 \subsection{Temporalized TextRank}
 
@@ -432,37 +482,37 @@ We thus integrate the path weight. To align with the notion common in other scor
 
 \subsection{Integer Linear Programming}
 
-Formulating an Integer Linear Program (ILP) for infering an optimal summary given some sentences and associated importance scores is a common approach in document summarization. %(CITE!)
-
-Given the set of generated sentences $G$ and the scoring function $f_{score}$ (s. \ref{sec:scoring}) we formulate the following maximization problem.
-
-\begin{displaymath}
-\text{maximize} \sum_{g \in G} p_g * f_{score}(g)
-\end{displaymath}
-
-where $p_g$ is a boolean indicator variable indicating whether the generated sentence $g$ should be included into the summary or not.
-
-Following \citet{banerjee}, we also include two sets of constraints into the problem.
-The first constraint ensures non-redundancy by enforcing that of any two sentences with a similarity greather than some threshold $t$ only one may be included in a summary:
-
-\begin{displaymath}
-p_g + p_{g'} \leq 1 \forall g \neq g' \land sim(g, g') > t
-\end{displaymath}
-
-Following \citet{banerjee}, we set $t = 0.8$ and use cosine similarities between vector representations of the two sentences for similarity computation.
-The vector representations are derived from a tf-idf model fitted on the entire collection of input documents.
-
-The second set of constraints ensures that only one sentence from the same cluster may be included in the final summary:
-
-\begin{displaymath}
-\sum_{g \in C} p_g \leq 1 \forall C \in \bar{C}
-\end{displaymath}
-
-Finally, we also need to add a length constraint. We introduce a per-day summary length constraint:
-
-\begin{displaymath}
-\sum_{g} p_g \leq k
-\end{displaymath}
+%Formulating an Integer Linear Program (ILP) for infering an optimal summary given some sentences and associated importance scores is a common %approach in document summarization. %(CITE!)
+%
+%Given the set of generated sentences $G$ and the scoring function $f_{score}$ (s. \ref{sec:scoring}) we formulate the following maximization %problem.
+%
+%\begin{displaymath}
+%\text{maximize} \sum_{g \in G} p_g * f_{score}(g)
+%\end{displaymath}
+%
+%where $p_g$ is a boolean indicator variable indicating whether the generated sentence $g$ should be included into the summary or not.
+%
+%Following \citet{banerjee}, we also include two sets of constraints into the problem.
+%The first constraint ensures non-redundancy by enforcing that of any two sentences with a similarity greather than some threshold $t$ only %one may be included in a summary:
+%
+%\begin{displaymath}
+%p_g + p_{g'} \leq 1 \forall g \neq g' \land sim(g, g') > t
+%\end{displaymath}
+%
+%Following \citet{banerjee}, we set $t = 0.8$ and use cosine similarities between vector representations of the two sentences for similarity %computation.
+%The vector representations are derived from a tf-idf model fitted on the entire collection of input documents.
+%
+%The second set of constraints ensures that only one sentence from the same cluster may be included in the final summary:
+%
+%\begin{displaymath}
+%\sum_{g \in C} p_g \leq 1 \forall C \in \bar{C}
+%\end{displaymath}
+%
+%Finally, we also need to add a length constraint. We introduce a per-day summary length constraint:
+%
+%\begin{displaymath}
+%\sum_{g} p_g \leq k
+%\end{displaymath}
 
 
 As \citet{mcdonald} has shown, running ILP to find a summarization is challenging even for a moderate amount of textual units for the purpose of MDS quickly becomes infeasible.

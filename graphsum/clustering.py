@@ -134,9 +134,12 @@ def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.2, include_
                     month_index_entry.exact_date_members.append((s_idx, sent))
                     day_index_entry.exact_date_members.append((s_idx, sent))
                     import datetime
-                    year, week, _ = datetime.date(year, month, day).isocalendar()
-
-                    week_index[year, week].append((s_idx, sent))
+                    try:
+                        year, week, _ = datetime.date(year, month, day).isocalendar()
+                    except ValueError:
+                        logger.warning("Invalid date reference {}-{}-{}".format(year, month, day))
+                    else:
+                        week_index[year, week].append((s_idx, sent))
 
     vectors = TfidfVectorizer().fit_transform(map(lambda s: " ".join([tok.form for tok in s if not hasattr(tok, "timex") or tok.timex is None]), sents))
     similarities = {}

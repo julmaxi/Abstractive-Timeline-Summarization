@@ -431,7 +431,13 @@ class SentenceCompressionGraph:
         logging.info("Processing graph V = {}, E = {}".format(len(self.graph), len(self.graph.edges)))
 
         if use_weighting:
-            path_iter = nx.shortest_simple_paths(self.graph, "START", "END", weight="weight_sl")
+            import itertools
+            paths = list(itertools.islice(nx.all_simple_paths(self.graph, "START", "END"), n))
+
+            if len(paths) >= n:
+                path_iter = nx.shortest_simple_paths(self.graph, "START", "END", weight="weight_sl")
+            else:
+                path_iter = iter(paths)
         else:
             path_iter = nx.all_simple_paths(self.graph, "START", "END")
 
@@ -443,6 +449,7 @@ class SentenceCompressionGraph:
             num_tries += 1
 
             if time.time() - start_time >= timeout:
+                logging.warn("Timeout during sentence generation")
                 break
             if len(path) < minlen + 2:  # Account for START and END
                 continue
