@@ -175,6 +175,23 @@ class SubsetKnapsackConstraint:
 
         return []
 
+
+class ConstantSizeSubsetKnapsackConstraint:
+    def __init__(self, knapsack_size, relevant_sents):
+        self.knapsack_size = knapsack_size
+        self.current_size = 0
+        self.relevant_sents = set(relevant_sents)
+
+    def update(self, new_sent, filtered_sentences):
+        if new_sent in self.relevant_sents:
+            self.current_size += 1
+
+            if self.knapsack_size >= self.current_size:
+                return self.relevant_sents
+
+        return []
+
+
 class ClusterMembershipConstraint:
     def __init__(self, id_cluster_map):
         self.id_cluster_map = id_cluster_map

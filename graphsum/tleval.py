@@ -112,6 +112,8 @@ def evaluate_tl_main():
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
 
+    timelines.reverse()
+
     sys_timelines = tl_gen.generate_timelines(corpus, [determine_tl_parameters(tl) for _, tl in timelines], reference_timelines=list(map(lambda x: x[1], timelines)))
     with open(os.path.join(results_dir, corpus_basename + ".txt"), "w") as f_out: 
         f_out.write("Timeline        \tDate R\tDate P\tDate F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\n")

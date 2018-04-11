@@ -20,6 +20,8 @@
 \SetBlockEnvironment{quoting}
 \SetBlockThreshold{1} 
 
+%\renewcommand{\baselinestretch}{1.5}
+
 \newcounter{quotecount}
 \newcommand{\countquote}[1]{\vspace{1cm}\refstepcounter{quotecount}%
      \parbox{9cm}{#1}\hspace*{1cm}(Excerpt \arabic{quotecount})\\[1cm]}
@@ -236,15 +238,13 @@ The function is designed to reward edges which connect words which are often clo
 After the k-shortest paths have been obtained, two heuristics are applied to remove ungramatical sentences:
 
 \begin{itemize}
-    \item {Sentences with fewer than $8$ words}
-    \item {Sentences which do not have a verb}
+    \item {Sentences with fewer than $8$ words are removed}
+    \item {Sentences which do not have a verb  are removed}
 \end{itemize}
 
-Additionally, \citet{banerjee} retain only the 200 shortest paths of each graph for computational reasons.
+Following \citet{banerjee} we retain only the 200 shortest paths of each graph for computational reasons.
 
-In our reimplementation we use the algorithm of \citet{kshortestpath} as implemented in the networkx library \citep{networkx} to generate the $k$-shortest paths.
-
-\subsection{Candidate Selection}
+In our reimplementation we use the algorithm of \citet{kshortestpath} as implemented in the networkx library \citep{networkx} to generate the $k$-shortest paths. Additionally we introduce another contraint to only include the 20 largest clusters at all steps to keep solving the ILP problem feasible.
 
 \subsection{Scoring}
 
@@ -296,14 +296,15 @@ Finally, we also need to add an appropriate length constraint. We introduce a pe
 \end{displaymath}
 
 
-\section{Date selection}
+\section{Adaption to timeline summarization}
 
-While date selection is often integrated in the 
+As mentioned in the introduction, we can use the system described above as a TLS system by running a date-selection algorithm and then running the MDS system on the documents of each day.
 
-Date selection has been investigated both as part of end-to-end TLS systems (see, for example \citet{trans}), as well as a standalone problem.
+While there are sophisticated solutions for the problem (see, for example \citet{tran-datesel}, who model the problem as a random walk on a graph of dates), investigating date selection is not the primary focus of this work.
+We thus reach for a simpler importance metric, which relies on the intuition that a date is important if it is mentioned often in the corpus and select the $k$ most frequently mentioned dates for inclusion in the timeline.
 
-
-In this work we opt for a simple variant of the above mentioned principle and rank each date by number of mentions of the date in the corpus.
+%Date selection has been investigated both as part of end-to-end TLS systems (see, for example \citet{trans}), as well as a standalone problem.
+%In this work we opt for a simple variant of the above mentioned principle and rank each date by number of mentions of the date in the corpus.
 
 \chapter{System}
 
@@ -319,7 +320,7 @@ Finally, we must \textbf{select} a number of sentences to be included in the tim
 
 \subsection{Introduction}
 
-While the problem of clustering is very well researched in computational science, the requirements of this application make it arguably more challenging then the generic task. Sentences in one cluster must be both similar, so the compression can generate meaningful and correct sentences, as well as sufficiently different to allow for variations in the generated sentences, lest the system will just reproduce the original sentences.
+While there is a large collection of tried-and-proven clustering algorithms available, the requirements of this application place some constraints on which algorithms we can consider. Sentences in one cluster must be both similar, so the compression can generate meaningful and correct sentences, as well as sufficiently different to allow for variations in the generated sentences, lest the system will just reproduce the original sentences.
 Furthermore the system must automatically detect the number of clusters on a wide varity of datasets with different sizes and characteristics.
 Choosing too few large clusters may make it impossible to generate a sufficient ammount of sentences to fill a timeline, while too many small clusters may not be diverse enough to allow for new sentences.
 All these factors make the clustering step of the system quite challenging and essential for the overall working of the system.
@@ -442,7 +443,14 @@ We further introduce a requirement for the similarity of two sentences to be at 
 
 As before, we compute the similarity on tf-idf vector representations of the sentences.
 
-\section{Candidate Generation}
+\subsubsection{Date assignment}
+
+Clusters resulting from this method are not associated with a clear date tag. We thus need to determine the appropriate date tag after the clustering step. We choose a simple heuristic and count the number of times a date is either the dct for a sentence or mentioned by an exact date reference. The date tag for the sentence is the date with the highest frequency. This mirrors our decision to allow each sentence to be clustered with either sentences published at the same time, or sentences which mention the same dates.
+
+
+%\section{Candidate Generation}
+
+%During candidate generation we largely rely on the same method and procedure that was used by \citet{banerjee} and outlined in section \ref{sec:baseline:details}. We do, however, change 
 
 \section{Scoring} \label{sec:scoring}
 
@@ -452,9 +460,15 @@ While the pure MDS objective functions are already likely to carry useful inform
 One metric that has proven efficient so far, is date reference (CITE!). It encodes the basic notion that a date that is mentioned often in the corpus is probably important for the event in question.
 This notion can be very naturally encoded in our framework by considering cluster size. % What about multiple clusters for the same date as a scoring metric?
 
-\subsection{Temporalized TextRank}
+
+\subsection{Global TextRank}
 
 The MDS function described in \ref{sec:mds-scores} score candidates based on their importance in relation to the sentence in their cluster. However, this score is not informative about the importance of the sentence in relation to the summarization as a whole.
+A natural extension is thus to compute the TextRank scores on the whole document, instead of just one.
+
+\subsection{Temporalized TextRank}
+
+While the global score assess the global importance for a sentence, it does not respect that the importance of keywords may vary over time as the event progress.
 We thus extend the TextRank scoring to be computed per date. We first collect all sentences that pertain to one date, as per their cluster membership, and then run text TextRank algorithm to obtain keyword scores for all non-stopwords.
 
 We call this per-date TextRank $TR_{date}$.
@@ -478,9 +492,10 @@ While we already consider path weight in the generation stage, this does not alw
 
 We thus integrate the path weight. To align with the notion common in other scores that larger values are preferable, we invert the path weight: $f_{path}(s) = (\text{pathweight}(s) + 1)^-1$
 
-\section{Selection}
 
-\subsection{Integer Linear Programming}
+\section{Selection using Submodular Functions}
+
+%\subsection{Integer Linear Programming}
 
 %Formulating an Integer Linear Program (ILP) for infering an optimal summary given some sentences and associated importance scores is a common %approach in document summarization. %(CITE!)
 %
@@ -519,7 +534,7 @@ As \citet{mcdonald} has shown, running ILP to find a summarization is challengin
 This problem is aggrevated on TLS corpora, as they can contain hundreds of thousands of sentences, compared to a few hundred in typical MDS datasets. Additionally, generating a huge number of candidate sentences can increase the number of sentences even more, further limiting the usefulness of ILPs.
 To alleviate this problem, we only run the solver for the set of candidates generated for a single date. As a consequence the system with the ILP can not be run without external date selection. Furthermore, iter-date redundancy is not prevented by the constraints.
 
-\subsection{Submodular Functions}
+%\subsection{Submodular Functions}
 
 While ILP systems are guaranteed to return an optimal solution to the posed optimization problem, their complexity makes them less attractive for the huge amount of data in typical timeline summarization. \citet{markert} have demonstrated that the objective for timeline summarization can be cast as a monotone, positive submodular function whose optimum can be reasonably well approximated by a greedy algorithm.
 
@@ -560,9 +575,27 @@ To obtain sentence level date annotations, we run the HeidelTime tagger \citet{h
 \section{System Configurations}
 
 
+
 \chapter{Automatic Evaluation}
 
 \section{Setup}
+
+We follow the evaluation setup of \citet{markert} and parameterize our timelines by two properties: Number of dates and number of sentences per date. Both are set from the reference timelines, where the number of sentences per date is the rounded-down average of sentences per date in the reference timeline.
+As \citeauthor{markert} we generate one system timeline per reference timeline with the appropriate parameters, to account for the huge differences in length and verbosity of the timelines.
+
+We evaluate the performance of our systems using the evaluation framework of \citet{tilse}, which is based on the ROUGE \citep{rouge} metric.
+
+Specifically, we use ROUGE-1 and ROUGE-2 metrics, which are defined as follows:
+
+\begin{displaymath}
+    ROUGE-R(s, r) = 
+\end{displaymath}
+
+The concat score is obtained by concatenating all date summaries in both system and reference timeline and computing the ROUGE metric on the pair.
+The agree score is obtained by treating each date summary individually and computing the score per date.
+Finally the align m:1 metric aligns summaries for different dates based on the time difference between the tag of the reference timeline summaries and the contents of the daily summaries. The final summary score is the ROUGE score between aligned dates discounted proportionally to the time difference between their date tags.
+
+Note that we compute the per-topic macro average of all metrics, not the average across all reference timelines.
 
 \section{Results}
 
@@ -574,11 +607,11 @@ To obtain sentence level date annotations, we run the HeidelTime tagger \citet{h
 
 \chapter{Error Analysis}
 
-\section{Inherent Shortcommings of Current Corpora}
+\section{Common Errors in Clustering}
 
-\section{Shortcommings of the Algorithm}
+\section{Common Errors in Candidate Generation}
 
-\section{Problems with Current Evaluation Metrics}
+%\section{Problems with Current Evaluation Metrics}
 
 \chapter{Conclusion}
 

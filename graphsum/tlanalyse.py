@@ -35,13 +35,25 @@ def analyze_main():
     results_basedir = "evaluation_results"
 
     all_entries = {}
+    tl17_entries = {}
+    crisis_entries = {}
 
     for system_dir in iter_dirs(results_basedir):
-        entry = analyze_system_results_dir(system_dir)
+        entry, tl17_entry, crisis_entry = analyze_system_results_dir(system_dir)
         if entry is not None:
             all_entries[os.path.basename(system_dir)] = entry
 
+        if tl17_entry is not None:
+            tl17_entries[os.path.basename(system_dir)] = tl17_entry
+        if crisis_entry is not None:
+            crisis_entries[os.path.basename(system_dir)] = crisis_entry
+
     print_results_table(all_entries)
+    print("\n===== TL17 =====")
+    print_results_table(tl17_entries)
+    print("\n===== Crisis =====")
+    print_results_table(crisis_entries)
+
 
     #all_entries = sorted(all_entries.items())
 #
@@ -53,10 +65,13 @@ def analyze_main():
 def analyze_system_results_dir(results_dir):
     all_results = {}
 
+    tl17_results = {}
+    crisis_results = {}
+
     relevant_files = list(iter_files(results_dir, ".txt"))
 
     if len(relevant_files) == 0:
-        return None
+        return None, None, None
 
     for results_file in relevant_files:
         topic_result = {}
@@ -82,9 +97,24 @@ def analyze_system_results_dir(results_dir):
 
         all_results[os.path.basename(results_file)] = topic_result
 
-    macro_average_entry = compute_macro_averages(all_results)
+        if "crisis" in os.path.basename(results_file):
+            crisis_results[os.path.basename(results_file)] = topic_result
+        elif "tl17" in os.path.basename(results_file):
+            tl17_results[os.path.basename(results_file)] = topic_result
+        all_results[os.path.basename(results_file)] = topic_result
 
-    return macro_average_entry
+    macro_average_entry = compute_macro_averages(all_results)
+    if len(tl17_results) > 0:
+        tl17_macro_average_entry = compute_macro_averages(tl17_results)
+    else:
+        tl17_macro_average_entry = None
+
+    if len(crisis_results) > 0:
+        crisis_macro_average_entry = compute_macro_averages(crisis_results)
+    else:
+        crisis_macro_average_entry = None
+
+    return macro_average_entry, tl17_macro_average_entry, crisis_macro_average_entry
 
 
 def compute_macro_averages(topic_results):

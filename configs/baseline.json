@@ -11,6 +11,6 @@
     "date_selection": {
         "method": "dateref_freq"
     },
-    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap",
-    "candidate_cache_dir": "caches/tl-candidates/transitive-global-date-ap"
+    "cluster_cache_path": "caches/tl-clustering/docset",
+    "candidate_cache_dir": "caches/tl-candidates/docset"
 }

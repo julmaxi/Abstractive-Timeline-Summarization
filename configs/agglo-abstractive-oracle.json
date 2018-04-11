@@ -9,5 +9,5 @@
     "scoring": {
         "method": "rouge_oracle"
     },
-    "cluster_cache_path": "caches/tl-clustering/agglo"
-}
+    "cluster_cache_path": "caches/tl-clustering/local-date-agglo",
+    "candidate_cache_dir": "caches/tl-candidates/local-date-agglo"}

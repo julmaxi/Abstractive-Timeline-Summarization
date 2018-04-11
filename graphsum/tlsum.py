@@ -25,7 +25,7 @@ from langmodel import KenLMLanguageModel
 from reader import DatedSentenceReader, DatedTimelineCorpusReader
 from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file, read_ap_file, cluster_sentences_ap
 from similarity import SklearnTfIdfCosineSimilarityModel
-from submodular import RedundancyFactor, CoverageFactor, KnapsackConstraint, SubsetKnapsackConstraint, SubModularOptimizer, MaxDateCountConstraint, ClusterMembershipConstraint
+from submodular import RedundancyFactor, CoverageFactor, KnapsackConstraint, SubsetKnapsackConstraint, SubModularOptimizer, MaxDateCountConstraint, ClusterMembershipConstraint, ConstantSizeSubsetKnapsackConstraint
 
 import scipy.sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -266,10 +266,13 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
 
             cluster_idx_counter += 1
 
+    print("Selecting from {} sentences".format(sent_idx_counter))
+
     constraints = []
 
     for date_id, member_ids in date_id_map.items():
-        constraints.append(SubsetKnapsackConstraint(parameters.max_date_sent_count, dict((i, 1) for i in range(sent_idx_counter)), member_ids))
+        constraints.append(ConstantSizeSubsetKnapsackConstraint(parameters.max_date_sent_count, member_ids))
+        #constraints.append(SubsetKnapsackConstraint(parameters.max_date_sent_count, dict((i, 1) for i in range(sent_idx_counter)), member_ids))
 
     constraints.append(MaxDateCountConstraint(parameters.max_date_count, sent_id_date_map))
     constraints.append(KnapsackConstraint(parameters.max_sent_count, dict((i, 1) for i in range(sent_idx_counter))))
@@ -279,7 +282,6 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
 
     #cluster_redundancy_factor = RedundancyFactor(id_score_map, id_cluster_map)
 
-    print("Selecting from {} sentences".format(sent_idx_counter))
     print("Initializing redudancy")
     factors = []
     kmeans_redundancy_factor = RedundancyFactor.from_sentences(
@@ -413,7 +415,10 @@ def compute_relative_date_frequencies(corpus):
     for doc in corpus:
         for sent in doc:
             for date_ref in sent.exact_date_references:
-                dateref_counter[datetime.date(date_ref.year, date_ref.month, date_ref.day)] += 1
+                try:
+                    dateref_counter[datetime.date(date_ref.year, date_ref.month, date_ref.day)] += 1
+                except ValueError:
+                    pass
             num_sents += 1
 
     return dict((date_ref, score / num_sents) for date_ref, score in dateref_counter.items())
@@ -1052,6 +1057,9 @@ class TLSumModuleBase:
     def prepare(self, corpus):
         pass
 
+import multiprocessing
+from pathos.multiprocessing import ProcessingPool
+
 
 class GraphCandidateGenerator(TLSumModuleBase):
     def __init__(self, config):
@@ -1062,12 +1070,44 @@ class GraphCandidateGenerator(TLSumModuleBase):
         self.tfidf_model = TfidfVectorizer()
         self.tfidf_model.fit(list(map(lambda s: s.as_tokenized_string(), corpus.sentences)))
 
-    def generate_candidates(self, cluster):
-        all_candidates_and_info = []
-        compressor = SentenceCompressionGraph(STOPWORDS)
-        compressor.add_sentences([sent.as_token_tuple_sequence("form_lowercase", "pos") for sent in cluster])
+    def generate_all_candidates(self, clusters):
+        inputs = [[list(sent.as_token_tuple_sequence("form_lowercase", "pos")) for sent in cluster] for cluster in clusters]
 
-        cluster_vectors = self.tfidf_model.transform(list(map(lambda s: s.as_tokenized_string(), cluster)))
+        batches = []
+
+        batch_cursor = 0
+        batch_size = 50
+
+        while batch_cursor < len(clusters):
+            batches.append(inputs[batch_cursor:batch_cursor + batch_size])
+            batch_cursor += batch_size
+
+        pool = ProcessingPool()
+
+        for batch_result in pool.imap(self.process_batch, batches):
+            for result in batch_result:
+                yield result
+
+        pool.close()
+        pool.join()
+
+    def process_batch(self, batch):
+        results = []
+        for cl in batch:
+            results.append(self.generate_candidates_from_tuple_sequences(cl))
+
+        return results
+
+    def generate_candidates(self, cluster):
+        return self.generate_candidates_from_tuple_sequences([s.as_token_tuple_sequence("form", "pos") for s in cluster])
+
+    def generate_candidates_from_tuple_sequences(self, cluster):
+        all_candidates_and_info = []
+
+        compressor = SentenceCompressionGraph(STOPWORDS)
+        compressor.add_sentences(cluster)
+
+        cluster_vectors = self.tfidf_model.transform(list(map(lambda s: " ".join([t[0] for t in s]), cluster)))
 
         def check_closeness(sent):
             sent_vec = self.tfidf_model.transform([" ".join(map(lambda x: x[0], sent))])
@@ -1201,7 +1241,7 @@ class IdentityClusterer:
 
 class AgglomerativeClusterer:
     def __init__(self, config):
-        self.clustering_threshold = config.get("clustering_threshold", 0.3)
+        self.clustering_threshold = config.get("clustering_threshold", 0.5)
 
     def cluster_corpus(self, corpus):
         date_sentences = defaultdict(list)
@@ -1592,13 +1632,13 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                     score, info = score_func(candidate, info)
                     cluster_candidates.append((candidate, score, info))
 
-                print(cluster_date)
-                for item in cluster:
-                    print(item.as_tokenized_string(), item.document.dct_tag)
-                print("\n")
-                for cand, score, info in sorted(cluster_candidates, key=lambda x: x[1], reverse=True):
-                    print(" ".join(map(lambda x: x[0], cand)), score)
-                    print(info)
+                #print(cluster_date)
+                #for item in cluster:
+                #    print(item.as_tokenized_string(), item.document.dct_tag)
+                #print("\n")
+                #for cand, score, info in sorted(cluster_candidates, key=lambda x: x[1], reverse=True):
+                #    print(" ".join(map(lambda x: x[0], cand)), score)
+                #    print(info)
 
                 cluster_candidates = list(map(lambda x: (x[0], x[1]), cluster_candidates))
             else:
@@ -1659,12 +1699,16 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
         outfile = None
 
         if base_cache_path is not None:
+            pickle_cache_path = os.path.join(base_cache_path, (corpus.name + ".txt.pkl").replace("/", "_"))
+
+            if os.path.isfile(pickle_cache_path):
+                with open(pickle_cache_path, "rb") as f:
+                    return pickle.load(f)
+
             cache_path = os.path.join(base_cache_path, (corpus.name + ".txt").replace("/", "_"))
 
             if os.path.isfile(cache_path):
-                candidates = list(self.read_candidate_file(cache_path, clusters))
-                from getsize import getsize
-                #print(getsize(candidates))
+                candidates = list(read_candidate_file(cache_path, clusters))
                 return candidates
             else:
                 if not os.path.isdir(base_cache_path):
@@ -1675,70 +1719,32 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
         import time
         start = time.time()
-        for cluster_idx, cluster in enumerate(clusters):
-            if (cluster_idx + 1) % 100 == 0:
-                logger.debug("Generating sentences for cluster {} of {} ({})".format(cluster_idx, len(clusters), datetime.timedelta(seconds=time.time() - start)))
 
-            candidates_and_info = self.generator.generate_candidates(cluster)
+        if hasattr(self.generator, "generate_all_candidates"):
+            for cluster_idx, (candidates_and_info, cluster) in enumerate(zip(self.generator.generate_all_candidates(clusters), clusters)):
+                if (cluster_idx + 1) % 100 == 0:
+                    logger.debug("Generating sentences for cluster {} of {} ({})".format(cluster_idx, len(clusters), datetime.timedelta(seconds=time.time() - start)))
 
-            if outfile is not None:
-                self._write_candidate_set(outfile, candidates_and_info)
+                if outfile is not None:
+                    self._write_candidate_set(outfile, candidates_and_info)
 
-            all_candidates_and_info.append(candidates_and_info)
+                all_candidates_and_info.append(candidates_and_info)
+        else:
+            for cluster_idx, cluster in enumerate(clusters):
+                if (cluster_idx + 1) % 100 == 0:
+                    logger.debug("Generating sentences for cluster {} of {} ({})".format(cluster_idx, len(clusters), datetime.timedelta(seconds=time.time() - start)))
+
+                candidates_and_info = self.generator.generate_candidates(cluster)
+
+                if outfile is not None:
+                    self._write_candidate_set(outfile, candidates_and_info)
+
+                all_candidates_and_info.append(candidates_and_info)
 
         if outfile is not None:
             outfile.close()
 
         return all_candidates_and_info
-
-    def read_candidate_file(self, fname, clusters):
-        from getsize import getsize
-        with open(fname) as f:
-            for cluster in clusters:
-                tok_cache = {}
-
-                sentences = []
-
-                first_subset_iter = True
-                while True:
-                    try:
-                        token_line = next(f).strip()
-                    except EOFError:
-                        break
-                    first_subset_iter = False
-
-                    if len(token_line) == 0:
-                        break
-
-                    tokens = [unquote(tok) for tok in token_line.split(" ")]
-                    pos_line = next(f).strip()
-                    pos = pos_line.split()
-
-                    sentence = list(map(lambda x: tok_cache.setdefault(x, x), zip(tokens, pos)))
-
-                    info = json.loads(next(f))
-
-                    sentences.append((sentence, info))
-
-                    #print(sentence)
-                    #if sentence[0] == ('coastal', 'NNP'):
-                    #    print(id(sentence[0][0]))
-                    #    print(id(sentence[0][1]))
-                    #    print("----")
-                    ##print("S", getsize(sentence))
-                    #print("I", getsize(info))
-
-                    first_subset_iter = False
-
-                if first_subset_iter:
-                    raise RuntimeError("Candidate file corrupted")
-
-                #print(getsize(sentences), len(sentences))
-
-                yield sentences
-
-                #if len(cluster) > self.min_cluster_size:
-                #    yield sentences
 
     def _write_candidate_set(self, f_out, candidates_and_info):
         for sentence, info in candidates_and_info:
@@ -1747,6 +1753,55 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             f_out.write("{}\n".format(" ".join(pos)))
             f_out.write("{}\n".format(json.dumps(info)))
         f_out.write("\n")
+
+
+def read_candidate_file(fname, clusters):
+    with open(fname) as f:
+        for cluster in clusters:
+            tok_cache = {}
+
+            sentences = []
+
+            first_subset_iter = True
+            while True:
+                try:
+                    token_line = next(f).strip()
+                except EOFError:
+                    break
+                first_subset_iter = False
+
+                if len(token_line) == 0:
+                    break
+
+                tokens = [unquote(tok) for tok in token_line.split(" ")]
+                pos_line = next(f).strip()
+                pos = pos_line.split()
+
+                sentence = list(map(lambda x: tok_cache.setdefault(x, x), zip(tokens, pos)))
+
+                info = json.loads(next(f))
+
+                sentences.append((sentence, info))
+
+                #print(sentence)
+                #if sentence[0] == ('coastal', 'NNP'):
+                #    print(id(sentence[0][0]))
+                #    print(id(sentence[0][1]))
+                #    print("----")
+                ##print("S", getsize(sentence))
+                #print("I", getsize(info))
+
+                first_subset_iter = False
+
+            if first_subset_iter:
+                raise RuntimeError("Candidate file corrupted")
+
+            #print(getsize(sentences), len(sentences))
+
+            yield sentences
+
+            #if len(cluster) > self.min_cluster_size:
+                #    yield sentences
 
 
 class DateFreqeuencyDateSelector:
