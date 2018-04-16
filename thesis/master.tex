@@ -151,7 +151,7 @@ Interest is the measure of overall similarity of a sentence $s$ to those sentenc
 Burstiness measures whether a sentence reports an event that is strongly clustered around one specific date in the corpus, instead of spread out over the whole extent of the corpus.
 
 
-\citet{yan-evo} model the summarization as a graph centrality problem. For each date, two separate graphs, are constructed: a local biased graph, that encodes the similarities of sentences refering to that date and a global biased graph that encodes the similarities of the sentences of that date (''intra-date similarities'') to all sentences outside that date (''inter-date similarities'').
+\citet{yan-trans} model the summarization as a graph centrality problem. For each date, two separate graphs, are constructed: a local biased graph, that encodes the similarities of sentences refering to that date and a global biased graph that encodes the similarities of the sentences of that date (''intra-date similarities'') to all sentences outside that date (''inter-date similarities'').
 They then use the DivRank \citep{divrank} algorithm to determine centrality scores for each sentence within one date for each graph, which are used to tank the sentences.
 A final rank for each sentence is computed by a weighted average of the ranks obtained from both graphs. To determine which dates should be included in the timeline, they give preference to sentences from dates which have been mentioned often in their corpus. As they themselves note, this corresponds to the notion of burstiness introduced by \citeauthor{chieu}.
 
@@ -183,7 +183,7 @@ We opt to extend the work of \citep{banerjee} for two reasons:
 The reference system of \citet{banerjee} we have choosen for our task generates summaries in three steps. The clustering phase, the sentence generation phase and the selection phase. In the clustering phase similar sentences of the input documents are grouped into clusters. In the second step a graph-based compression algorithm is used on the clusters and novel candidate sentences are generated to summarize the cluster content. In the last step, sentences are scored for informativeness and linguistic quality and an optimal subset of non-redundant candidate sentences is choosen as a summary for the document. In the rest of this section we describe the above mentioned steps in more detail and also mention any decisions we made during our reimplementation of their system where the original documentation was unclear.
 While \citeauthor{banerjee} suggest multiple variations to their system, we only reimplemented their best performing configuration. Note, that we leave out the sentence ordering step of the original system, because of the tearse structure of most timelines, where most events are described in only one sentence.
 
-\subsection{Clustering}
+\subsection{Clustering}  \label{sec:baseline-clustering}
 
 The clustering phase is divided in two distinct steps. In the first step, \citeauthor{banerjee} select what they call a most important document $D_{imp}$. This document is expected to contain the most important content of the input document set and is used to guide the actual clustering process. The second step is the assignment of sentences to appropriate clusters.
 
@@ -197,7 +197,7 @@ Again, we follow \citeauthor{banerjee} and reject all sentences which have a sim
 The last step of the clustering method is to filter out any unimportant clusters. This is achieved by eliminating all clusters which do not have at least $\frac{|D|}{2}$ members.
 
 
-\subsection{Candidate Generation}
+\subsection{Candidate Generation} \label{sec:baseline-generation}
 
 The candidate generation step uses the method of \citet{fillipova}, which is based around the idea of summarizing sentences being paths in a graph of words and their adjaceny relations in the summarized sentences.
 
@@ -264,7 +264,7 @@ The final score is computed as $\text{score}(s) = I(s) * LQ(s)$. Note that we ha
 This means it becomes less attractive to formulate many small sentences, instead rewarding the formulation of longer sentences.
 
 
-\subsection{Selection}
+\subsection{Selection} \label{sec:baseline-selection}
 
 For selection our baseline system uses an Integer Linear Program (ILP), which is widely employed in summarization tasks.
 The objective is to optimize the following function:
@@ -311,60 +311,64 @@ We thus reach for a simpler importance metric, which relies on the intuition tha
 \section{Architectural Overview}
 
 Our approach can broadly be divided into four distinct subproblems, generalizing the setup of \citet{banerjee}.
-The first one is the \textbf{clustering step} where we seek to partition the sentences of the corpus into clusters, where each cluster ideally represents one distinct event.
-The second step is to generate a set of \textbf{candidate sentences} that coincisely describe a single cluster. Note, that many more candidates are generated than can be included in the final summary.
-In the third step, each generated sentence is assigned a score, which represents its importance for the summary.
-Finally, we must \textbf{select} a number of sentences to be included in the timeline, so that the resulting summary is both informative and readable.
+We take as input a collection of sentences $U$ from a set of documents $\bar{D}$.
+The start with the \textbf{clustering step} where we seek to partition the sentences $U$ into a set of clusters $\bar{C}$. Each cluster should ideally represent one distinct event.
+The second step is to generate a set of \textbf{candidate sentences} $G$ that each concisely summarize the content of a single cluster. Note that many more candidates are generated than can be included in the final summary. Clusters also need to be assigned a timestamp, to determine which date the candidates summarize.
+In the third step each generated sentence $s \in G$ is assigned a \textbf{score}, which represents its importance for the summary.
+Finally, we must \textbf{select} a number of sentences from $G$ to be included a timeline, so that the resulting summary is both informative and readable.
+
+The baseline systen fits also into this general scheme, where the number of selectable dates is constrained beforehand by the date selection algorithm.
+
+In the rest of this section we describe the methods we have developed within this framework for TLS. We present new approaches to clustering, scoring and selection. We do not, however, change the sentence generation phase as described in section \ref{sec:baseline-generation}.
 
 \section{Clustering}
 
-\subsection{Introduction}
-
-While there is a large collection of tried-and-proven clustering algorithms available, the requirements of this application place some constraints on which algorithms we can consider. Sentences in one cluster must be both similar, so the compression can generate meaningful and correct sentences, as well as sufficiently different to allow for variations in the generated sentences, lest the system will just reproduce the original sentences.
+While there is a large body of work on clustering algorithms available, the requirements of this application place some constraints on which algorithms we can consider. Sentences in one cluster must be both similar, so the compression can generate meaningful and correct sentences, as well as sufficiently different to allow for variations in the generated sentences, lest the system will just reproduce the original sentences.
 Furthermore the system must automatically detect the number of clusters on a wide varity of datasets with different sizes and characteristics.
 Choosing too few large clusters may make it impossible to generate a sufficient ammount of sentences to fill a timeline, while too many small clusters may not be diverse enough to allow for new sentences.
-All these factors make the clustering step of the system quite challenging and essential for the overall working of the system.
+These factors make the clustering step of the system quite challenging and at the same time an essential factor in improving the performance of the system.
 
-
-\subsection{Document-based clustering}
-
-We can directly apply the clustering method of our reference MDS system as described in section \ref{sec:baseline-system} by treating each date as an isolated clustering problem.
-Each date that has at least two articles in the corpus is treated as an independet clustering problem.
-We first determine the most-important document by finding the document which has the highest cosine similarity to the concatenation of all documents in the date.
-Afterwards the sentences of the remaining documents are clustered to the most similar sentence of the most-important document, provided they have a cosine similarity of $0.5$. Cosine similarity is computed based on a Tf-idf model fitted on the entire corpus of input documents.
-This setup corresponds to the best-performing system of \citet{banerjee}.
-
-One drawback of this clustering method is that it ignores possible date tagging on the sentence level and assumes instead that all sentences refer to the publication date. 
+%\subsection{Document-based clustering}
+%
+%We can directly apply the clustering method of our reference MDS system as described in section \ref{sec:baseline-system} by treating each date %as an isolated clustering problem.
+%Each date that has at least two articles in the corpus is treated as an independet clustering problem.
+%We first determine the most-important document by finding the document which has the highest cosine similarity to the concatenation of all %documents in the date.
+%Afterwards the sentences of the remaining documents are clustered to the most similar sentence of the most-important document, provided they have %a cosine similarity of $0.5$. Cosine similarity is computed based on a Tf-idf model fitted on the entire corpus of input documents.
+%This setup corresponds to the best-performing system of \citet{banerjee}.
+%
+%One drawback of this clustering method is that it ignores possible date tagging on the sentence level and assumes instead that all sentences %refer to the publication date. 
 
 \subsection{Agglomerative Multi-Clustering}
 
-When moving to a more fine-grained date tagging level, we can no longer rely on documents to guide our clustering. Sentences refering to one date may hail from many different documents and the sentences of one document may be spread across many dates.
-We thus can also no longer rely on one document to guide the number of clusters. We can, however, partly avoid the resulting problem of having to choose the number of clusters, by relaxing the problem so that one sentence may be included in more than one cluster.
-This means that we do not have to decide which cluster a given sentence fits best to, but just whether it fits into a given cluster or not.
+The document-based clustering approach detailed in section \ref{sec:baseline-clustering} assumes that all sentences in a document describe events on the same date, the document creation time. This assumption, however, ignores the more detailed date-tags that systems such as HeidelTime \citep{heideltime} can provide.
+When moving to this more fine-grained date tagging level, we can no longer rely on documents to guide our clustering. Sentences that refer to one date may hail from many different documents and the sentences of one document can refer to many different dates.
+Consequently, we can also no longer rely on one document to guide the number of clusters as in the baseline system. We can, however, partly avoid the resulting problem of having to choose the number of clusters by relaxing the problem so that one sentence may be included in more than one cluster.
+This means that we do not have to decide into which cluster a given sentence fits best, but just whether its inclusion would benefit a given cluster or not.
 
-The relaxation seems reasonable if we analyse the effects of placing a sentence in a cluster it does not belong to versus not placing it in such a cluster.
+The reason for this relaxation becomes clearer, if we analyse the effects of placing a sentence in a cluster it does not belong to versus not placing an imporant sentence in a cluster that would benefit from it.
 In the first case, the generation step will probably produce a few nonsensical sentences, because it combines sentences which have very little in common.
-It might also generate redudant sentences, because two clusters can have similar content. Both problems, however, can conceivably be handled at the later selection state.
-The second problem, on the other hand, is much more difficult to correct at a later step. If a sentence carrying information that could be useful to construct new sentences in the generation step is not included, that information is essentially lost to the summarizer. It seems thus reasonable to choose a generation strategy that prefers making mistakes of the former kind instead of the latter.
+It might also generate redudant sentences, because two clusters can have very similar content. Both problems, however, can conceivably be handled at the later selection stage.
+The second problem, on the other hand, is much more difficult to correct at a later step. If a sentence carrying useful information is not included in a cluster, that information is essentially lost to the summarizer. It seems thus reasonable to choose a generation strategy that prefers making mistakes of the former kind instead of the latter.
 
-Based on this observation, we formulate the following clustering strategy. We first partition all sentences of the input document into multiple sets, so that all sentences that refer to the same date are in one partition. We follow prior work on TLS in assuming that the correct date tag for each sentence is the first complete date tag encountered in the sentence, or the document creation time, if there is no such tag.
+Based on this observation, we formulate the following clustering strategy. We first partition all sentences $U$ of the input documents into sets $P_{d_1}, \dots P_{d_n}$, $d_1, \dots, d_n \in \{ date(s) | s \in U \}$ so that all sentences that refer to the same date are in one set. We follow prior work on TLS in assuming that the correct date tag for each sentence is the first complete date tag encountered in the sentence, or the document creation time, if there is no such tag.
 
-We then iterate over all sentences in one partition and build a cluster by gathering all sentences from the same partition that have a similarity of at least $0.5$ to the sentence.
+We then consider each sentence $s$ in a partition $P_d$ and build a cluster based on each sentence.
+To construct the cluster for sentence $s$, we find every sentence $s' \in P_d$ so that $\text{sim}(s, s') > 0.5$ and add $s'$ to the cluster induced by $s$.
 
-After the first pass of the algorithm, we have at most $|P_d|$ potential clusters with more than one member, one for each sentence in the original document.
-Many of these clusters, however, are bound to be very similar. While this is not a theoretical problem for the system, besides complicating redundancy avoidance in later steps, it is undesirable from a performance perspective, because this would lead to a lot of unnecessary duplication of candidate sentences in the generation step.
+We eliminate all clusters with only one member. We now have at most $|P_d|$ potential clusters for partition $P_d$.
+Many of the remaining clusters are bound to be very similar. While this is not a fundamental problem for the system, besides complicating redundancy avoidance in later steps, it is undesirable from a performance perspective, because it leads to a lot of unnecessary duplication of candidate sentences in the generation step.
 We thus eliminate any clusters, which is a subset of another cluster in the same partition. See algorithm \ref{alg:multi-clustering} for a sketch of the whole process.
 
 
  \begin{algorithm}
  \caption{Agglomerative Multi-Clustering}
- \ref{alg:multi-clustering}
+ \label{alg:multi-clustering}
  \begin{algorithmic}
-    \STATE Partition the input sentences into sets $P_d = \{ s \in S | date(s) = d \}$ for each date $d$ in the corpus
+    \STATE Partition the input sentences into sets $P_d = \{ s \in U | date(s) = d \}$ for each date $d$ in the corpus
     \STATE $\bar{C} = \emptyset$
     \FOR{all sets $P_d$}
         \FOR{$s_1 \in P_d$}
-            \STATE Let $C = \{  \}$
+            \STATE Let $C = \{  s_1 \}$
             \FOR{$s_2 \in P_d \setminus \{ s_1 \}$}
                 \IF{$sim(s_1, s_2) > 0.5$}
                     \STATE $C \leftarrow C \cup \{ s_2 \}$
@@ -385,40 +389,46 @@ We thus eliminate any clusters, which is a subset of another cluster in the same
 
 \subsection{Graph-based Clustering}
 
-All previously discussed methods have in common that they assume that each sentence has an unambigous date reference (either a date tag, or the document creation date).
-This assumption is not always correct, however. Many date references are incomplete in that they do not refer to an exact date, but instead to a timespan. Take the following example from the crisis corpus: ''A hospital source and an activist reported 17 dead in Deraa , where protests began last month before spreading across the country.'' % corpora/syria/articles/2011-04-08/100.htm.txt: (TABLE!)
-Instead of refering to an exact date, the article instead contains an approximate reference to ''last month''. While this construction would be recognized by a time expression tagger, most traditional TLS systems would discard this reference, because it does not refer to an exact date.
- It should be noted though, that this is not always the case. For example, \citet{chieu} do in fact handle such cases, although they only take them into account for similarity computations, and do not offer a way to assign exact dates to them.
-A small corpus study shown in \ref{tab:ambigous-date-ref} shows, that those constructions are not uncommon . %(TABLE!).
-Handling these constructions becomes even more attractive when we consider that prior work has argued that events which are referenced a long time after they have happened are likely to be very important. %(CITE!)
+Both the agglomerative and the document-based clustering methods have in common that they assume that each sentence has an unambigous date reference (either a date expression or the document creation date).
+This assumption, however, is not always correct. Many date references are incomplete in that they do not refer to an exact date, but instead to a timespan. Take the following example from the crisis corpus: ''A hospital source and an activist reported 17 dead in Deraa , where protests began last month before spreading across the country.'' \footnote{Source: Crisis corpus, document 2011-04-08/100.htm.txt} % corpora/syria/articles/2011-04-08/100.htm.txt: (TABLE!)
+Instead of refering to an exact date, the article instead contains an approximate reference to ''last month''. While this construction would be recognized by a time expression tagger, many traditional TLS systems would discard this reference, because it does not refer to an exact date.
+Where it is handled, for example in the system of \citet{chieu}, it may be taken into account to determine the importance of other sentences, but it not usually assigned an exact date.
+A small corpus study on the timeline 17 and crisis corpora (see section \ref{sec:corpora}) presented in table \ref{tab:ambigous-date-ref} shows, that these constructions are not uncommon . %(TABLE!).
+Handling them becomes even more attractive when we consider that \citet{datesel-graph} have argued that events which are referenced a long time after they have happened are likely to be very important, because they have apparently remained in collective memory. %(CITE!)
+%In the same vein, it might be useful to try to resolve date assignment for sentences with multiple date references instead of just discarding all date references besides the first.
 
-We try to tackle that problem by exploiting sentence similarities to the sentences in the referred to timespan to find the exact date the ambigous reference is likely to refer to. In order to do this, we cast the problem of clustering all sentences in a document as a graph-clustering problem, where nodes are candidate sentences and nodes are preferences for two sentences to be clustered in the same cluster. By restricting which nodes are included in the cluster, we can ensure that sentences are only clustered in the same cluster if their dates match.
+We tackle that problem by exploiting sentence similarities to the sentences in the referred to timespan to find the exact date the ambigous reference is likely to refer to. In order to do this, we cast the problem of sentence clustering as a graph-clustering problem, where nodes are candidate sentences and edges are preferences for two sentences to be clustered together. By restricting which edges are included in the graph based on the dates referenced in the sentences they connect, we can ensure that sentences only end up in the same cluster if their dates match.
 
-We define the function $daterefs(s)$ to return the set of date references of sentence $s$. These references include all TimeML-expressions contained in the sentence of type ''date''. If there is no exact date reference in the sentence, $daterefs(s)$ contains any inexact date references that might be contained in $s$ and the document creation time.
-A reference $r$ is defined to be exact, iff it corresponds to the resolution of the timeline. Usually this resolution is one day. We assume the document creation times are always exact references.
+We define the function $\text{daterefs}(s)$ to return the set of date references of sentence $s$. These references include all TimeML-expressions contained in the sentence of type ''date'' and the document creation time of the parent document of $s$.
+We call a reference $r \in \text{daterefs}(s)$ exact, iff it corresponds to the resolution of the timeline, i.e. the smallest unit of time the timeline covers in one summary. Usually this resolution is one day. We assume the document creation times are always exact references. All other references are ''inexact''.
 
-Intuitively this encodes that a sentence that mentions one ore more exact dates will refer to one of these dates. A sentence with one or more inexact tags might refer to a point in time inside the mentioned timespan, or it might refer to events happening at the time of publication. A sentence without any tags will always assumed to refer to the date of publication.
-Note that this definition is not set in stone. For example one may assume that an untagged sentence would be likely to refer to any date mentioned in the same document. However, constructing a graph for two many date references quickly becomes computationally expensive, so we restrict ourselves to the above mentioned defintion.
+%Intuitively this encodes that a sentence that mentions one ore more exact dates will refer to one of these dates. A sentence with one or more inexact tags might refer to a point in time inside the mentioned timespan, or it might refer to events happening at the time of publication. A sentence without any tags will always assumed to refer to the date of publication.
+Intuitively this procedure encodes the assumption that a sentence that refers to an event in the past will contain some sort of reference to the date of that event, otherwise it is likely to refer to an event that has happened on the date of publication.
+Note that we do not assume the converse. Just because a sentence includes some sort of reference to the past, its focus does not necessarily have to be about an event in the past. Instead it might just contain these references as background info.
+Take the following example sentence: ''A third company defended work that it performed on the deepwater oil well as ''accepted industry practice'' before last month's explosion.'' \footnote{Source: Timeline17 corpus, document 2010-05-10/216.htm.txt} 
+While there is a reference to the past (''last month''), the event (''a third company defended work'') clearly did not happen then.
+Naturally it would be possible to extend the number of possible date references and including the tags of surrounding sentences as well, to account for situations were a past event is described over multiple sentences and the date is not repeated. We do, however, not include such references to restrict the number of edges in the resulting graph to a computationally feasible number.
+%Note that this definition is not set in stone. For example one may assume that an untagged sentence would be likely to refer to any date mentioned in the same document. However, constructing a graph for two many date references quickly becomes computationally expensive, so we restrict ourselves to the above mentioned defintion.
 
-We define the notion of a date reference $r_1$ being contained in a date reference $r_2$ iff $r_1$ falls within the timespan covered by $r_2$, or both references reference the same timespan. For example, if $r_2$ refers to the month of January, all references to days of January are contained in $r_2$.
+To deal with the problem of inexact references, we also need the notion of one date reference being contained by another, for example, the second calendar week of 2013 is contained in the month January of that year.
+A date reference $r_1$ is contained in a date reference $r_2$ iff $r_1$ falls within the timespan covered by $r_2$, or both references reference the same timespan.
 
-Using these notions, we define a weighted directed graph $G = (V, E)$ with weight function $w$ as follows:
+Using these notions, given a set of sentences $U$ we define a weighted, directed graph $H = (V, E)$ with weight function $w$ as follows:
 \begin{align*}
-V = \cap{S} \\
-E = \{ (s_1, s_2) s_1, s_2 \in V | \exists r_1 \in \text{daterefs}(s_1), r_2 \in \text{daterefs}(s_2): r_2 \text{contains} r_1 \land r_1 \text{is exact} \} \\ % Inexact to inexact edges?
+V = U \\
+E = \{ (s_1, s_2) \in V \times V \mid \exists r_1 \in \text{daterefs}(s_1), r_2 \in \text{daterefs}(s_2) \colon \\ r_2 \text{ contains } r_1 \land r_1 \text{ is exact} \} \\ % Inexact to inexact edges?
 w(s_1, s_2) = \text{sim}(s_1, s_2)
 \end{align*}
 
+Note that while we introduce edges from inexact to exact references, we do not allow edges in the opposite direction. This means that while sentences with inexact references have a preference to be grouped with similar sentences with exact date references, this is not true the other way around.
+This avoids that two sentences with different exact date references are grouped in the same cluster via the sentence with the inexact reference.
 
-Note, that while we introduce edges from inexact to exact references, we never do this the other way around. This means that while sentences with inexact references have a preference to be grouped with similar sentences with exact date references within their refered timespan, this is not true the other way around.
-This ensures that no two sentences with different exact date references are grouped in the same cluster via the sentence with the inexact reference.
+Having constructed the graph, we now need to find an appropriate clustering of the nodes in $H$. While we could theoretically use any algorithm that can cluster nodes in a directed graph, in this work we adopt Affinity Propagation for this task.
 
-Having constructed the graph, we now need to compute an appropriate clustering of the nodes. While we could theoretically use any algorithm that can cluster nodes in a directed graph, in this work we adopt Affinity Propagation for this task.
-
-Affinity Propagation (AP) \citep{ap} is a clustering method that is based on the concept of massage passing. It identifies a set of exemplars from the input instances which define the centers of the clusters. Each instance chooses its examplar based on its affinities to other points $s(i, k)$.
+Affinity Propagation (AP) \citep{ap} is a clustering method that is based on the concept of message passing. It identifies a set of exemplars from the input instances which are the centers of the clusters. Each instance chooses its examplar based on its affinities to other points $s(i, k)$. A high affinity indicates a high preference to be clustered with the other point.
 The total number of examplars is not fixed but is instead controlled by the diagonal of the similarity matrix $s(k, k)$, the \textit{preferences}. Larger values on the diagonal lead to the corresponding instance to be more likely to be an exemplar.
 As we have no preference for the number of clusters, we set the diagonal to the median of similarities for each instance, as suggested by \citeauthor{ap}.
-In each step of the algorithm, two matrices are updated, responsibility $r$ and availability $a$. The responsibility $r(i, k)$ indicates the degree to which the instance $i$ believes it should choose $k$ as an examplar over other potential examplars. It is updates according to the following rule:
+In each step of the algorithm, two matrices are updated, responsibility $r$ and availability $a$. The responsibility $r(i, k)$ indicates the degree to which the instance $i$ believes it should choose $k$ as an examplar over other potential examplars. It is updated according to the following rule:
 \begin{displaymath}
 r(i, k) \leftarrow s(i, k) - max_{k' \neq k}( a(i, k') + s(i, k') )
 \end{displaymath}
@@ -436,17 +446,15 @@ a(k, k) \leftarrow \sum_{i' \neq k} \max(0, r(i', k))
 
 The procedure is then repeated until convergence.
 
-Affinity Propagation is well suited to our task, as it does not need the number of clusters to be specified beforehand. Furthermore it has been used for clustering in NLP before (CITE that update summ.) and can be implemented in a sparse manner so that each iteration of the AP algorithm is only linear in the number of similarities, instead of quadratic in the number of instances.
-As our graph is very sparse, as most nodes refer to different dates and are thus not connected, this is a very useful property.
+Affinity Propagation is well suited to our task, as it does not need the number of clusters to be specified beforehand. Furthermore it has been used for clustering in summarization before \citep{salient-updates-disaster}. Furthermore it can be implemented in a sparse manner so that each iteration of the AP algorithm is only linear in the number of similarities, instead of quadratic in the number of instances. Given the sparse nature of our graph, which is a result of most sentences refering to different dates, this is a very useful property.
 
-We further introduce a requirement for the similarity of two sentences to be at least $0.1$ for two nodes to be connected. While this is not strictly required from a theoretical standpoint, it greatly speeds up computation of the clustering and reduces storage requirements for the whole graph.
+We further introduce a requirement for the similarity of two sentences to be at least $0.2$ for two nodes to be connected. While this is not strictly required from a theoretical standpoint, it greatly speeds up computation of the clustering and reduces storage requirements for the graph.
 
-As before, we compute the similarity on tf-idf vector representations of the sentences.
+As before, we compute the similarities using cosine similarity of the tf-idf vector representations of the sentences.
 
 \subsubsection{Date assignment}
 
-Clusters resulting from this method are not associated with a clear date tag. We thus need to determine the appropriate date tag after the clustering step. We choose a simple heuristic and count the number of times a date is either the dct for a sentence or mentioned by an exact date reference. The date tag for the sentence is the date with the highest frequency. This mirrors our decision to allow each sentence to be clustered with either sentences published at the same time, or sentences which mention the same dates.
-
+Clusters resulting from the method we described above are not associated with a clear date tag. We thus need to determine the appropriate date tag for a cluster $C$ after the clustering step. We choose a simple heuristic and count the number of times a date is mentioned in the corpus: $\bigcup_{s \in C} \{r \in daterefs(s) | r \text{ is exact}\}$. The date tag for the sentence is the tag with the highest frequency.
 
 %\section{Candidate Generation}
 
@@ -454,43 +462,81 @@ Clusters resulting from this method are not associated with a clear date tag. We
 
 \section{Scoring} \label{sec:scoring}
 
-\subsection{TLS inspired scores} \label{sec:tls-scores}
+Another avenue to improve the MDS system for timeline summarization is the scoring function.
+In the following section we propose a number of scoring functions that seek to adapt the existing functions to TLS.
+Following \citet{banerjee}, the final score of a sentence is the product of the values of the individual scoring functions.
 
-While the pure MDS objective functions are already likely to carry useful information for the system, we also wish to investigate the effect of timeline specific functions on the system.
-One metric that has proven efficient so far, is date reference (CITE!). It encodes the basic notion that a date that is mentioned often in the corpus is probably important for the event in question.
-This notion can be very naturally encoded in our framework by considering cluster size. % What about multiple clusters for the same date as a scoring metric?
+\subsection{MDS Scores} \label{sec:mds-scores}
 
+The scoring functions used in the baseline MDS system can naturally also be applied to the timeline summarization task.
+We refer to the linguitic quality score as $f_{ling}$ and to the informativeness score as $f_{TR^{(cluster)}}$.
+We refer to the normalization by sentence length in the original scoring function as $f_{length}(s) = 1 / |s|$.
+%It should be noted, however, that we do not use the  apply $f_{TR_{cluster}}$ score in isolation  
 
 \subsection{Global TextRank}
 
-The MDS function described in \ref{sec:mds-scores} score candidates based on their importance in relation to the sentence in their cluster. However, this score is not informative about the importance of the sentence in relation to the summarization as a whole.
-A natural extension is thus to compute the TextRank scores on the whole document, instead of just one.
+The MDS functions described in \ref{sec:mds-scores} score candidates based on their importance in relation to the sentence in their cluster.
+However, this score is not informative about the importance of the sentence in relation to the summarization as a whole.
+It is thus reliant on some kind of filtering of irrelevant clusters. \citet{banerjee} solve this problem by removing clusters that are small in relation to the number of documents in the corpus. This solution, however, is difficult to directly transfer to timeline summarization, because there is no natural reference point for which cluster is ''large enough'' to warrant inclusion in the timeline.
+
+We thus seek to score the candiate sentences in relation to their importance for the whole summary, instead of the cluster.
+
+A natural way to achieve this is to compute the TextRank scores on the concatenation of all documents in the corpus, instead of per cluser.
+We refer to the score derived this way as $f_{TR^{(global)}}$.
 
 \subsection{Temporalized TextRank}
 
-While the global score assess the global importance for a sentence, it does not respect that the importance of keywords may vary over time as the event progress.
-We thus extend the TextRank scoring to be computed per date. We first collect all sentences that pertain to one date, as per their cluster membership, and then run text TextRank algorithm to obtain keyword scores for all non-stopwords.
+While the global score gives an indication of the importance of a sentence in relation to the corpus, it does not respect that the importance of keywords may vary over time as the event develops.
+We thus extend the TextRank scoring to be computed per date. We first collect all sentences that pertain to one date, as per their cluster membership, and then run the TextRank algorithm to obtain keyword scores for all non-stopwords. We call this per-date TextRank $TR^{(date)}$.
 
-We call this per-date TextRank $TR_{date}$.
+Previous research \citep{yan-trans, markert} has show that the sentence similarity based scoring methods can be improved, if similarity is not only computed for sentences with the same timestamp, but also for sentences with neighbouring timestamps as well. The influence of sentences that are further apart is discounted based on the distance of their timestamps.
+We build on this idea to temporalize the TextRank algorithm by allowing the TextRank scores of a date to be influenced by neighbouring dates. The influence of neighbouring scores is determined by the distance in days between the two dates and a soft cutoff function $g: \mathbb{N} \rightarrow \mathbb{R}$ that decreases with large date differences.
+The final TextRank score is the average score of a word, weighted by these factors.
 
-Previous research \citet{yan, markert} has show that the sentence similarity based scoring methods can be improved if similarity is not only computed for sentences with the same timestamp, but includes similarities to sentences from nearby timestamps as well with some discounting based on the temporal distance between the two sentences.
-We build on this idea to temporalize the TextRank algorithm by allowing the TextRank scores of one date to be influenced by neighbouring dates, where the influence is determined by the distance in days between the two dates and a soft cutoff function $g: \mathbb{N} \rightarrow \mathbb{R}$ that decreases with large date differences.
-The final TextRank score is the average score of a word, weighted by this factor.
-Let $V$ be the vocabulary of the entire corpus, we define the temporalized TextRank score $TR_{temp}(w), w \in V$ as
+Let $V$ be the vocabulary of the candidate sentences and $E$ the set of all dates refered to in the corpus. We define the temporalized TextRank score $TR_{temp}(w), w \in V$ at the date $d$ follows:
 
 \begin{displaymath}
-    TR_{temp_d}(w) = \frac{\sum_{d' \in T} TR_{{timestamp}_t}(w) * g(|d - d'|)}{\sum_{d' \in T} g(|d - d'|)}
+    TR^{(temp)}_d(w) = \frac{\sum_{d' \in E} TR^{(date)}_{d'}(w) * g(|d - d'|)}{\sum_{d' \in E} g(|d - d'|)}
 \end{displaymath}
 
-Following prior work \citep{yan}, we use $g(x) = \frac{1}{\sqrt{x + 1}}$.
+Following prior work \citep{markert}, we use $g(x) = \frac{1}{\sqrt{x + 1}}$.
 
-Using these values, we can define the scoring function $f_{dateTR}(s) = \sum_{w \in s} TR_{date_{d(s)}}(w)$ for $TR_{date}$ and analogously $f_{tempTR}$ for $TR_{temp}$.
+Using these values, we can define the scoring function $f_{TR^{(date)}}(s) = \sum_{w \in s} TR^{(temp)}_{\text{date}(s)}(w)$ for $TR^{(temp)}$, where $\text{date}(s)$ refers to the date that was assigned to the candidate $s$ via the cluster it was generated from.
+The defintion is analogous for $f_{TR^{(date)}}$.
+
+\subsection{TLS Inspired Scores} \label{sec:tls-scores}
+
+In addition to the improved MDS scores it might also be worthwile to include scoring functions that have been shown to be useful especially in the TLS task.
+
+One such metric is the number of times a date is referenced in the corpus \citep{markert, datesel-graph}. It is motivated by the intuition that a date that is mentioned often in the corpus is probably important for the event in question. We define the date reference score $f_{\text{dateref}}$ as the number of times the date of the sentence was mentioned devided by the number of sentences in the corpus $|U|$ for normalization:
+
+\begin{displaymath}
+f_{\text{dateref}}(s) = \frac{\text{refcount}(\text{date}(s))}{|U|}
+\end{displaymath}
+
+Another metric that has been used in both TLS \citep{chieu} and MDS (for example \citet{lexrank}) is the cosine similarity to the other sentences in the corpus.
+Applying this metric directly to our problem is computationally expensive, because it requires $|U| * |G|$ similarity computations and $|G|$ may include more than a million sentences.
+
+A cheaper alternative is to use the size of the cluster a sentences stems from as a proxy. Clusters are assigned based on similarity and large clusters thus indicate that a sentence is very similar to many other sentences.
+
+We define the $f_{\text{cluster size}}$ function as follows:
+
+\begin{displaymath}
+f_{\text{cluster size}}(s) = \frac{|\text{cluster}(s)|}{\max_{C \in \bar{C}}{|C|}}
+\end{displaymath}
+
+We include the normalization by maximum cluster size to squash the score in the general order of magnitude of the other scores and to account for the fact that what is considered ''large'' for a cluster may vary based on the corpus.
+
+%This notion can be very naturally encoded in our framework by considering cluster size. % What about multiple clusters for the same date as a scoring metric?
 
 \subsection{Path Weight}
 
-While we already consider path weight in the generation stage, this does not always guarantee that proposed candidates were generated by a low weight path, if the generation graph is small enough for all or most paths to be generated.
+While we already consider path weight in the generation stage, this does not always guarantee that proposed candidates were generated by a low weight path. If the generation graph is small enough for all or most paths to be generated, then even low weight paths might be included in the candidate set.
+To account for this, we introduce a score based on path weight. To align with the notion common in other scores that larger values are preferable, we invert the path weight:
 
-We thus integrate the path weight. To align with the notion common in other scores that larger values are preferable, we invert the path weight: $f_{path}(s) = (\text{pathweight}(s) + 1)^-1$
+\begin{displaymath}
+f_{path}(s) = (\text{pathweight}(s) + 1)^{-1}
+\end{displaymath}
 
 
 \section{Selection using Submodular Functions}
@@ -531,37 +577,43 @@ We thus integrate the path weight. To align with the notion common in other scor
 
 
 As \citet{mcdonald} has shown, running ILP to find a summarization is challenging even for a moderate amount of textual units for the purpose of MDS quickly becomes infeasible.
-This problem is aggrevated on TLS corpora, as they can contain hundreds of thousands of sentences, compared to a few hundred in typical MDS datasets. Additionally, generating a huge number of candidate sentences can increase the number of sentences even more, further limiting the usefulness of ILPs.
-To alleviate this problem, we only run the solver for the set of candidates generated for a single date. As a consequence the system with the ILP can not be run without external date selection. Furthermore, iter-date redundancy is not prevented by the constraints.
+This problem is aggrevated on TLS corpora, as they can be an order of magnitude larger than traditional MDS systems. For example, while the DUC2004 data has at most 10 documents per input cluster, the crisis corpus we use for evaluation has $\approx 4000$ news stories per topic. Additionally, generating a huge number of candidate sentences can increase the number of sentences even more, further limiting the usefulness of ILPs.
+To alleviate this problem, we only run the solver for the set of candidates generated for a single date and filter the input to make the problem feasible. As a consequence the system with the ILP can not be run without external date selection. Furthermore, inter-date redundancy can not be prevented by the constraints.
 
 %\subsection{Submodular Functions}
 
-While ILP systems are guaranteed to return an optimal solution to the posed optimization problem, their complexity makes them less attractive for the huge amount of data in typical timeline summarization. \citet{markert} have demonstrated that the objective for timeline summarization can be cast as a monotone, positive submodular function whose optimum can be reasonably well approximated by a greedy algorithm.
+We thus turn to a computationally more efficient way to select sentences.
+\citet{markert} have demonstrated that the objective for timeline summarization can be cast as a monotone, positive submodular function whose optimum can be reasonably well approximated by a greedy algorithm.
 
 The submodularity property is defined as follows:
- Let $U$ be a finite set. A function $f: 2^{U} \rightarrow \mathbb{R}$ is submodular, if it fulfills the diminishing returns property. For $A \subset B \subseteq U$ and some $e \in U \setminus B$ $f(A) \leq f(B)$ implies $f(A \cup e) - f(A) \geq f(B \cup \{e\}) - f(\{B\})$.
+ Let $G$ be a finite set. A function $f: 2^{G} \rightarrow \mathbb{R}$ is submodular, if it fulfills the diminishing returns property: for $A \subset B \subseteq G$ and some $e \in G \setminus B$ $f(A) \leq f(B)$ implies $f(A \cup e) - f(A) \geq f(B \cup \{e\}) - f(\{B\})$.
 
-A submodular function for TLS is a function $f: 2^{S} \rightarrow \mathbb{R}$, where $S$ is the set of sentences available for summarization and $X$ is a candidate summary.
-The objective of the summarization algorithm is then to maximize $f$.
+A submodular function for TLS is a function $f: 2^{G} \rightarrow \mathbb{R}$, where $G$ is the set of sentences available for summarization.
+The objective of the summarization algorithm is then to find a set $T \subseteq G$ that maximizes $f$.
 
-In our case we adapt a function from a submodular MDS system by \citet{lin+blimes} designed to avoid redundancy:
-
-\begin{displaymath}
-f_{\text{submod}}(X) = \sum_{i = 1}^{m} \sqrt{\sum{g \in X \cap P_i} f_{score}(g)}
-\end{displaymath}
-
-where $P_1, ..., P_m$ are a partitioning of the generated sentences into $m$ distinct sets. By partitioning semantically similar sentences into the same partition, including a sentence that is similar to one already present in the set will have diminished value, because the square root saturates quickly.
-
- For the usual timeline length constraints \citet{markert} have shown that a greedy algorithm can solve the problem with a guaranteed lower bound of $1 / (k + 1)$ of the optimal value.
- In addition to these constraints, we also introduce a cluster constraint as mentioned in section \ref{sec:ilp}:
+In our case we adapt a function from a submodular MDS system by \citet{lin+blimes} designed to avoid redundancy, that was also used by \citet{markert}:
 
 \begin{displaymath}
-C \cap G \leq 1 \forall C \in \bar{C}
+f_{\text{submod}}(X) = \sum_{i = 1}^{m} \sqrt{\sum_{s \in G \cap P_i} f_{\text{score}}(s)}
 \end{displaymath}
+
+where $P_1, ..., P_m$ form a partitioning of the generated sentences into $m$ disjoint sets. Including more than one sentence from the same cluster results in diminishing returns for further sentences from the same cluster, because the square root function will saturate.
+By partitioning semantically similar sentences into the same partition, this property can be used to avoid redundancy in the summary.
+Following \citet{lin+blimes} we obtain the clustering by k-means clustering on the tf-idf vectors of the generated sentences. We do, however, modify the number of clusters we generate. Both \citet{lin+blimes} and \citet{markert} use $0.2 * |U|$ clusters. The analogue for our setting would be $0.2 * |G|$ clusters. This ignores, however, that the generation process naturally produces a much larger number of very similar sentences. We instead choose to set the number of clusters based on the average number of sentences in the daily summaries multiplied with the number of dates to summarize times 2.
+
+ For the usual timeline length constraints, length of daily summaries and number of dates in the timeline, \citet{markert} have shown that a greedy algorithm can solve the problem with a guaranteed lower bound of $1 / (k + 1)$ of the optimal value, where $k$ is the maximum number of sentences in a daily summary.
+ In addition to these constraints, we also introduce a cluster constraint as mentioned in section \ref{sec:baseline-selection}, to ensure no two sentences from the same cluster are included in the summary:
+
+\begin{displaymath}
+|C \cap T| \leq 1 \forall C \in \bar{C}
+\end{displaymath}
+
+Note that with this selection algorithm it is no longer necessary to limit the number of generated sentences to just 200, so we move the limit to 2500 sentences.
+We do not completely eliminate the limit, because the huge number of possible paths in a graph makes it infeasible to always generate all simple paths. The cubic complexity of the k-shortest simple paths algorithm further limits the number of sentences we can generate in an acceptable timeframe.
 
 \chapter{Experimental Setup}
 
-\section{Corpora}
+\section{Corpora} \label{sec:corpora}
 
 We use two different timeline corpora for all our experiments, the \textit{Timeline 17} corpus \citet{tran-tl17} and the \textit{crisis} corpus. They both have a similar structure. Each covers a set of different events and has between one and five(?) timelines per event that were crawled from large news websites. The timelines all have different lengths and often cover different periods of time. The corpus also ships with a set of news documents that were crawled from news articles relating to the timeline. All articles were stripped of HTML tags and annotated with the time they were published, the document creation time. (CHECK!)
 
@@ -614,5 +666,8 @@ Note that we compute the per-topic macro average of all metrics, not the average
 %\section{Problems with Current Evaluation Metrics}
 
 \chapter{Conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{bib} 
 
 \end{document}

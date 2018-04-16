@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
-TimelineParameters = namedtuple("TimelineParameters", "first_date last_date max_date_count max_sent_count max_date_sent_count")
+TimelineParameters = namedtuple("TimelineParameters", "first_date last_date max_date_count max_sent_count max_token_count max_date_sent_count")
 
 import nltk
 import collections
@@ -271,11 +271,14 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     constraints = []
 
     for date_id, member_ids in date_id_map.items():
-        constraints.append(ConstantSizeSubsetKnapsackConstraint(parameters.max_date_sent_count, member_ids))
-        #constraints.append(SubsetKnapsackConstraint(parameters.max_date_sent_count, dict((i, 1) for i in range(sent_idx_counter)), member_ids))
+        #constraints.append(ConstantSizeSubsetKnapsackConstraint(parameters.max_date_sent_count, member_ids))
+        if parameters.max_token_count is not None:
+            constraints.append(SubsetKnapsackConstraint(parameters.max_token_count, id_tok_count_map, member_ids))
+        else:
+            constraints.append(ConstantSizeSubsetKnapsackConstraint(parameters.max_date_sent_count, member_ids))
 
     constraints.append(MaxDateCountConstraint(parameters.max_date_count, sent_id_date_map))
-    constraints.append(KnapsackConstraint(parameters.max_sent_count, dict((i, 1) for i in range(sent_idx_counter))))
+    #constraints.append(KnapsackConstraint(parameters.max_sent_count, dict((i, 1) for i in range(sent_idx_counter))))
 
     if disallow_cluster_repetition:
         constraints.append(ClusterMembershipConstraint(id_cluster_map))
@@ -448,6 +451,12 @@ class SentenceScorer:
 
         self.use_rel_frequency = config.get("use_rel_frequency", False)
 
+        #!!!!!!!!!
+        self.use_length = config.get("use_length", True)
+
+        if self.use_path_weight:
+            self.use_length = False
+
         if config.get("global_only", False):
             self.use_lm = False
             self.use_local_informativeness = False
@@ -481,6 +490,7 @@ class SentenceScorer:
                         must_recompute_tr = False
 
             if must_recompute_tr:
+                logger.debug("Must recompute temp tr")
                 self.per_date_tr_scores = {}
 
                 for date, sentences in sentences_per_date.items():
@@ -609,6 +619,9 @@ class SentenceScorer:
             if self.use_path_weight:
                 score *= 1.0 / (1 + info["weight"])
                 score_info["path_weight"] = info["weight"]
+
+            if self.use_length:
+                score *= 1.0 / len(sent)
 
             #if self.use_date_frequency and self.use_temporalized_informativeness and self.use_lm:
             #    print(
@@ -1381,7 +1394,14 @@ class ILPSentenceSelector:
         for c_idx, cluster in enumerate(clusters):
             sum([select_switch[c_idx, s_idx] for s_idx in range(len(cluster))]) <= 1.0
 
-        sum(select_switch[c_idx, s_idx] for c_idx, s_idx in selection_indices) <= parameters.max_sent_count
+        if parameters.max_token_count is not None:
+            for c_idx, cluster in enumerate(clusters):
+                sum(select_switch[c_idx, s_idx] * len(sent) for s_idx, sent in enumerate(cluster)) <= parameters.max_token_count
+
+        #sum(select_switch[c_idx, s_idx] for c_idx, s_idx in selection_indices) <= parameters.max_sent_count
+        
+        #else:
+        #    sum(select_switch[c_idx, s_idx] * len(clusters[c_idx][s_idx]) for c_idx, s_idx in selection_indices) <= parameters.max_token_count
 
         #print([clusters[c_idx][s_idx][0] for c_idx, s_idx in selection_indices])
 
