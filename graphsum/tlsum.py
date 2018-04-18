@@ -245,6 +245,8 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     id_tok_count_map = {}
     sent_id_date_map = {}
 
+    cluster_id_map = defaultdict(list)
+
     sent_idx_counter = 0
     cluster_idx_counter = 0
 
@@ -262,6 +264,8 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
                 id_tok_count_map[sent_idx_counter] = len(sent)
                 sent_id_date_map[sent_idx_counter] = date
 
+                cluster_id_map[cluster_idx_counter].append(sent_idx_counter)
+
                 sent_idx_counter += 1
 
             cluster_idx_counter += 1
@@ -271,7 +275,6 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     constraints = []
 
     for date_id, member_ids in date_id_map.items():
-        #constraints.append(ConstantSizeSubsetKnapsackConstraint(parameters.max_date_sent_count, member_ids))
         if parameters.max_token_count is not None:
             constraints.append(SubsetKnapsackConstraint(parameters.max_token_count, id_tok_count_map, member_ids))
         else:
@@ -452,7 +455,7 @@ class SentenceScorer:
         self.use_rel_frequency = config.get("use_rel_frequency", False)
 
         #!!!!!!!!!
-        self.use_length = config.get("use_length", True)
+        self.use_length = config.get("use_length", False)
 
         if self.use_path_weight:
             self.use_length = False

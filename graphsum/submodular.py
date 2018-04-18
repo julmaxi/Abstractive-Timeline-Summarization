@@ -171,7 +171,9 @@ class SubsetKnapsackConstraint:
         if new_sent in self.relevant_sents:
             self.current_size += self.sent_sizes[new_sent]
 
-            return [sent for length, sents in self.buckets.items() for sent in sents if self.current_size + length > self.knapsack_size]
+            removed_candidates = [sent for length, sents in self.buckets.items() for sent in sents if self.current_size + length > self.knapsack_size]
+
+            return removed_candidates
 
         return []
 
@@ -186,7 +188,7 @@ class ConstantSizeSubsetKnapsackConstraint:
         if new_sent in self.relevant_sents:
             self.current_size += 1
 
-            if self.knapsack_size >= self.current_size:
+            if self.current_size >= self.knapsack_size:
                 return self.relevant_sents
 
         return []

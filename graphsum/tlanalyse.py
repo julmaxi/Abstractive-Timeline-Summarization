@@ -8,7 +8,7 @@ from collections import namedtuple, defaultdict
 
 import art
 
-ResultEntry = namedtuple("ResultEntry", "datesel rouge_1_concat rouge_2_concat rouge_1_align rouge_2_align")
+ResultEntry = namedtuple("ResultEntry", "datesel rouge_1_concat rouge_2_concat rouge_1_agree rouge_2_agree rouge_1_align rouge_2_align")
 FMeasureEntry = namedtuple("FMeasureEntry", "recall precision f1")
 
 
@@ -17,14 +17,14 @@ def print_results_table(all_entries):
 
     longest_name_len = max(map(len, all_names))
 
-    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 align", "R2 align"
+    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 agree", "R2 agree", "R1 align", "R2 align"
 
     print("{}\t{}".format("System".ljust(longest_name_len), "\t".join(val_headers)))
 
     for sys_name, entry in sorted(all_entries.items(), key=lambda i: i[1].rouge_2_concat.f1, reverse=True):
         cells = [sys_name.ljust(longest_name_len)]
 
-        for val, header in zip((entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1), val_headers):
+        for val, header in zip((entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1), val_headers):
             cells.append("{:.3f}".format(val).ljust(len(header)))
 
         print("\t".join(cells))
@@ -123,18 +123,18 @@ def compute_macro_averages(topic_results):
     for tl_results in topic_results.values():
         topic_average_result_entries = defaultdict(lambda: [0., 0., 0.])
         for entry in tl_results.values():
-            for metric in "datesel rouge_1_concat rouge_2_concat rouge_1_align rouge_2_align".split():
+            for metric in "datesel rouge_1_concat rouge_2_concat rouge_1_agree rouge_2_agree rouge_1_align rouge_2_align".split():
                 topic_average_result_entries[metric][0] += getattr(entry, metric)[0]
                 topic_average_result_entries[metric][1] += getattr(entry, metric)[1]
                 topic_average_result_entries[metric][2] += getattr(entry, metric)[2]
 
-        for metric in "datesel rouge_1_concat rouge_2_concat rouge_1_align rouge_2_align".split():
+        for metric in "datesel rouge_1_concat rouge_2_concat rouge_1_agree rouge_2_agree rouge_1_align rouge_2_align".split():
             global_average_result_entries[metric][0] += topic_average_result_entries[metric][0] / len(tl_results)
             global_average_result_entries[metric][1] += topic_average_result_entries[metric][1] / len(tl_results)
             global_average_result_entries[metric][2] += topic_average_result_entries[metric][2] / len(tl_results)
 
     entry_params = []
-    for metric in "datesel rouge_1_concat rouge_2_concat rouge_1_align rouge_2_align".split():
+    for metric in "datesel rouge_1_concat rouge_2_concat rouge_1_agree rouge_2_agree rouge_1_align rouge_2_align".split():
         entry_params.append(FMeasureEntry(*map(lambda v: v / len(topic_results), global_average_result_entries[metric])))
 
     return ResultEntry(*entry_params)
