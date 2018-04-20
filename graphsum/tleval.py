@@ -46,8 +46,6 @@ def determine_tl_parameters(timeline, use_average=True, use_token_count=True):
         date_sent_count = max_date_sent_count
         date_token_count = max(date_sent_lens)
 
-    print(date_token_count, date_sent_count)
-
     if not use_token_count:
         date_token_count = None
 
@@ -141,7 +139,7 @@ def evaluate_tl_main():
     corpus_basename = os.path.basename(args.corpus_pickle).split(".")[0]
     config_basename = os.path.basename(args.config)
 
-    out_timelines_dir = os.path.join("system_timelines", config_basename, corpus_basename + "+" + args.constraint)
+    out_timelines_dir = os.path.join("system_timelines", config_basename  + "+" + args.constraint, corpus_basename)
     results_dir = os.path.join("evaluation_results", config_basename + "+" + args.constraint)
 
     if not os.path.isdir(out_timelines_dir):

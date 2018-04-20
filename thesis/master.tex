@@ -7,6 +7,8 @@
 \usepackage{amsfonts}
 \usepackage{amssymb}
 
+\usepackage[toc,page]{appendix}
+
 \usepackage{caption}
 
 \usepackage{natbib}
@@ -126,7 +128,40 @@ Both the unmodified system and the adapted version are evaluated on two timeline
 \section{Prior Work in Abstractive Document Summarization}
 
 There is a great variety of models for abstractive summarization. One common approach is to combine existing sentences by fusing them or deleting parts. Usually this is is combined with some kind of learned function that determines which deletions lead to good summaries.
-For example, \citet{almeida} work on dependency trees and solve an ILP to determine both which sentences should be included in the summarization and which nodes can be deleted based on a learned scoring function. They use a multi-task learning setup to learn appropriate scores using both corpora for extractive summarization and sentence compression to increase available training data. Similarly \citet{berg-kirkpatrick} work on parse trees and also solve an ILP to jointly choose sentences to extract and nodes to discard from a sentence based on scores learned on a training set.
+The system of \citet{berg-kirkpatrick} is one example for this approach for multi document summarization. They work on constituency trees that they compress by cutting edges to remove subtrees of a sentence.
+They describe a valid summarization of an input document set $x$ as a binary vector $y$. Each entry in $y$ corresponds to one non-terminal node in one of the sentences of $x$. They set $y_i = 1$, if the $i$-th non-terminal should be included in the summary and $y_i = 0$ else. They impose constraints on $y$ so that removing a parent from the tree implies removing all its child nodes as well to ensure consistency.
+To find a summary for $x$ we must then solve the following optimization problem over the set of all valid summary vectors $Y(x)$:
+\begin{displaymath}
+\max_{y \in Y(x)} \sum_{b \in B(y)} v_b + \sum_{c \in C(y)} v_c
+\end{displaymath}
+
+The first term rewards the system for covering the content of $x$. $B(y)$ is the set of bigrams that are contained by the summary described by $y$ and $v_b$ is the reward for including the bigram $b$ in the summary. This corresponds to the bigram coverage model which is also used in extractive summarization (CITE!). Intuitively it rewards a summary for including bigram from the original document but punishes redundant sentences by counting each bigram only once.
+The second term guides the abstractive part of the system. $C(y)$ is the set of cut choices the system has made, i.e. the set of edges that have been removed from an included sentence. $v_c$ is the reward for making one such choice.
+
+The rewards $v_b$ and $v_c$ are based on a feature function $f(x, y)$ and parameterized by some weight vector $w \in \mathcal{R}^n$.
+The feature function $f(x, y)$ defined in terms of two other feature functions: $g(b, x)$ encodes the features of a bigram $b$ and $h(c, x)$ encodes the features of a cut choice $c$. $f(x, y)$ is then the sum of the features for all bigrams and all cut choices:
+\begin{displaymath}
+f(x, y) = \sum_{b \in B(y)} g(b, x) + \sum_{c \in C(y)} h(c, x)
+\end{displaymath}
+For bigrams the features include the number of mentions in the corpus and the position of the first mention of the bigram in any of the documents.
+For cuts the features describes the phrase types in the cut subtree.
+
+To learn the parameter $w$ \citeauthor{berg-kirkpatrick} train a soft-margin SVM for structured learning (CITE!) with bigram recall on a reference summary as the loss function. To ensure that the system is theoretically able to reproduce the target summaries, the training corpus is not composed of human-authored abstractive summaries, but instead of extractive summaries that were selected for maximum coverage of the input documents and shortened by human annotators.
+
+While the inference phase of the problem can be stated as an ILP, \citet{berg-kirkpatrick} find that the space of possible cut choices makes an exact solution infeasible in many cases. They instead use an approximation procedure. Instead of directly selecting the sentences from the whole corpus, they first create a shorter extractive summary based on bigram coverage only and then run the system on this summary. By creating smaller intermediate summaries, they can reduce computation time for difficult cases on the expense of summary quality.
+
+%\citet{almeida} try to solve this complexity problem in a similar setting by using 
+
+
+%They cast the problem of summarizing the document set $x$ as searching the set $Y(x)$ of all indicator vectors describing a summary 
+%They formulate the problem of summarizing a document set $x$ as finding an optimal indicator vector $y \in Y(x)$, where $Y(x)$ is the set of the descriptions for all possible summaries for $x$.
+
+%For example, \citet{almeida} work on dependency trees and solve an ILP (WRONG) to determine both which sentences should be included in the summarization and which nodes can be deleted based on a learned scoring function. They use a multi-task learning setup to learn appropriate scores using both corpora for extractive summarization and sentence compression to increase available training data. Similarly \citet{berg-kirkpatrick} work on parse trees and also solve an ILP to jointly choose sentences to extract and nodes to discard from a sentence based on scores learned on a training set.
+
+Other approaches allow for more complex operations on the sentences.
+
+
+
 \citet{bing} also work on parse trees but combine NPs and VPs from different sentences if they are similar enough. They select the best combinations based on salience of the included phrases.
 
 Another approach to this kind of summarization, using the original documents to form new sentences, is based around graph modelling. \citet{filippova} suggests a model for headline generation that is based around finding shortest paths in a word graph derived from a set of sentences.
@@ -145,17 +180,117 @@ While many early models were limited to summarize only short passages of texts, 
 
 \section{Prior Work in Timeline Summarization}
 
+%Similar Tasks
+%Swan and Allen
+
 One of the earliest approaches to timeline summarization, which still provides a very strong baseline in many cases (see, for example, the evaluation of \citet{markert}), are the measures proposed by \citet{chieu}.
-\citeauthor{chieu} proposes that the importance of a sentence for a timeline can be determined by two measures, \textit{interest} and \textit{burstiness}.
+Their system takes a corpus $C$ of documents and a query $q$ which guides the summarization. Only sentences which match $q$ are considered. We write $C_q$ for the portion of the corpus that matches $q$.
+\citeauthor{chieu} propose that the importance of a sentence for a timeline can be determined by two measures, \textit{interest} and \textit{burstiness}.
+Both are based around the concept of two sentences reporting the same event. \textit{Interest} is based on the intuition that a sentence $s$ is important, if there are many other sentences in the document that refer to the same event as $s$. \textit{Burstiness} builds on the expectation that an important event leads to a short ''burst'' of sentences reporting the same event.
+
 Interest is the measure of overall similarity of a sentence $s$ to those sentences in the corpus, which lie in a specified window around the date of $s$.
-Burstiness measures whether a sentence reports an event that is strongly clustered around one specific date in the corpus, instead of spread out over the whole extent of the corpus.
+
+Burstiness measures whether a sentence reports an event that is strongly clustered around one specific date in the corpus, instead of spread out over the whole extent of the corpus. This is done by computing the log-likelihood ratio of the distribution of sentences reporting the same event as $s$ in a time window around $s$ and the distribtuion of these sentences outside of the window.
+This distribution can be described by table \ref{tab:chieu}, where each cell contains the number of sentences that meet the criteria of their row and column.
+
+\begin{table}
+\begin{tabular}{|l|c|c|}
+& Report the same event as $s$ & Does not report the same event as $s$ \\
+Date within $k$ days of $\text{date}(s)$ & $a$ & $b$ \\
+Date not within $k$ days of $\text{date}(s)$ & $c$ & $d$
+\end{tabular}
+\caption{Contingency Table for Burstiness}
+\label{tab:chieu}
+\end{table}
+
+To match sentences to a date, each sentence also needs to be assigned a date tag. This tag is determined either by the first date expression in the sentence or the time of document publication, if no such expression can be found in the document.
+
+Because there is no easy way to automatically decide whether two sentences report the same event or not, \citeauthor{chieu} instead use a similarity score to determine sentences which report the same event. They compute similarity the similarity of two sentences $s, s'$ using cosine distance between their vector representations $\vec{s}, \vec{s'}$: $\text{sim}(s, s') = \cos(\vec{s}, \vec{s'})$.
+As cosine similarity is not realible enough for their purpose, they filter sentences whose date tags are further apart than some threshold $T$ of dates.
+
+They then define interest as:
+
+\begin{displaymath}
+\text{Interest}(s, T) = \sum_{s' \in C_q | |\text{date}(s') - \text{date}(s)| \leq T} \frac{\cos(\vec{s}, \vec{s'})}{\text{numdays}}
+\end{displaymath}
+
+Here, numdays is a normalization factor that is defined as $\text{number of days in dates} + 2 * T$ to account for the fact that $\text{date}$ can also refer to an entire week or month.
+
+Similarly for burstiness they set:
+
+\begin{align*}
+a = \sum_{s' \in C_q | |\text{date}(s) - \text{date}(s')| \leq T} \text{cos}(\vec{s}, \vec{s'})
+b = \sum_{s' \in C_q | |\text{date}(s) - \text{date}(s')| \leq T} 1 - \text{cos}(\vec{s}, \vec{s'})
+\end{align*}
+
+$c, d$ are defined analogously for sentences outside the $T$-day window. The score for burstiness is obtained by computing the log-likelihood-ratio for $T \in 1, ..., 10$ and selecting the largest value.
+
+To select sentences for the timline, they order sentences according to one of the two metrics and greedily select sentences up to a fixed total number of sentences.
+They avoid redundancy by computing what they call the ''extent'' of each included sentence. When selecting a sentence $s$, all sentences that have not yet been selected and whose date is less than extent days away from $\text{date}(s)$ are removed from the pool of candidates.
+This also means that the summary for each date included in the timeline is exactly most one sentence long.
+
+They evaluate their system on a corpus constructed from the Gigaword Corpus \citep{gigaword} and a set of manually constructed timelines. The corpus contains articles about several poltical leaders of mayor nations. Annotators were asked to rank gold and system timelines for the same query.
+
+They find that their interest metric generally performs best.
+
+\citet{yan-trans} devise a more complex procedure for summarization, by casting the summarization as a graph-centrality problem.
+The importance rank of a sentence from the set of input documents is assessed by finding its centrality in two sentence graphs, a ''global-biased'' and a ''local-biased'' graph.
+Intuitively the rank in the local graph indicates importance according to other sentences with the same timestamp, while the global rank is the importance of a sentence relative to sentences with other timestamps. This follows the intuition that a good sentence in a timeline summarizes the events of the local date, but is also related to the summaries of other dates. For each timestamp $t$ in the corpus, a local and a global graph is constructed.
+Similary to \citet{chieu}, their notion of importance is based on cosine similarity to other sentences.
+
+For all sentences with timestamp $t$ the local graph is constructed by computing pairwise cosine similarity between sentences with the same timestamp and adding edges with appropriate weights between each pair of sentences.
+The global graph is constructed from all sentences in the corpus, not only those with timestamp $t$. Because the graph is supposed to reflect the global importance of each sentence from $t$, no edges are added between sentences with timestamp $t$.
+For all other sentences $s'$ the edge weight is defined by the cosine similarity of $s$ and $s'$ and the distance between their timestamps $|\text{date}(s) - \text{date}(s')|$. However, unlike \citet{chieu}, the influence of the sentence $s'$ on the importance of $s$ is not binary, but instead gradually decreases with temporal distance according to a kernal function $\Gamma(|\text{date}(s) - \text{date}(s')|)$. The further away $s'$ is from $s$, the lower its influence becomes.
+
+The final rank of a sentence is determined by the weighted average centrality rank of a sentence in both graphs.
+To create the final summary, the highest-ranking sentences are selected for a timestamp. To achieve compression, \citeauthor{yan-trans} specify a global compression rate $\varphi$. The ratio of available sentences that is allocated to the summary of timestamp $t$ is $\frac{|C^{(t)}|}{|C|}$, where $C$ is the corpus of all sentences and $|C^{(t)}|$ is the number of sentences with timestamp $t$. Note that this allows for more than one sentence per timestamp.
+
+The procedure of \citet{yan-trans} does not have an explicit facility to avoid redundancy and instead relies on the property of the algorithm they use to determine centrality, DivRank \citep{divrank}. DivRank is a variant of the well-known PageRank \citep{pagerank} algorithm. It modifies the original PageRank equation, so that a node with high centrality score becomes a sink for the probability mass allocated to neighbouring nodes. This means that nodes next to more important nodes loose probability mass, instead of profiting from their important neighbour. The procedure is designed to make sure that the most important nodes are not tightly clustered in one area of the graph, but instead spread accross the whole graph. Consequently, we can expect the DivRank algorithm to select sentences from different parts of the graph that are sufficiently diverse to avoid redundancy.
+
+They use a corpus of crawled articles from several internet newsmedia and timelines from the same sites that were created by human editors.
+They use the ROUGE \citep{rouge} metric from traditional summarization to evaluate their timelines against the human-authored ones.
+
+% Formula?
+% date tagging?
 
 
-\citet{yan-trans} model the summarization as a graph centrality problem. For each date, two separate graphs, are constructed: a local biased graph, that encodes the similarities of sentences refering to that date and a global biased graph that encodes the similarities of the sentences of that date (''intra-date similarities'') to all sentences outside that date (''inter-date similarities'').
-They then use the DivRank \citep{divrank} algorithm to determine centrality scores for each sentence within one date for each graph, which are used to tank the sentences.
-A final rank for each sentence is computed by a weighted average of the ranks obtained from both graphs. To determine which dates should be included in the timeline, they give preference to sentences from dates which have been mentioned often in their corpus. As they themselves note, this corresponds to the notion of burstiness introduced by \citeauthor{chieu}.
 
-\citet{multimodal} have proposed a multimodal approach to timeline summarization by integrating image information. They cast the task as a collaborative filtering task. During training, they construct a matrix of textual features and image embeddings derived from a deep neural network for each sentence in the corpus, including a column of their rouge scores. They then factorize the matrix into two embedding matrices, one for sentences and one for the features, which together approximate the original matrix. During prediction the rouge column of a sentence is left empty and a new embedding is computed for the sentence. By then multiplying that embedding with the feature embedding for rouge, they can derive a score for each sentence. They then include the sentences with the highest scores and order them chronologically.
+%\citet{yan-trans} model the summarization as a graph centrality problem. For each date, two separate graphs, are constructed: a local biased graph, that encodes the %similarities of sentences refering to that date and a global biased graph that encodes the similarities of the sentences of that date (''intra-date similarities'') to all %sentences outside that date (''inter-date similarities'').
+%They then use the DivRank \citep{divrank} algorithm to determine centrality scores for each sentence within one date for each graph, which are used to tank the sentences.
+%A final rank for each sentence is computed by a weighted average of the ranks obtained from both graphs. To determine which dates should be included in the timeline, they %give preference to sentences from dates which have been mentioned often in their corpus. As they themselves note, this corresponds to the notion of burstiness introduced by \citeauthor{chieu}.
+
+All of the above systems have in common, that their scoring functions are entirely hand-crafted and not learned.
+\citet{multimodal} is different in that regard, as they learn a function to determine sentence importance. They also change the setting of traditional MDS, by including information from an image search machine in their importance judgement, which makes their system multimodal.
+Their learning strategy is based around the concept of collaborative filtering.
+They first construct a matrix $M \in \mathbb{R}^{m \times n}$, which has one row for each of the $m$ sentences in the training corpus $C$. The first column of the matrix contains the ROUGE-scores of the sentences according to the reference summaries. The following columns contain the features for each sentence $s_i$.
+There are two types of features:
+
+\begin{description}
+\item[Textual Features]{These include the publication date of the document of $s_i$, unigram occurences and occurences of Subject-Verb-Object tuples}
+\item[Image Features]{For each sentence an image is retrieved using an image search machine with the sentence as input. The top-ranked result is encoded as a fixed-size vector by taking the activations of the last layer of a CNN for the image. The CNN used in their implementation was created by \citet{Simonyan and Zisserman} and trained on the ImageNet \citep{ImageNet} object recognition challenge dataset}
+\end{description}
+
+To learn a scoring function on $M$, \citet{multimodal} decompose $M$ into two matrices $P \in \mathbb{R}^{k \times m}, Q \in \mathbb{R}^{k \times n}$, so that $M \approx P^T * Q$. Here $k$ is a hyperparameter, that determines how many latent dimensions each matrix has. The higher $k$, the higher the number of parameters the model has and the more exact $P^T * Q$ can be. However, a large $k$ also increases the risk of overfitting. Intuitively, each row in $P$ cam be thought of as an embedding of a sentence in $C$ in a $k$-dimensional vector space and the $i$-th row of P can be used to predict the appropriate value of feature $i$ from such an embedding.
+The find $P, Q$, \citeauthor{multimodal} solve the following optimization problem:
+\begin{align}
+\min_{P, Q} \sum_{(i,j) \in M} (M_{(i,j) - \vec{p_i}^T}\vec{q_j})^2 + \lambda_P ||p_i|| ^ 2 + \lambda_Q ||q_j|| ^ 2 \label{multimodal-objective}
+\end{align}
+
+This formulation rewards solutions that can reconstruct $M$ well, while punishing solutions with large parameter values to avoid overfitting. The trade-off between regularization and better fit is regulated by the coefficients $\lambda_P, \lambda_Q$.
+The objective \ref{multimodal-objective} is optimized using stochastic gradient descent (SGD).
+
+During prediction, a feature vector is computed for each new sentences $s_i$, with the ROUGE column empty. The system then computes an embedding vector $p'$ for $s_i$ using the objective mentioned above (CHECK!). By computing the dot product of $\vec{p'}$ and the first column of the feature embeddings $\vec{q_1}$, we obtain a predicted ROUGE-score for $s_i$.
+The sentence are selected from highest predicted score to lowest.
+
+They evaluate their system on the Timeline17 dataset, also using the ROUGE metric.
+
+%Timestamps? Compression?
+
+%Tran
+%Markert
+
+
+%\citet{multimodal} have proposed a multimodal approach to timeline summarization by integrating image information. They cast the task as a collaborative filtering task. During training, they construct a matrix of textual features and image embeddings derived from a deep neural network for each sentence in the corpus, including a column of their rouge scores. They then factorize the matrix into two embedding matrices, one for sentences and one for the features, which together approximate the original matrix. During prediction the rouge column of a sentence is left empty and a new embedding is computed for the sentence. By then multiplying that embedding with the feature embedding for rouge, they can derive a score for each sentence. They then include the sentences with the highest scores and order them chronologically.
 
 
 
@@ -626,14 +761,18 @@ To obtain sentence level date annotations, we run the HeidelTime tagger \citet{h
 
 \section{System Configurations}
 
-
+We also conduct a set of oracle summaries. In these settings we compute the ROUGE-2 score of each candidate sentence, instead of using our scoring methods. The ROUGE-score is computed with respect to the daily summary of the cluster date of the sentence. We also add a small value $\epsilon$ to each score, to avoid sentences with a score of 0. This accounts for the fact that some sentences might have an incorrect date tag but can still be useful, because their deviation from the correct date is small. The rest of the system remains unchanged. Note, that the resulting summaries are not true oracle summaries, in that they are not necessarily optimal for the task. They merely show the performance our system could have with perfect information about the importance of each sentence. They also ignore grammaticality.
+They are, however, a useful tool that can help evaluate both the effect of summarizing from abstrative candidate sentences, instead of the original corpus and the quality of our clustering methods.
 
 \chapter{Automatic Evaluation}
 
-\section{Setup}
+\section{Setup and Evaluation Measures}
 
-We follow the evaluation setup of \citet{markert} and parameterize our timelines by two properties: Number of dates and number of sentences per date. Both are set from the reference timelines, where the number of sentences per date is the rounded-down average of sentences per date in the reference timeline.
-As \citeauthor{markert} we generate one system timeline per reference timeline with the appropriate parameters, to account for the huge differences in length and verbosity of the timelines.
+As \citet{markert} note, there are a number of different settings for TLS.
+We follow the evaluation setup they propose and parameterize our timelines by two properties: Number of dates and number of sentences per date. Both are set from the reference timelines, where the number of sentences per date is the rounded-down average of sentences per date in the reference timeline.
+However, while restricting the length in terms of number of sentences is a common setting in TLS, used for example by \citet{chieu} and \citet{yan-trans}, traditional summarization is usually restricted by number of tokens, see, for example, the DUC 200? challenge \citep{duc200?}. In fact, restricting the number of sentences enables our system to effectively circumvent the length constraints by fusing several sentences together, to form one very long one.
+We thus also evaluate each system using a token count constraint for each document.
+Follwing \citeauthor{markert} we generate one system timeline per reference timeline with the appropriate parameters, to account for the huge differences in length of the timelines and the time they cover. For each timeline the system is presented with the first date of the timeline, the last date of the timeline, the number of dates and the average number of sentences or tokens per daily summary.
 
 We evaluate the performance of our systems using the evaluation framework of \citet{tilse}, which is based on the ROUGE \citep{rouge} metric.
 
@@ -649,7 +788,27 @@ Finally the align m:1 metric aligns summaries for different dates based on the t
 
 Note that we compute the per-topic macro average of all metrics, not the average across all reference timelines.
 
-\section{Results}
+\section{Results and Discussion}
+
+We first take a look at the results for the oracle summarization in table \ref{tab:results-oracle}.
+
+We check for significance using an approximate randomization test \citet{art} using a library provided by Sebastian Martschat \footnote{(URL!)}. %We find that all differences are significant, except for the improvements in ROUGE-1 align and agree from 
+
+The first interesting finding is that the choice of length constraint does not seem to have a big influence on the results of the oracle summaries.
+All differences between sentence count constrained and token count constrained systems are non-significant, except for the differences on both the agglomerative and the affinity propagation systems on the crisis corpus for ROUGE-2 align and agreee and ROUGE-1 concat.
+
+%We find that the document clustering method of the baseline performs far worse than the other two clustering methods. Manual analysis reveals that this is in part due to the pipelined date selection. As the dates are selected before the system is run, it is possible that the system does not find a
+In general, the best results among the clustering methods is consistently achieved by the affinity propagation based system (AP), followed by the agglomerative multi-clustering system. All improvement of the former over the latter are statistically significant ($p < 0.05$). The baseline system performs by far worst of all three systems. When looking into the timelines produced by the system, we find that there are many dates that were selected by the date selection algorithm are present in the timeline, but do not have a summary. This points to a general problem with prior date selection: The system is not guaranteed to have a sentence to fill the summary with content. This is excerberated by the fact, that the timelines have different date ranges than the publishing dates of the articles, so for some dates there are not even documents present. (DEMONSTRATE!)
+
+Compared to the extractive baseline, the AP system performs statistically significantly worse than the extractive baseline in every metric.
+Interestingly this is not true in the case of the crisis dataset. Here the abstractive oracle performs better in every aspect except ROUGE-1 concat and date selection. Differences are significant except for ROUGE-1 align for the token constraint and ROUGE-1 agree for both sentence and token constraint.
+
+% Has been more difficult in the past -> so what?
+
+
+
+
+
 
 \chapter{Manual Evaluation}
 
@@ -669,5 +828,66 @@ Note that we compute the per-topic macro average of all metrics, not the average
 
 \bibliographystyle{plainnat}
 \bibliography{bib} 
+
+
+\begin{appendices}
+\chapter{Proof of Performance Guarantee}
+
+Let $Y \subseteq G$. We need to prove that for some maximum token count per date $n \in \mathbb{N}^+$ and a minmum number of tokens per sentence $h \in \mathbb{N}^+, h < n$, we have
+
+\begin{displaymath}
+\frac{\max_{A \in B(Y)} |A|}{\min_{A \in B(Y)} |A|} \leq \lfloor n/h \rfloor
+\end{displaymath}
+
+We can adapt the proof of \citet{markert} to a token constraint as follows.
+
+The lower bound is only dependent on the number of allowed dates $l$, not the number of sentences, so it remains at $m = \min(l, |\{d(s) | s \in Y \}|)$.
+
+We now show how to change the prove of the upper bound for a token constraint.
+Let $A \in \mathcal{B}(Y)$.
+We define the same equivalence relation $\sim_d$ as \citeauthor{markert} on $A \times A$:
+$a \sim_d a'$ iff $d(a) = d(a')$.
+We then have:
+
+\begin{align}
+|A| = \sum_{[a] \in A/\sim_d} |[a]| \\
+    = \sum_{[a] \in A/\sim_d} |\{ a' \in A | d(a') = d(a) \}| \label{eq:A2}
+\end{align}
+
+We define $\text{len}(a) : A \rightarrow \mathbb{N}^+$ as the length of element $a$ in tokens.
+The length constraint that must be fulfilled for all $a \in A$ is:
+
+\begin{align*}
+\sum_{a' \in N_a} \text{len}(a') \leq n \\
+N_a = \{ a' \in A | d(a') = d(a) \}
+\end{align*}
+
+As each sentence has a minimum length of $h$, there can be at most $\lfloor n / h \rfloor $ elements in $N_a$.
+Combining this with equation \ref{eq:A2}, we write:
+
+\begin{align*}
+|A| \leq \sum_{[a] \in A/\sim_d} \lfloor n/h \rfloor
+\end{align*}
+
+As the limit on the number of dates ensures that there are at most $m$ equivalence classes, we have $|A| \leq \lfloor n/h \rfloor * m$.
+
+Combining this with the lower bound of $|A| \geq m$, we have:
+
+\begin{align*}
+\frac{\max_{A \in B(Y)} |A|}{\min_{A \in B(Y)} |A|} = \frac{\lfloor n/h \rfloor * m}{m} \\
+= \lfloor n/h \rfloor
+\end{align*}
+
+
+
+%{a′ ∈ A | d(a′) = d(a)}
+
+%We consider
+%the equivalence relation ∼d defined on A × A by 581 a ∼d a′ if and only if d(a) = d(a′). This equiv- 582 alence relation induces a partition of A into its 583 equivalence %classes according to ∼d. We therefore 584
+%have
+
+
+\end{appendices}
+
 
 \end{document}

@@ -648,6 +648,7 @@ class ROUGESenteneScorer:
         rouge_cache_basepath = self.config.get("rouge_cache_path")
         if rouge_cache_basepath is not None:
             rouge_cache_path = os.path.join(rouge_cache_basepath, corpus.name.replace("/", "_") + ".pkl")
+            logger.debug("Reading from ROUGE cache path {}".format(rouge_cache_path))
             if os.path.isfile(rouge_cache_path):
                 with open(rouge_cache_path, "rb") as f:
                     per_timeline_rouge_scored_per_date_clusters = pickle.load(f)
@@ -1465,7 +1466,9 @@ class ROUGEOracleScorer(TLSumModuleBase):
         pass
 
     def score_clusters_for_timeline(self, per_date_cluster_candidates, timeline):
-        return list(compute_rouge_for_clusters(per_date_cluster_candidates, timeline).items())
+        scores = list(compute_rouge_for_clusters(per_date_cluster_candidates, timeline).items())
+        #print(len(scores), len(per_date_cluster_candidates))
+        return scores
 
 
 def compute_rouge_for_clusters(per_date_cluster_candidates, timeline):
@@ -1491,11 +1494,11 @@ def compute_rouge_for_clusters(per_date_cluster_candidates, timeline):
                     if prec + rec > 0:
                         score = (prec * rec) / (prec + rec)
                     else:
-                        score = 0.0
+                        score = 0
                 else:
-                    score = 0.0
+                    score = 0
 
-                scored_sentences.append((sent, score))
+                scored_sentences.append((sent, score + 1))
             scored_clusters.append(scored_sentences)
         scored_per_date_cluster_candidates[date] = scored_clusters
 
@@ -1687,6 +1690,7 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                 local_per_date_cluster_candidates = [
                     (date, date_clusters) for date, date_clusters in per_date_cluster_candidates if date in selected_dates]
 
+            print(len(local_per_date_cluster_candidates))
             if hasattr(self.scorer, "score_clusters_for_timeline") and reference_timelines is not None:
                 # For oracle summarization
                 local_per_date_cluster_candidates = self.scorer.score_clusters_for_timeline(local_per_date_cluster_candidates, reference_timelines[timeline_idx])
