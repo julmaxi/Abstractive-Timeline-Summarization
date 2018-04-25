@@ -26,7 +26,7 @@ class RedundancyFactor:
 
         clustering = MiniBatchKMeans(n_clusters=num_clusters, batch_size=1000).fit_predict(tf_idf)
 
-        clustering = [0] * len(sorted_sent_ids)
+        #clustering = [0] * len(sorted_sent_ids)
 
         sent_partitions = {}
 
@@ -107,7 +107,6 @@ class CoverageFactor:
 
         for did, overlap in list(self.overlaps.items()):
             self.overlaps[did] = overlap / max_overlap
-
 
     def update_scores(self, new_sentence):
         self.current_overlap_score += self.overlaps[new_sentence]

@@ -236,7 +236,7 @@ def date_from_dirname(dirname):
 
     return datetime.date(int(year), int(month), int(day))
 
-def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameters, disallow_cluster_repetition=True):
+def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameters, disallow_cluster_repetition=True, use_small_clusters=False):
     id_sentence_map = {}
     id_cluster_map = {}
     date_id_map = defaultdict(list)
@@ -289,11 +289,17 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
     #cluster_redundancy_factor = RedundancyFactor(id_score_map, id_cluster_map)
 
     print("Initializing redudancy")
+    num_clusters = None
+    if use_small_clusters:
+        num_clusters = int(sent_idx_counter // 25)
+    else:
+        num_clusters = 2 * parameters.max_date_sent_count * parameters.max_date_count
+
     factors = []
     kmeans_redundancy_factor = RedundancyFactor.from_sentences(
         id_score_map,
         id_sentence_map,
-        num_clusters=min(max(sent_idx_counter // 5, 2), 2 * parameters.max_date_sent_count * parameters.max_date_count))
+        num_clusters=min(max(sent_idx_counter // 5, 2), num_clusters))
     factors.append(kmeans_redundancy_factor)
 
 
@@ -517,7 +523,7 @@ class SentenceScorer:
                 import math
 
                 for other_date, tr_scores in self.per_date_tr_scores.items():
-                    factor = 1.0 / (abs((other_date - date).days) + 1)
+                    factor = 1.0 / math.sqrt(abs((other_date - date).days) + 1)
 
                     for term, score in tr_scores.items():
                         weighted_tr_score_sums[term] += score * factor
@@ -1438,13 +1444,13 @@ class ILPSentenceSelector:
 
 class GlobalSubModularSentenceSelector:
     def __init__(self, config):
-        pass
+        self.use_small_clusters = config.get("use_small_clusters", False)
 
     def prepare(self, corpus):
         self.corpus = corpus
 
     def select_sentences_from_clusters(self, per_date_clusters, parameters):
-        return select_tl_sentences_submod(per_date_clusters, self.corpus, parameters)
+        return select_tl_sentences_submod(per_date_clusters, self.corpus, parameters, use_small_clusters=self.use_small_clusters)
 
 
 class IdentityCandidateGenerator:
@@ -1690,12 +1696,18 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                 local_per_date_cluster_candidates = [
                     (date, date_clusters) for date, date_clusters in per_date_cluster_candidates if date in selected_dates]
 
-            print(len(local_per_date_cluster_candidates))
+#            print(len(local_per_date_cluster_candidates))
             if hasattr(self.scorer, "score_clusters_for_timeline") and reference_timelines is not None:
                 # For oracle summarization
                 local_per_date_cluster_candidates = self.scorer.score_clusters_for_timeline(local_per_date_cluster_candidates, reference_timelines[timeline_idx])
 
             timeline = self.sentence_selector.select_sentences_from_clusters(local_per_date_cluster_candidates, parameters)
+
+            if self.date_selector is not None:
+                for date in selected_dates:
+                    if date not in timeline:
+                        timeline[date] = ""
+
             all_timelines.append(Timeline(timeline))
 
         return all_timelines
