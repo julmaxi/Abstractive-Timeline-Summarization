@@ -523,26 +523,29 @@ class SentenceScorer:
                 import math
 
                 for other_date, tr_scores in self.per_date_tr_scores.items():
-                    factor = 1.0 / math.sqrt(abs((other_date - date).days) + 1)
+                    factor = 1.0 / (abs((other_date - date).days) + 1)
 
                     for term, score in tr_scores.items():
                         weighted_tr_score_sums[term] += score * factor
 
                     factor_sum += factor
 
+                #total_sum = sum(weighted_tr_score_sums.values())
+                #self.per_date_temporalized_tr_scores[date] = dict((term, weight / total_sum) for term, weight in weighted_tr_score_sums.items())
+
                 self.per_date_temporalized_tr_scores[date] = dict((term, weight / factor_sum) for term, weight in weighted_tr_score_sums.items())
 
-        #for date, scores in sorted(self.per_date_temporalized_tr_scores.items()):
-        #    print(date)
-        #    for word, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)[:10]:
-        #        print(word, score)
-
-#        #    print(".........")
-        #    for word, score in sorted(self.per_date_tr_scores.get(date, {}).items(), key=lambda x: x[1], reverse=True)[:10]:
-        #        print(word, score)
-
-#        #    print("----")
-        #    print("\n")
+#        for date, scores in sorted(self.per_date_temporalized_tr_scores.items()):
+#            print(date)
+#            for word, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)[:10]:
+#                print(word, score)
+#
+#            print(".........")
+#            for word, score in sorted(self.per_date_tr_scores.get(date, {}).items(), key=lambda x: x[1], reverse=True)[:10]:
+#                print(word, score)
+#
+#            print("----")
+#            print("\n")
 
             #for tr_scores in self.per_date_temporalized_tr_scores.values():
             #    for term in list(tr_scores.keys()):
@@ -1622,6 +1625,28 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             parameters[corpus.name] = self.scorer.train(training_corpora)
 
         return parameters
+
+    def generate_corpus_statistics(self, corpus):
+        self.scorer.prepare(corpus)
+        self.generator.prepare(corpus)
+        self.sentence_selector.prepare(corpus)
+        clusters = self.create_clusters(corpus)
+        dated_clusters = list(((cluster, self.cluster_dater.date_cluster(cluster)) for cluster in clusters))
+        cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
+
+        total_cluster_count = len(clusters)
+        total_candidate_count = 0
+
+        for (cluster, cluster_date), candidates_and_info in sorted(zip(dated_clusters, cluster_candidates), key=lambda x: len(x[0][0]), reverse=True):
+            total_candidate_count += len(candidates_and_info)
+
+        return {
+            "candidate_count": total_candidate_count,
+            "cluster_count": total_cluster_count,
+            "sentence_count": len(corpus.sentences),
+            "doc_count": corpus.num_documents
+        }
+
 
     def generate_timelines(self, corpus, all_parameters, reference_timelines=None):
         self.scorer.prepare(corpus)

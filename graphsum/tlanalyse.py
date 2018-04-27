@@ -93,9 +93,20 @@ def analyze_main():
     print("\n===== Crisis =====")
     print_results_table(crisis_entries)
 
-    #gen_latex_table_sent(tl17_entries, crisis_entries)
     #print()
-    #gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
+    #gen_latex_table_oracle(tl17_entries, crisis_entries)
+    #print()
+    #gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results, use_tok=True)
+    #print()
+
+    print()
+    gen_latex_table_sent_features(tl17_entries, crisis_entries)
+    print()
+
+    gen_latex_table_sent(tl17_entries, crisis_entries)
+    print()
+    #print()
+    gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
 
     significance_pairs = [
         ("ap-abstractive-temptr-dateref-clsize-path.json", "ap-abstractive-datetr-dateref-path.json")
@@ -156,7 +167,7 @@ def analyze_main():
     #    print("\t".join(map(str, (sys_name, entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1))))
 
 
-def analyze_system_results_dir(results_dir):
+def analyze_system_results_dir(results_dir, macro_average=False):
     all_results = {}
 
     tl17_results = {}
@@ -169,6 +180,10 @@ def analyze_system_results_dir(results_dir):
 
     for results_file in relevant_files:
         topic_result = {}
+
+        if "libya" in results_file:
+        #    print(results_file)
+            continue
 
         with open(results_file) as f:
             for idx, line in enumerate(f):
@@ -199,16 +214,45 @@ def analyze_system_results_dir(results_dir):
 
     macro_average_entry = compute_macro_averages(all_results)
     if len(tl17_results) > 0:
-        tl17_macro_average_entry = compute_macro_averages(tl17_results)
+        if macro_average:
+            tl17_macro_average_entry = compute_macro_averages(tl17_results)
+        else:
+            tl17_macro_average_entry = compute_micro_averages(tl17_results)
     else:
         tl17_macro_average_entry = None
 
     if len(crisis_results) > 0:
-        crisis_macro_average_entry = compute_macro_averages(crisis_results)
+        if macro_average:
+            crisis_macro_average_entry = compute_macro_averages(crisis_results)
+        else:
+            crisis_macro_average_entry = compute_micro_averages(crisis_results)
     else:
         crisis_macro_average_entry = None
 
     return macro_average_entry, tl17_macro_average_entry, crisis_macro_average_entry, tl17_results, crisis_results
+
+
+
+def compute_micro_averages(topic_results):
+    global_average_result_entries = defaultdict(lambda: [0., 0., 0.])
+
+    num_tl = 0
+
+    for topic_name, tl_results in topic_results.items():
+        topic_average_result_entries = defaultdict(lambda: [0., 0., 0.])
+        for entry in tl_results.values():
+            for metric in metrics.split():
+                global_average_result_entries[metric][0] += getattr(entry, metric)[0]
+                global_average_result_entries[metric][1] += getattr(entry, metric)[1]
+                global_average_result_entries[metric][2] += getattr(entry, metric)[2]
+
+            num_tl += 1
+
+    entry_params = []
+    for metric in metrics.split():
+        entry_params.append(FMeasureEntry(*map(lambda v: v / num_tl, global_average_result_entries[metric])))
+
+    return ResultEntry(*entry_params)
 
 
 def compute_macro_averages(topic_results):
@@ -235,8 +279,108 @@ def compute_macro_averages(topic_results):
 
 import numpy as np
 
+def gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results=None, all_crisis_results=None, use_tok=False):
+    lines = []
+
+    all_sys_names = [
+        "ap-abstractive-oracle.json",
+        "agglo-abstractive-oracle.json",
+        "baseline-oracle.json",
+        "extractive-oracle.json"
+    ]
+
+    if not use_tok:
+        all_names = [n + "+sent" for n in all_sys_names]
+        significant_diff_systems_tl17 = set()
+        significant_diff_systems_crisis = set()
+    else:
+        all_names = [n + "+tok" for n in all_sys_names]
+
+        significant_diff_systems_tl17 = set()
+        significant_diff_systems_crisis = set()
+        for system in all_sys_names:
+            sig_level_tl17 = check_significance(all_tl17_results, system + "+tok", system + "+sent")
+            sig_level_crisis = check_significance(all_crisis_results, system + "+tok", system + "+sent")
+
+            for metric in metrics.split():
+                if sig_level_tl17[metric] < 0.05:
+                    significant_diff_systems_tl17.add((system + "+tok", metric))
+                if sig_level_crisis[metric] < 0.05:
+                    significant_diff_systems_crisis.add((system + "+tok", metric))
+
+
+    lines.append("\\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
+    #lines.extend(gen_table_part_for_corpus(all_names, tl17_entries))
+    lines.extend(gen_latex_oracle_part(tl17_entries, all_names, significant_diff_systems_tl17))
+    lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}} }}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
+    lines.extend(gen_latex_oracle_part(crisis_entries, all_names, significant_diff_systems_crisis))
+
+
+
+    print("\n".join(lines))
+
+
+def gen_latex_oracle_part(entries, all_names, significant_diff_systems):
+    lines = []
+    all_cells = np.empty(shape=(len(all_names), len(metrics.split())))
+    for idx, system in enumerate(all_names):
+        entry = entries[system]
+        all_cells[idx,:] = entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1
+
+    col_maxima = np.max(all_cells, axis=0)
+
+    for system, row in zip(all_names, all_cells):
+        name = ""
+        if system.startswith("ap"):
+            name = "Affinity Propagation"
+        elif system.startswith("agglo"):
+            name = "Agglomerative"
+        elif system.startswith("extractive"):
+            name = "Extractive"
+
+        data_cells = []
+        for col_idx, cell_val in enumerate(row):
+            mark_bold = False
+            if cell_val == col_maxima[col_idx]:
+                mark_bold = True
+
+            cell_text = None
+
+            if mark_bold:
+                cell_text = "\\textbf{{{:.3f}}}".format(cell_val)
+            else:
+                cell_text = "{:.3f}".format(cell_val)
+
+            if (system, metrics.split()[col_idx]) in significant_diff_systems:
+                cell_text = "\\underline{" + cell_text + "}"
+
+            data_cells.append(cell_text)
+
+        lines.append("{} & {}\\\\\\hline".format(
+            name,
+            "&".join(data_cells)
+        ))
+
+    return lines
+
+
 def gen_latex_table_sent(tl17_entries, crisis_entries):
-    all_names = sorted(filter(lambda n: "+sent" in n and "oracle" not in n, set(tl17_entries.keys()) & set(crisis_entries.keys())))
+    systems = [
+      #  "ap-abstractive-datetr-dateref-path.json+sent",
+     #   "ap-abstractive-temptr-dateref-clsize-path.json+sent",
+     #   "ap-abstractive-datetr-dateref.json+sent",
+     #   "ap-abstractive-temptr-dateref-clsize.json+sent",
+        "ap-abstractive-temptr.json+sent",
+        "ap-abstractive-datetr-noclsize.json+sent",
+        "ap-abstractive-noclsize.json+sent",
+        "ap-abstractive-globaltr.json+sent",
+        "agglo-abstractive-temptr.json+sent",
+        "agglo-abstractive-datetr-noclsize.json+sent",
+        "agglo-abstractive-noclsize.json+sent",
+        "agglo-abstractive-globaltr.json+sent"
+    ]
+
+    all_names = sorted(filter(lambda n: n in systems, set(tl17_entries.keys()) & set(crisis_entries.keys())))
 
     lines = []
 
@@ -249,12 +393,48 @@ def gen_latex_table_sent(tl17_entries, crisis_entries):
 
     #lines.append("\\hline {}\t& {}\\\\\\hline".format("System".ljust(longest_name_len), "\t& ".join(val_headers)))
 
-    lines.append("\\multicolumn{{ {} }}{{|l|}}{{ \\textbf{{ {} }} }}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
+    lines.append("\\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
     lines.extend(gen_table_part_for_corpus(all_names, tl17_entries))
-    lines.append("\\hline\multicolumn{{ {} }}{{|l|}}{{ \\textbf{{ {} }} }}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
+    lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
     lines.extend(gen_table_part_for_corpus(all_names, crisis_entries))
 
     print("\n".join(lines))
+
+
+def gen_latex_table_sent_features(tl17_entries, crisis_entries):
+    systems = [
+      #  "ap-abstractive-datetr-dateref-path.json+sent",
+     #   "ap-abstractive-temptr-dateref-clsize-path.json+sent",
+     #   "ap-abstractive-datetr-dateref.json+sent",
+     #   "ap-abstractive-temptr-dateref-clsize.json+sent",
+        "ap-abstractive-temptr-dateref-clsize.json+sent",
+        "ap-abstractive-temptr-dateref-clsize-path.json+sent",
+        "ap-abstractive-datetr-dateref.json+sent",
+        "ap-abstractive-datetr-dateref-path.json+sent",
+        "ap-abstractive-globaltr-dateref-clsize.json+sent",
+        "ap-abstractive-globaltr-dateref-clsize-path.json+sent"
+    ]
+
+    all_names = sorted(filter(lambda n: n in systems, set(tl17_entries.keys()) & set(crisis_entries.keys())))
+
+    lines = []
+
+    longest_name_len = max(map(len, all_names))
+
+    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 agree", "R2 agree", "R1 align", "R2 align"
+
+    lines.append(" & Date & \\multicolumn{ 2 }{|c|}{Concat} & \\multicolumn{ 2 }{|c|}{Agree} & \\multicolumn{ 2 }{|c|}{Align} \\\\")
+    lines.append(" & F1 & R1 & R2 & R1 & R2 & R1 & R2 \\\\\hline\hline")
+
+    #lines.append("\\hline {}\t& {}\\\\\\hline".format("System".ljust(longest_name_len), "\t& ".join(val_headers)))
+
+    lines.append("\\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
+    lines.extend(gen_table_part_for_corpus(all_names, tl17_entries))
+    lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
+    lines.extend(gen_table_part_for_corpus(all_names, crisis_entries))
+
+    print("\n".join(lines))
+
 
 
 def gen_table_part_for_corpus(all_names, all_result_entries):
@@ -277,7 +457,7 @@ def gen_table_part_for_corpus(all_names, all_result_entries):
                 mark_bold = True
 
             if mark_bold:
-                data_cells.append("\\textbf{{ {:.3f} }}".format(cell_val))
+                data_cells.append("\\textbf{{{:.3f}}}".format(cell_val))
             else:
                 data_cells.append("{:.3f}".format(cell_val))
 
@@ -285,7 +465,7 @@ def gen_table_part_for_corpus(all_names, all_result_entries):
 
         if previous_clusterer_name != cl_method:
             previous_clusterer_name = cl_method
-            lines.append("\multicolumn{{ {} }}{{|l|}}{{ \\textit{{ {} }} }}\\\\\\hline".format(len(metrics.split()) + 1, previous_clusterer_name))
+            lines.append("\multicolumn{{{}}}{{|l|}}{{ \\textit{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, previous_clusterer_name))
 
         lines.append("{} \t & {} \\\\\\hline".format(score_func, "\t& ".join(data_cells)))
 
@@ -314,7 +494,7 @@ def gen_table_part_for_corpus_tok(all_names, all_result_entries, significant_dif
 
         if previous_clusterer_name != cl_method:
             previous_clusterer_name = cl_method
-            lines.append("\multicolumn{{ {} }}{{|l|}}{{ \\textit{{ {} }} }}\\\\\\hline".format(len(metrics.split()) + 1, previous_clusterer_name))
+            lines.append("\multicolumn{{{}}}{{|l|}}{{ \\textit{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, previous_clusterer_name))
 
         data_cells = ["\\multirow{{2}}{{*}}{{{}}}".format(score_func)]
         change_cells = [""]
@@ -325,7 +505,7 @@ def gen_table_part_for_corpus_tok(all_names, all_result_entries, significant_dif
                 mark_bold = True
 
             if mark_bold:
-                data_cells.append("\\textbf{{ {:.3f} }}".format(cell_val))
+                data_cells.append("\\textbf{{{:.3f}}}".format(cell_val))
             else:
                 data_cells.append("{:.3f}".format(cell_val))
 
@@ -353,7 +533,17 @@ def gen_table_part_for_corpus_tok(all_names, all_result_entries, significant_dif
 
 
 def gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results):
-    all_names = sorted(set(map(lambda x: x.split("+")[0], filter(lambda n: "oracle" not in n, set(tl17_entries.keys()) & set(crisis_entries.keys())))))
+    #all_names = sorted(set(map(lambda x: x.split("+")[0], filter(lambda n: "oracle" not in n, set(tl17_entries.keys()) & set(crisis_entries.keys())))))
+
+    all_names = [
+        "ap-abstractive-temptr-dateref-clsize.json",
+        "ap-abstractive-temptr-dateref-clsize-path.json",
+        "ap-abstractive-datetr-dateref.json",
+        "ap-abstractive-datetr-dateref-path.json",
+        "ap-abstractive-globaltr-dateref-clsize.json",
+        "ap-abstractive-globaltr-dateref-clsize-path.json"
+    ]
+
 
     significant_diff_systems_tl17 = set()
     significant_diff_systems_crisis = set()
@@ -374,9 +564,9 @@ def gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_cris
 
     #lines.append("\\hline {}\t& {}\\\\\\hline".format("System".ljust(longest_name_len), "\t& ".join(val_headers)))
 
-    lines.append("\multicolumn{{ {} }}{{|l|}}{{ \\textbf{{ {} }} }}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
+    lines.append("\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
     lines.extend(gen_table_part_for_corpus_tok(all_names, tl17_entries, significant_diff_systems_tl17))
-    lines.append("\multicolumn{{ {} }}{{|l|}}{{ \\textbf{{ {} }} }}\\\\\\hline".format(len(metrics.split()) + 1, "Crisis"))
+    lines.append("\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, "Crisis"))
     lines.extend(gen_table_part_for_corpus_tok(all_names, crisis_entries, significant_diff_systems_crisis))
 
     print("\n".join(lines))
@@ -402,6 +592,8 @@ def scorer_names_from_parts(parts):
             scorer_names.append("\\text{csize}")
         elif elem == "datetr":
             scorer_names.append("TR^{(date)}")
+        elif elem == "noclsize":
+            continue
         else:
             raise ValueError("Unknown component {}".format(elem))
     return scorer_names
@@ -422,6 +614,9 @@ def clusterer_and_score_func_name_from_system_description(sys_key):
     elif len(parts) == 2 and parts[1] == "abstractive":
         scorer_names = ["\\text{ling}", "TR^{(cluster)}", "\\text{cluster size}"]
         clustering_method = clustering_method_names[parts[0]]
+    elif len(parts) == 3 and parts[1] == "abstractive" and parts[2] == "noclsize":
+        scorer_names = ["\\text{ling}", "TR^{(cluster)}"]
+        clustering_method = clustering_method_names[parts[0]]
     elif len(parts) == 3 and parts[1] == "abstractive" and parts[2] == "datesel":
         scorer_names = ["\\text{ling}", "TR^{(cluster)}", "\\text{cluster size}"]
         clustering_method = clustering_method_names[parts[0]] + "Date Selection"
@@ -430,7 +625,7 @@ def clusterer_and_score_func_name_from_system_description(sys_key):
         clustering_method = clustering_method_names[parts[0]]
         scorer_names = scorer_names_from_parts(parts)
 
-    return clustering_method, "$f_{{ {} }}$".format("*".join(scorer_names))
+    return clustering_method, "$f_{{{}}}$".format("*".join(scorer_names))
 
 #
 #    for sys_name, entry in sorted(all_entries.items(), key=lambda i: i[1].rouge_2_concat.f1, reverse=True):
