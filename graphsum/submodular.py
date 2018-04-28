@@ -39,6 +39,8 @@ class RedundancyFactor:
         self.rewards = rewards
         self.sent_partitions = sent_partitions
 
+        self.redundant_sentences = set()
+
         #self.all_partitions = set(sent_partitions.values())
 
         if normalize:
@@ -57,6 +59,9 @@ class RedundancyFactor:
 
     def update_scores(self, new_sentence):
         new_sent_partition_id = self.sent_partitions[new_sentence]
+
+        if self.reward_sums[new_sent_partition_id] != 0:
+            self.redundant_sentences.add(new_sentence)
 
         self.reward_sums[new_sent_partition_id] += self.rewards[new_sentence]
         self.reward_sqrts[new_sent_partition_id] = math.sqrt(self.reward_sums[new_sent_partition_id])

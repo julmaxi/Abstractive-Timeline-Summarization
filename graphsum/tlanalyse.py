@@ -94,9 +94,9 @@ def analyze_main():
     print_results_table(crisis_entries)
 
     #print()
-    #gen_latex_table_oracle(tl17_entries, crisis_entries)
-    #print()
-    #gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results, use_tok=True)
+    gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
+    print()
+    gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results, use_tok=True)
     #print()
 
     print()
@@ -181,9 +181,9 @@ def analyze_system_results_dir(results_dir, macro_average=False):
     for results_file in relevant_files:
         topic_result = {}
 
-        if "libya" in results_file and "crisis" in results_file:
+        #if "libya" in results_file and "crisis" in results_file:
         #    print(results_file)
-            continue
+        #    continue
 
         with open(results_file) as f:
             for idx, line in enumerate(f):
@@ -289,30 +289,57 @@ def gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results=None, 
         "extractive-oracle.json"
     ]
 
+    significant_diff_systems_tl17 = defaultdict(list)
+    significant_diff_systems_crisis = defaultdict(list)
+
     if not use_tok:
         all_names = [n + "+sent" for n in all_sys_names]
-        significant_diff_systems_tl17 = set()
-        significant_diff_systems_crisis = set()
     else:
         all_names = [n + "+tok" for n in all_sys_names]
 
-        significant_diff_systems_tl17 = set()
-        significant_diff_systems_crisis = set()
+    for sys_1, sys_2, symbol in [
+        ("baseline-oracle.json", "agglo-abstractive-oracle.json", "*"),
+        ("ap-abstractive-oracle.json", "agglo-abstractive-oracle.json", "\\dagger"),
+        ("ap-abstractive-oracle.json", "extractive-oracle.json", "\\ddagger")
+    ]:
+        if use_tok:
+            sys_1 += "+tok"
+            sys_2 += "+tok"
+        else:
+            sys_1 += "+sent"
+            sys_2 += "+sent"
+
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2, symbol=symbol).items():
+            significant_diff_systems_tl17[entry].extend(vals)
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2, symbol=symbol).items():
+            significant_diff_systems_crisis[entry].extend(vals)
+
+    if use_tok:
+        all_names = [n + "+tok" for n in all_sys_names]
+
         for system in all_sys_names:
             sig_level_tl17 = check_significance(all_tl17_results, system + "+tok", system + "+sent")
             sig_level_crisis = check_significance(all_crisis_results, system + "+tok", system + "+sent")
 
             for metric in metrics.split():
                 if sig_level_tl17[metric] < 0.05:
-                    significant_diff_systems_tl17.add((system + "+tok", metric))
+                    symbol = "+"
+                    if getattr(tl17_entries[system + "+tok"], metric) < getattr(tl17_entries[system + "+sent"], metric):
+                        symbol = "-"
+                    significant_diff_systems_tl17.setdefault((system + "+tok", metric), []).append(symbol)
+
+                symbol = "^" + symbol
                 if sig_level_crisis[metric] < 0.05:
-                    significant_diff_systems_crisis.add((system + "+tok", metric))
+                    symbol = "+"
+                    if getattr(crisis_entries[system + "+tok"], metric) < getattr(crisis_entries[system + "+sent"], metric):
+                        symbol = "-"
+                    significant_diff_systems_crisis.setdefault((system + "+tok", metric), []).append(symbol)
 
 
-    lines.append("\\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
+    lines.append("\\multicolumn{{{}}}{{|l|}}{{\\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
     #lines.extend(gen_table_part_for_corpus(all_names, tl17_entries))
     lines.extend(gen_latex_oracle_part(tl17_entries, all_names, significant_diff_systems_tl17))
-    lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}} }}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
+    lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{\\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
     lines.extend(gen_latex_oracle_part(crisis_entries, all_names, significant_diff_systems_crisis))
 
 
@@ -352,7 +379,7 @@ def gen_latex_oracle_part(entries, all_names, significant_diff_systems):
                 cell_text = "{:.3f}".format(cell_val)
 
             if (system, metrics.split()[col_idx]) in significant_diff_systems:
-                cell_text = "\\underline{" + cell_text + "}"
+                cell_text += "$^{{{}}}$".format("".join(significant_diff_systems[(system, metrics.split()[col_idx])]))
 
             data_cells.append(cell_text)
 
@@ -427,6 +454,7 @@ def gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_cri
 
         for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-globaltr.json+sent", symbol="b").items():
             crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
 
 
 

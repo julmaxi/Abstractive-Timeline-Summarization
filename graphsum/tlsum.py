@@ -317,13 +317,16 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
         ],
         constraints)
 
-    print("Running Optimizier")
+    #print("Running Optimizier")
     sent_ids = opt.run(range(sent_idx_counter))
 
     selected_tl_sentences = defaultdict(list)
     for sent_id in sent_ids:
+
         date = sent_id_date_map[sent_id]
         sent = " ".join([tok for tok, pos in id_sentence_map[sent_id]])
+        #if sent_id in kmeans_redundancy_factor.redundant_sentences:
+        #    print("Duplicated sent:", sent_id, sent, kmeans_redundancy_factor.sent_partitions[sent_id])
         selected_tl_sentences[date].append(sent)
 
     return selected_tl_sentences
@@ -1677,7 +1680,7 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
         per_date_cluster_candidates = defaultdict(list)
         self.scorer.prepare_for_clusters(dated_clusters)
 
-        for (cluster, cluster_date), candidates_and_info in sorted(zip(dated_clusters, cluster_candidates), key=lambda x: len(x[0][0]), reverse=True):
+        for cl_rank, ((cluster, cluster_date), candidates_and_info) in enumerate(sorted(zip(dated_clusters, cluster_candidates), key=lambda x: len(x[0][0]), reverse=True)):
             #cluster_date = self.cluster_dater.date_cluster(cluster)
             if cluster_date is None:
                 continue
@@ -1689,13 +1692,13 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                     score, info = score_func(candidate, info)
                     cluster_candidates.append((candidate, score, info))
 
-                #print(cluster_date)
-                #for item in cluster:
-                #    print(item.as_tokenized_string(), item.document.dct_tag)
-                #print("\n")
-                #for cand, score, info in sorted(cluster_candidates, key=lambda x: x[1], reverse=True):
-                #    print(" ".join(map(lambda x: x[0], cand)), score)
-                #    print(info)
+                print(cluster_date, cl_rank + 1)
+                for item in cluster:
+                    print(item.as_tokenized_string(), item.document.dct_tag)
+                print("\n")
+                for cand, score, info in sorted(cluster_candidates, key=lambda x: x[1], reverse=True):
+                    print(" ".join(map(lambda x: x[0], cand)), score)
+                    print(info)
 
                 cluster_candidates = list(map(lambda x: (x[0], x[1]), cluster_candidates))
             else:
