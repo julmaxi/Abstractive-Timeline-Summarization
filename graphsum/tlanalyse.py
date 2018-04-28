@@ -100,10 +100,10 @@ def analyze_main():
     #print()
 
     print()
-    gen_latex_table_sent_features(tl17_entries, crisis_entries)
+    gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     print()
 
-    gen_latex_table_sent(tl17_entries, crisis_entries)
+    gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     print()
     #print()
     gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
@@ -181,7 +181,7 @@ def analyze_system_results_dir(results_dir, macro_average=False):
     for results_file in relevant_files:
         topic_result = {}
 
-        if "libya" in results_file:
+        if "libya" in results_file and "crisis" in results_file:
         #    print(results_file)
             continue
 
@@ -364,7 +364,7 @@ def gen_latex_oracle_part(entries, all_names, significant_diff_systems):
     return lines
 
 
-def gen_latex_table_sent(tl17_entries, crisis_entries):
+def gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results):
     systems = [
       #  "ap-abstractive-datetr-dateref-path.json+sent",
      #   "ap-abstractive-temptr-dateref-clsize-path.json+sent",
@@ -377,12 +377,58 @@ def gen_latex_table_sent(tl17_entries, crisis_entries):
         "agglo-abstractive-temptr.json+sent",
         "agglo-abstractive-datetr-noclsize.json+sent",
         "agglo-abstractive-noclsize.json+sent",
-        "agglo-abstractive-globaltr.json+sent"
+        "agglo-abstractive-globaltr.json+sent",
+        "baseline.json+sent"
     ]
 
     all_names = sorted(filter(lambda n: n in systems, set(tl17_entries.keys()) & set(crisis_entries.keys())))
 
     lines = []
+
+    tl17_sig_diff_sys = dict()
+    crisis_sig_diff_sys = dict()
+
+    for cl_algo in "ap", "agglo":
+        for config in [
+            "abstractive-temptr.json+sent",
+            "abstractive-datetr-noclsize.json+sent",
+            "abstractive-noclsize.json+sent",
+            "abstractive-globaltr.json+sent"
+        ]:
+            sys_1 = "ap-" + config
+            sys_2 = "agglo-" + config
+            #if check_significance(all_tl17_results, sys_1, sys_2) < 0.05:
+            #    tl17_sig_pairs[(sys_1, sys_2)] = "*"
+            #if check_significance(all_crisis_results, sys_1, sys_2) < 0.05:
+            #    crisis_sig_pairs[(sys_1, sys_2)] = "*"
+
+            tl17_sig_diff_sys.update(create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2))
+            crisis_sig_diff_sys.update(create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2))
+
+        if cl_algo == "ap":
+            doc_cl_symbol = "\\dagger"
+        else:
+            doc_cl_symbol = "\\ddagger"
+
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, cl_algo + "-abstractive-noclsize.json+sent", "baseline.json+sent", symbol=doc_cl_symbol).items():
+            tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-noclsize.json+sent", "baseline.json+sent", symbol=doc_cl_symbol).items():
+            crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-datetr-noclsize.json+sent", symbol="a").items():
+            tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-datetr-noclsize.json+sent", symbol="a").items():
+            crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-globaltr.json+sent", symbol="b").items():
+            tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-globaltr.json+sent", symbol="b").items():
+            crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+
 
     longest_name_len = max(map(len, all_names))
 
@@ -394,14 +440,31 @@ def gen_latex_table_sent(tl17_entries, crisis_entries):
     #lines.append("\\hline {}\t& {}\\\\\\hline".format("System".ljust(longest_name_len), "\t& ".join(val_headers)))
 
     lines.append("\\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
-    lines.extend(gen_table_part_for_corpus(all_names, tl17_entries))
+    lines.extend(gen_table_part_for_corpus(all_names, tl17_entries, tl17_sig_diff_sys))
     lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
-    lines.extend(gen_table_part_for_corpus(all_names, crisis_entries))
+    lines.extend(gen_table_part_for_corpus(all_names, crisis_entries, crisis_sig_diff_sys))
 
     print("\n".join(lines))
 
 
-def gen_latex_table_sent_features(tl17_entries, crisis_entries):
+def create_sig_diff_dict(results, entries, sys_1, sys_2, symbol="*"):
+    result = {}
+    sig_level = check_significance(results, sys_1, sys_2)
+
+    #print(sys_1, sys_2, sig_level)
+
+    for metric in metrics.split():
+        if sig_level[metric] < 0.05:
+            if getattr(entries[sys_2], metric) > getattr(entries[sys_1], metric):
+                system = sys_2
+            else:
+                system = sys_1
+
+            result[system, metric] = [symbol]
+    return result
+
+
+def gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results):
     systems = [
       #  "ap-abstractive-datetr-dateref-path.json+sent",
      #   "ap-abstractive-temptr-dateref-clsize-path.json+sent",
@@ -415,13 +478,46 @@ def gen_latex_table_sent_features(tl17_entries, crisis_entries):
         "ap-abstractive-globaltr-dateref-clsize-path.json+sent"
     ]
 
+    tl17_sig_diff_sys = {}
+    crisis_sig_diff_sys = {}
+
+    for base_system in [
+        "ap-abstractive-temptr-dateref-clsize",
+        "ap-abstractive-datetr-dateref",
+        "ap-abstractive-globaltr-dateref-clsize"
+    ]:
+        sys_1 = base_system + ".json+sent"
+        sys_2 = base_system + "-path.json+sent"
+
+        tl17_sig_diff_sys.update(create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2))
+        crisis_sig_diff_sys.update(create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2))
+
+    for sys_1, sys_2 in [
+        ["ap-abstractive-temptr-dateref-clsize.json+sent", "ap-abstractive-temptr.json+sent"],
+        ["ap-abstractive-datetr-dateref.json+sent", "ap-abstractive-datetr-noclsize.json+sent"],
+        ["ap-abstractive-globaltr-dateref-clsize.json+sent", "ap-abstractive-globaltr.json+sent"],
+    ]:
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2, symbol="\\dagger").items():
+            tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2, symbol="\\dagger").items():
+            crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+    for sys_1, sys_2, symbol in [
+        ["ap-abstractive-temptr-dateref-clsize-path.json+sent", "ap-abstractive-datetr-dateref-path.json+sent", "a"],
+        ["ap-abstractive-datetr-dateref-path.json+sent", "ap-abstractive-globaltr-dateref-clsize-path.json+sent", "b"],
+        #["ap-abstractive-globaltr-dateref-clsize.json+sent", "ap-abstractive-globaltr-noclsize.json+sent"],
+    ]:
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2, symbol=symbol).items():
+            tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2, symbol=symbol).items():
+            crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+
     all_names = sorted(filter(lambda n: n in systems, set(tl17_entries.keys()) & set(crisis_entries.keys())))
 
     lines = []
-
-    longest_name_len = max(map(len, all_names))
-
-    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 agree", "R2 agree", "R1 align", "R2 align"
 
     lines.append(" & Date & \\multicolumn{ 2 }{|c|}{Concat} & \\multicolumn{ 2 }{|c|}{Agree} & \\multicolumn{ 2 }{|c|}{Align} \\\\")
     lines.append(" & F1 & R1 & R2 & R1 & R2 & R1 & R2 \\\\\hline\hline")
@@ -429,20 +525,22 @@ def gen_latex_table_sent_features(tl17_entries, crisis_entries):
     #lines.append("\\hline {}\t& {}\\\\\\hline".format("System".ljust(longest_name_len), "\t& ".join(val_headers)))
 
     lines.append("\\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
-    lines.extend(gen_table_part_for_corpus(all_names, tl17_entries))
-    lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split())  + 1, "Crisis"))
-    lines.extend(gen_table_part_for_corpus(all_names, crisis_entries))
+    lines.extend(gen_table_part_for_corpus(all_names, tl17_entries, tl17_sig_diff_sys))
+    lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Crisis"))
+    lines.extend(gen_table_part_for_corpus(all_names, crisis_entries, crisis_sig_diff_sys))
 
     print("\n".join(lines))
 
 
 
-def gen_table_part_for_corpus(all_names, all_result_entries):
+def gen_table_part_for_corpus(all_names, all_result_entries, significant_diff_systems=set()):
     lines = []
     all_cells = np.empty(shape=(len(all_names), len(metrics.split())))
     for idx, system in enumerate(all_names):
         entry = all_result_entries[system]
         all_cells[idx,:] = entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1
+
+    all_cells = np.round(all_cells, 3)
 
     col_maxima = np.max(all_cells, axis=0)
 
@@ -456,10 +554,15 @@ def gen_table_part_for_corpus(all_names, all_result_entries):
             if cell_val == col_maxima[col_idx]:
                 mark_bold = True
 
+            cell_str = "{:.3f}".format(cell_val)
+
             if mark_bold:
-                data_cells.append("\\textbf{{{:.3f}}}".format(cell_val))
-            else:
-                data_cells.append("{:.3f}".format(cell_val))
+                cell_str = "\\textbf{{{}}}".format(cell_str)
+
+            if (system, metrics.split()[col_idx]) in significant_diff_systems:
+                cell_str += "$^{{{}}}$".format("".join(significant_diff_systems[system, metrics.split()[col_idx]]))
+
+            data_cells.append(cell_str)
 
         cl_method, score_func = clusterer_and_score_func_name_from_system_description(system)
 
@@ -481,6 +584,9 @@ def gen_table_part_for_corpus_tok(all_names, all_result_entries, significant_dif
         entry_tok = all_result_entries[system + "+tok"]
         all_cells_sent[idx,:] = entry_sent.datesel.f1, entry_sent.rouge_1_concat.f1, entry_sent.rouge_2_concat.f1, entry_sent.rouge_1_agree.f1, entry_sent.rouge_2_agree.f1, entry_sent.rouge_1_align.f1, entry_sent.rouge_2_align.f1
         all_cells_tok[idx,:] = entry_tok.datesel.f1, entry_tok.rouge_1_concat.f1, entry_tok.rouge_2_concat.f1, entry_tok.rouge_1_agree.f1, entry_tok.rouge_2_agree.f1, entry_tok.rouge_1_align.f1, entry_tok.rouge_2_align.f1
+
+    all_cells_sent = np.round(all_cells_sent, 3)
+    all_cells_tok = np.round(all_cells_tok, 3)
 
     col_maxima = np.max(all_cells_tok, axis=0)
 

@@ -1065,7 +1065,7 @@ For our setup, we have $h = 8$ due to the way sentences are generated (see secti
 Note that with this selection algorithm it is no longer necessary to limit the number of generated sentences to just 200, so we move the limit to 2500 sentences.
 We do not completely eliminate the limit, because the huge number of possible paths in a graph makes it infeasible to always generate all simple paths. The cubic complexity of the k-shortest simple paths algorithm further limits the number of sentences we can generate in an acceptable timeframe.
 
-\chapter{Experimental Setup} \label{sec:setup}
+\chapter{Corpora and Experimental Setup} \label{sec:setup}
 
 \section{Corpora} \label{sec:corpora}
 
@@ -1109,7 +1109,7 @@ Crisis & 22 & 18,246 & 689,165 \\\hline
 Our approach needs all input documents to be annotated with part-of-speech tags, which we obtain by running the POS-tagger included in the Stanford CoreNLP suite of NLP tools \citep{stanford-corenlp}. The suite also takes care of proper tokenization and sentence splitting for us.
 To obtain sentence level date annotations, we run the HeidelTime tagger \citet{heideltime}. Heideltime is a rule based system that tags date expressions in a corpus and labels them according to the Timex3\footnote{\url{http://www.timeml.org/}} annotation standard.
 
-\section{Setting and Statistics}
+\section{Experimental Setting}
 
 As \citet{markert} note, there are a number of different settings for TLS.
 We follow the evaluation setup they propose and parameterize our timelines by two properties: Number of dates and number of sentences per date. Both are set from the reference timelines, where the number of sentences per date is the rounded-down average of sentences per date in the reference timeline.
@@ -1120,7 +1120,53 @@ We thus also evaluate each system using constraint for the number of tokens in a
 As timelines also differ in length and covered time periods, we follow \citet{markert} and generate one system timeline per reference timeline with the appropriate parameters. The desired date range of the output is set from the first and last date of the timeline, the number of dates allowed is the number of dates in the reference and the per-summary length constraint is determined by averaging the number of sentences or tokens per daily summary in the reference.
 
 We run the clustering and sentence generation only once for every topic and afterwards restrict the generated clusters to the appropriate date range for each timeline.
-Table \ref{tab:genstats} shows the average number of clusters and the average number of generated clusters for the topic in our two evaluation copora.
+
+
+\section{Corpus Statistics} \label{sec:setup-stats}
+
+Before we evaluate our systems, we first gather some statistics about the properties of our corpus.
+One characteristic we have repeatedly emphazised is the importance of date references in sentences.
+To quantify their importance, we count the number of sentences references in each corpus, that have an exact reference to a date that is not the publishing date.
+We also count the number of times the ten most frequent dates in every topic are refered to by documents published at another date.
+In table \ref{tab:} we show the two statistics for both our corpora.
+
+\begin{table}
+\begin{tabular}{|l|cc|}
+Corpus & Num. sents with outside reference & Avg. Num. Docs @ 10 \\\hline
+Timeline 17 & 15,300 & 24.1 \\
+Crisis & 44,971 & 94.6 \\\hline
+\end{tabular}
+\end{table}
+
+This result confirms our assumption, that important dates are mentioned across many documents in the corpus. It also shows that there are many sentences with references to dates that are not the same as their publishing dates. This highlights the potential benefits of tagging sentences individually and allowing sentences that are part of documents published at different dates to be clustered together.
+
+We also evaluate the characteristics of our three clustering approaches on the two corpora.
+Table \ref{tab:genstats} shows the average number of clusters and the average number of generated candidates for our two evaluation corpora.
+
+\begin{table}
+\begin{tabular}{|l|cc|}
+Corpus & Avg. num. of clusters & Avg. num. of candidates \\\hline
+\multicolumn{3}{|l|}{Timeline 17}\\\hline
+Affinity Propagation & 3,816.3 & 233,330.6 \\
+Agglomerative  & 224.7 & 46,198.8 \\
+Document (Baseline) & 530.1 & 2,368.3 \\\hline
+\multicolumn{3}{|l|}{Crisis}\\\hline
+Affinity Propagation & 21,094.8 & 1,615,968.2 \\
+Agglomerative & 1,060.5 & 298,811.5 \\
+Document (Baseline) & 4,872.3 & 21,453.0 \\\hline
+\end{tabular}
+\caption{}
+\label{tab:genstats}
+\end{table}
+
+We can see that our two newly developed clustering algorithms generate for clusters and thus also more candidates than the document based clustering of our baseline. Especially the gap to affinity propagation is big.
+Another noticable observation is that fact that while Agglomerative clustering produces fewer clusters than document based clustering, it generates more candidates. This suggests that clusters on the baseline lack the ability to create graphs from which new sentences can be generated.
+
+The results also show the difference in scale between extractive summarization and our approach to abstractive summarization.
+While topics have an average of $150,438.5$ sentences for the crisis corpus, the number of candidates is ten times that.
+The picture is similar on the Timeline 17 corpus, where an average of $27,218.7$ sentences per topic, turns into $233,330.6$ generated candidates. Note though, that not all sentences and candidates will be involved in the generation of every timeline, as some of the dates fall outside their covered date range.
+Still, results show that our abstractive sentence generation system vastly increases the number of sentences available for summarization.
+
 
 %\section{System Configurations}
 %
@@ -1222,8 +1268,7 @@ We check for significant differences in the results using an approximate randomi
 
 We first evaluate the results of our oracle summarizers. The results for the sentence constraint setting are shown in table \ref{tab:results-oracle-sent}, the results for the tokent constraint setting in table \ref{tab:results-oracle-tok}.
 
-The first interesting finding is that the choice of length constraint does not seem to have a big influence on the results of the oracle summaries, except for the abstractive oracle, which gains statistically significant improvements with the change in constraint.
-This might be related to the fact that the abstractive oracle can generate many short sentences and thus fit in more content in the timeline.
+The first interesting finding is that the choice of length constraint does not seem to have a big influence on the results of the oracle summaries. Even where the differences are statistically significant, they are usually small.
 We identify the same trends in both setting, so we focus on the results for sentence constraints.
 
 %We find that the document clustering method of the baseline performs far worse than the other two clustering methods. Manual analysis reveals that this is in part due to the pipelined date selection. As the dates are selected before the system is run, it is possible that the system does not find a
@@ -1302,30 +1347,34 @@ Scores are very low, with almost every system taking the lead in at least one ca
 \makebox[\textwidth][c]{
 \begin{tabular}{|l|c|cc|cc|cc|}
 \hline
- & Date & \multicolumn{ 2 }{c}{Concat} & \multicolumn{ 2 }{|c|}{Agree} & \multicolumn{ 2 }{c|}{Align} \\
+ & Date & \multicolumn{ 2 }{|c|}{Concat} & \multicolumn{ 2 }{|c|}{Agree} & \multicolumn{ 2 }{|c|}{Align} \\
  & F1 & R1 & R2 & R1 & R2 & R1 & R2 \\\hline\hline
-\multicolumn{ 8 }{|l|}{ \textbf{ Timeline 17 } }\\\hline
-\multicolumn{ 8 }{|l|}{ \textit{ Agglomerative Clustering } }\\\hline
-$f_{ ling*TR^{(date)} }$     & 0.386    & 0.303 & 0.058 & 0.052 & 0.014 & 0.064 & 0.015 \\\hline
-$f_{ ling*TR^{(global)} }$   & 0.403    & 0.312 & 0.062 & 0.053 & 0.013 & 0.065 & 0.015 \\\hline
-$f_{ \text{ling}*TR^{(cluster)} }$   & 0.407    & 0.305 & 0.060 & 0.056 & 0.016 & 0.067 & 0.017 \\\hline
-$f_{ ling*TR^{(temp)} }$     & 0.398    & 0.311 & 0.060 & 0.056 & 0.016 & 0.068 & 0.017 \\\hline
-\multicolumn{ 8 }{|l|}{ \textit{ Affinity Propagation } }\\\hline
-$f_{ ling*TR^{(date)} }$     & 0.434    & 0.345 & 0.073 & 0.068 & 0.016 & 0.079 & 0.018 \\\hline
-$f_{ ling*TR^{(global)} }$   & 0.448    & 0.346 & 0.069 & 0.065 & 0.014 & 0.078 & 0.016 \\\hline
-$f_{ \text{ling}*TR^{(cluster)} }$   & \textbf{ 0.473 } & 0.338 & 0.068 & 0.063 & 0.014 & 0.073 & 0.016 \\\hline
-$f_{ ling*TR^{(temp)} }$     & 0.448    & \textbf{ 0.356 }  & \textbf{ 0.075 }  & \textbf{ 0.071 }  & \textbf{ 0.018 }  & \textbf{ 0.084 }  & \textbf{ 0.020 } \\\hline
-\hline\multicolumn{ 8 }{|l|}{ \textbf{ Crisis } }\\\hline
-\multicolumn{ 8 }{|l|}{ \textit{ Agglomerative Clustering } }\\\hline
-$f_{ ling*TR^{(date)} }$     & 0.100    & 0.325 & 0.049 & 0.015 & 0.004 & 0.028 & 0.005 \\\hline
-$f_{ ling*TR^{(global)} }$   & 0.122    & 0.319 & 0.046 & 0.017 & 0.003 & 0.033 & 0.004 \\\hline
-$f_{ \text{ling}*TR^{(cluster)} }$   & 0.162    & 0.320 & 0.048 & 0.023 & \textbf{ 0.005 }  & 0.038 & \textbf{ 0.007 } \\\hline
-$f_{ ling*TR^{(temp)} }$     & 0.116    & 0.323 & 0.046 & 0.016 & 0.003 & 0.028 & 0.005 \\\hline
-\multicolumn{ 8 }{|l|}{ \textit{ Affinity Propagation } }\\\hline
-$f_{ ling*TR^{(date)} }$     & 0.063    & \textbf{ 0.329 }  & 0.050 & 0.007 & 0.001 & 0.019 & 0.003 \\\hline
-$f_{ ling*TR^{(global)} }$   & \textbf{ 0.206 } & 0.299 & 0.049 & \textbf{ 0.026 }  & 0.004 & \textbf{ 0.040 }  & 0.005 \\\hline
-$f_{ \text{ling}*TR^{(cluster)} }$   & 0.181    & 0.327 & 0.045 & 0.016 & 0.002 & 0.030 & 0.003 \\\hline
-$f_{ ling*TR^{(temp)} }$     & 0.125    & 0.324 & \textbf{ 0.057 }  & 0.015 & 0.002 & 0.032 & 0.004 \\\hline
+\multicolumn{8}{|l|}{ \textbf{Timeline 17}}\\\hline
+\multicolumn{8}{|l|}{ \textit{Agglomerative Clustering} }\\\hline
+$f_{ling*TR^{(date)}}$   & 0.446    & 0.302 & 0.056 & 0.056 & 0.013 & 0.068 & 0.014 \\\hline
+$f_{ling*TR^{(global)}}$     & 0.460    & 0.315 & 0.063$^{b}$   & 0.059 & 0.013 & 0.070 & 0.015 \\\hline
+$f_{\text{ling}*TR^{(cluster)}}$     & 0.461    & 0.305$^{\dagger}$ & 0.058$^{\dagger}$ & 0.059$^{\dagger}$ & 0.014$^{\dagger}$ & 0.069$^{\dagger}$ & 0.016$^{\dagger}$ \\\hline
+$f_{ling*TR^{(temp)}}$   & 0.452    & 0.308 & 0.058 & 0.059 & 0.014$^{a}$   & 0.070 & 0.016$^{a}$ \\\hline
+\multicolumn{8}{|l|}{ \textit{Affinity Propagation} }\\\hline
+$f_{ling*TR^{(date)}}$   & 0.474    & 0.347 & 0.074$^{*}$   & 0.073$^{*}$   & 0.017 & 0.084$^{*}$   & 0.019 \\\hline
+$f_{ling*TR^{(global)}}$     & 0.515$^{*}$  & 0.352 & 0.071 & 0.073$^{*}$   & 0.016 & 0.084$^{*}$   & 0.017 \\\hline
+$f_{\text{ling}*TR^{(cluster)}}$     & 0.509    & 0.338$^{\dagger}$ & 0.068$^{\dagger}$ & 0.067$^{\dagger}$ & 0.014$^{\dagger}$ & 0.076$^{\dagger}$ & 0.016$^{\dagger}$ \\\hline
+$f_{ling*TR^{(temp)}}$   & 0.488    & \textbf{0.361}$^{*}$  & \textbf{0.077}$^{*}$  & \textbf{0.078}$^{*}$  & \textbf{0.020}$^{*}$  & \textbf{0.090}$^{*}$  & \textbf{0.022}$^{*}$ \\\hline
+\multicolumn{8}{|l|}{ \textit{Document-Guided Clustering} }\\\hline
+$f_{\text{ling}*TR^{(cluster)}}$     & \textbf{0.559}$^{\dagger\dagger}$    & 0.120 & 0.025 & 0.020 & 0.005 & 0.022 & 0.005 \\\hline
+\hline\multicolumn{8}{|l|}{ \textbf{Crisis}}\\\hline
+\multicolumn{8}{|l|}{ \textit{Agglomerative Clustering} }\\\hline
+$f_{ling*TR^{(date)}}$   & 0.086    & 0.321 & 0.049 & 0.014$^{*}$   & 0.003 & 0.027$^{*}$   & 0.005 \\\hline
+$f_{ling*TR^{(global)}}$     & 0.120$^{b}$  & 0.324 & 0.047 & 0.019 & 0.003 & 0.034$^{b}$   & 0.005 \\\hline
+$f_{\text{ling}*TR^{(cluster)}}$     & 0.136    & 0.317$^{\ddagger}$    & 0.048$^{\ddagger}$    & 0.022 & \textbf{0.006}$^{*}$  & 0.037$^{\ddagger}$    & \textbf{0.007}$^{*\ddagger}$ \\\hline
+$f_{ling*TR^{(temp)}}$   & 0.094    & 0.323 & 0.046 & 0.015 & 0.004 & 0.027 & 0.005 \\\hline
+\multicolumn{8}{|l|}{ \textit{Affinity Propagation} }\\\hline
+$f_{ling*TR^{(date)}}$   & 0.056    & 0.324 & 0.048 & 0.006 & 0.001 & 0.015 & 0.003 \\\hline
+$f_{ling*TR^{(global)}}$     & 0.208$^{*}$  & 0.294$^{*}$   & 0.050 & \textbf{0.027}$^{*}$  & 0.004$^{b}$   & \textbf{0.041}$^{*}$  & 0.006 \\\hline
+$f_{\text{ling}*TR^{(cluster)}}$     & 0.161    & \textbf{0.331}$^{\ddagger}$   & 0.050$^{\ddagger}$    & 0.019 & 0.002 & 0.033 & 0.003 \\\hline
+$f_{ling*TR^{(temp)}}$   & 0.109$^{a}$  & 0.318 & \textbf{0.055}$^{*}$  & 0.012$^{a}$   & 0.001 & 0.027$^{a}$   & 0.004 \\\hline
+\multicolumn{8}{|l|}{ \textit{Document-Guided Clustering} }\\\hline
+$f_{\text{ling}*TR^{(cluster)}}$     & \textbf{0.302}$^{\ddagger\ddagger}$  & 0.216 & 0.027 & 0.019 & 0.003 & 0.025 & 0.003 \\\hline
 \end{tabular}
 }
 \end{centering}
@@ -1354,27 +1403,26 @@ This also reveals a problem with this evaluation corpus. While there is a total 
  & Date & \multicolumn{ 2 }{|c|}{Concat} & \multicolumn{ 2 }{|c|}{Agree} & \multicolumn{ 2 }{|c|}{Align} \\
  & F1 & R1 & R2 & R1 & R2 & R1 & R2 \\\hline\hline
 \multicolumn{8}{|l|}{ \textbf{Timeline 17}}\\\hline
-$f_{ling*TR^{(date)}*\text{dateref}*\text{path}}$    & \textbf{0.519}   & 0.334 & 0.080 & \textbf{0.079}    & 0.023 & \textbf{0.089}    & 0.025 \\\hline
-$f_{ling*TR^{(date)}*\text{dateref}}$    & 0.511    & 0.355 & 0.077 & 0.078 & 0.021 & 0.088 & 0.022 \\\hline
-$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}*\text{path}}$     & 0.507    & 0.334 & \textbf{0.084}    & 0.075 & 0.022 & 0.084 & 0.025 \\\hline
-$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}}$     & 0.508    & 0.356 & 0.077 & 0.075 & 0.019 & 0.085 & 0.020 \\\hline
+$f_{ling*TR^{(date)}*\text{dateref}*\text{path}}$    & \textbf{0.519}   & 0.334 & 0.080 & \textbf{0.079}    & \textbf{0.023}    & \textbf{0.089}    & \textbf{0.025} \\\hline
+$f_{ling*TR^{(date)}*\text{dateref}}$    & 0.511$^{\dagger}$    & 0.355 & 0.077 & 0.078 & 0.020 & 0.088 & 0.022 \\\hline
+$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}*\text{path}}$     & 0.507    & 0.334 & \textbf{0.084}    & 0.075 & 0.022 & 0.084 & \textbf{0.025} \\\hline
+$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}}$     & 0.508$^{\dagger}$    & 0.356$^{*}$   & 0.077 & 0.075$^{\dagger}$ & 0.019$^{\dagger}$ & 0.085 & 0.020$^{\dagger}$ \\\hline
 $f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}*\text{path}}$   & 0.507    & 0.332 & 0.083 & 0.075 & \textbf{0.023}    & 0.085 & \textbf{0.025} \\\hline
-$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}}$   & 0.511    & \textbf{0.362}    & 0.079 & 0.074 & 0.018 & 0.085 & 0.020 \\\hline
+$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}}$   & 0.511$^{\dagger}$    & \textbf{0.362}$^{*}$  & 0.079 & 0.074 & 0.018 & 0.085 & 0.020 \\\hline
 \hline\multicolumn{8}{|l|}{ \textbf{Crisis}}\\\hline
-$f_{ling*TR^{(date)}*\text{dateref}*\text{path}}$    & 0.318    & 0.342 & \textbf{0.081}    & \textbf{0.072}    & \textbf{0.027}    & \textbf{0.087}    & \textbf{0.029} \\\hline
-$f_{ling*TR^{(date)}*\text{dateref}}$    & 0.310    & \textbf{0.349}    & 0.060 & 0.055 & 0.011 & 0.071 & 0.014 \\\hline
+$f_{ling*TR^{(date)}*\text{dateref}*\text{path}}$    & 0.318    & 0.342 & \textbf{0.081}$^{ab}$ & \textbf{0.072}$^{b}$  & \textbf{0.027}$^{*ab}$    & \textbf{0.087}$^{ab}$ & \textbf{0.029}$^{*ab}$ \\\hline
+$f_{ling*TR^{(date)}*\text{dateref}}$    & 0.310$^{\dagger}$    & \textbf{0.349}$^{\dagger}$    & 0.060$^{*\dagger}$    & 0.055$^{*\dagger}$    & 0.011$^{\dagger}$ & 0.071$^{*\dagger}$    & 0.014$^{\dagger}$ \\\hline
 $f_{ling*TR^{(global)}*\text{dateref}*\text{csize}*\text{path}}$     & 0.309    & 0.338 & 0.072 & 0.056 & 0.015 & 0.069 & 0.017 \\\hline
-$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}}$     & 0.293    & 0.337 & 0.057 & 0.045 & 0.009 & 0.060 & 0.011 \\\hline
-$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}*\text{path}}$   & \textbf{0.320}   & 0.331 & 0.071 & 0.059 & 0.016 & 0.071 & 0.017 \\\hline
-$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}}$   & 0.295    & 0.344 & 0.059 & 0.045 & 0.007 & 0.061 & 0.009 \\\hline
+$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}}$     & 0.293$^{\dagger}$    & 0.337 & 0.057$^{*}$   & 0.045$^{*\dagger}$    & 0.009$^{*\dagger}$    & 0.060$^{*\dagger}$    & 0.011$^{*\dagger}$ \\\hline
+$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}*\text{path}}$   & \textbf{0.320}$^{*}$ & 0.331 & 0.071 & 0.059 & 0.016$^{*}$   & 0.071 & 0.017 \\\hline
+$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}}$   & 0.295$^{\dagger}$    & 0.344 & 0.059 & 0.045$^{\dagger}$ & 0.007$^{\dagger}$ & 0.061$^{\dagger}$ & 0.009$^{\dagger}$ \\\hline
 \hline\multicolumn{8}{|l|}{ \textbf{Crisis without Libya}}\\\hline
 $f_{ling*TR^{(date)}*\text{dateref}*\text{path}}$    & 0.295    & 0.334 & \textbf{0.074}    & \textbf{0.063}    & \textbf{0.020}    & \textbf{0.078}    & \textbf{0.022} \\\hline
-$f_{ling*TR^{(date)}*\text{dateref}}$    & 0.310    & \textbf{0.351}    & 0.063 & 0.060 & 0.013 & 0.076 & 0.015 \\\hline
-$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}*\text{path}}$     & 0.316    & 0.347 & 0.072 & 0.058 & 0.016 & 0.072 & 0.018 \\\hline
-$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}}$     & 0.305    & 0.330 & 0.055 & 0.048 & 0.009 & 0.061 & 0.010 \\\hline
-$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}*\text{path}}$   & \textbf{0.331}   & 0.335 & 0.070 & 0.061 & 0.016 & 0.074 & 0.018 \\\hline
-$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}}$   & 0.310    & 0.344 & 0.059 & 0.049 & 0.007 & 0.064 & 0.009 \\\hline
-\end{tabular}
+$f_{ling*TR^{(date)}*\text{dateref}}$    & 0.310$^{\dagger}$    & \textbf{0.351}$^{\dagger}$    & 0.063$^{\dagger}$ & 0.060$^{\dagger}$ & 0.013$^{\dagger}$ & 0.076$^{\dagger}$ & 0.015$^{\dagger}$ \\\hline
+$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}*\text{path}}$     & 0.316    & 0.347$^{b}$   & 0.072 & 0.058 & 0.016 & 0.072 & 0.018 \\\hline
+$f_{ling*TR^{(global)}*\text{dateref}*\text{csize}}$     & 0.305$^{\dagger}$    & 0.330 & 0.055$^{*}$   & 0.048$^{\dagger}$ & 0.009 & 0.061$^{\dagger}$ & 0.010 \\\hline
+$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}*\text{path}}$   & \textbf{0.331}$^{a}$ & 0.335 & 0.070 & 0.061 & 0.016 & 0.074 & 0.018 \\\hline
+$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}}$   & 0.310$^{\dagger}$    & 0.344 & 0.059 & 0.049$^{\dagger}$ & 0.007$^{\dagger}$ & 0.064$^{\dagger}$ & 0.009$^{\dagger}$ \\\hline\end{tabular}
 \caption{Evaluation results for affinity propgation with additional features}
 \label{tab:results-features}
 
@@ -1508,7 +1556,9 @@ We now evaluate the effect of constraining the number of tokens, instead of the 
 The compare the results for the system with features in both settings and show the results in table \ref{tab:results-token}.
 
 We can find the same general picture in the results, as in the sentence constraint case. The $TR^{(date)}$ system with path weight remains the strongest system on the crisis corpus and all systems with path weight are closely tied on the Timeline 17 dataset.
-While the effect of switching to token constraint is mostly positive for the path weight scoring functions, sometimes even resulting in significant score increases, it is mostly negative for systems without the path constraint. We speculate that this postive effect can in part be explained by the fact that the path weighted system produces very short sentences in both settings. By switching to a token constraint setting, the system can integrate more of these short sentences in the summaries and thus improve scores.
+While the effect of switching to token constraint is mostly positive for the path weight scoring functions, sometimes even resulting in significant score increases, it is mostly negative for systems without the path constraint. We speculate that this postive effect can in part be explained by the fact that the path weighted system selects very short sentences in both settings.
+For example, the average length of a sentence selected by the AP+$f_{ling*TR^{(temp)}*\text{dateref}*\text{csize}}$ setting is around 45, in the sentence constraint setting and around 40 in the token constraint setting, the system with path weight selects sentences with an average length of 15 tokens in both settings.
+By switching to a token constraint setting, the system can integrate more of these short sentences in the summaries and thus improve scores.
 
 
 %We present the results for token constraints in table \ref{tab:results-token}.
@@ -1684,7 +1734,7 @@ This mirrors a problem encountered by \citet{mckeown}, where the language model 
 \subsubsection{Incomplete sentences}
 
 On the other end of the spectrum, we have sentences where crucial parts are missing, making the sentence ungrammatical. It thus appears that the heuristic filtering methods we have introduced for sentences are not sufficient.
-See the following example, generated by the AP+$f_{ ling*TR^{(date)}*\mathit{dateref}*\mathit{csize}*\mathit{path} } where we miss a verb in the subclause.
+See the following example, generated by the AP+$f_{ ling*TR^{(date)}*\mathit{dateref}*\mathit{csize}*\mathit{path} }$ where we miss a verb in the subclause.
 
 \countquote{
     U.S. defense robert gates said the fall of saleh as a ''real problem.''
@@ -1761,7 +1811,7 @@ A pair $(X, \mathcal{I})$, where $X$ is a finite set and $\mathcal{I} \subset 2^
 \end{definition}
 
 \begin{definition}
-Let $(X, \mathcal{I})$ be an independence system. The set of bases for a set $Y \subseteq X$ is $\mathcal{B}(Y) = \{B | B \subseteq X, B \in \mathcal{I} \mathit{ and } B \mathit{ is maximal} \}$
+Let $(X, \mathcal{I})$ be an independence system. The set of bases for a set $Y \subseteq X$ is $\mathcal{B}(Y) = \{B | B \subseteq Y, B \in \mathcal{I} \mathit{ and } B \mathit{ is maximal} \}$
 \end{definition}
 
 
@@ -1779,7 +1829,7 @@ Following \citet{markert}, we know that if we can proof that the set of generate
 We first prove that the constraints \ref{eq:constr-cluster}, \ref{eq:constr-date} and \ref{eq:constr-len-sent} form a $p$-independence system with $p = k_{sent}$.
 The proof is almost the same as the one \citet{markert} give for their constraints, but includes the clustering constraint \ref{eq:constr-cluster}.
 
-Let $Y \subseteq G$ and let $m = \min \{ k_{sent}, |\{\mathit{date}(s) | s \in Y\}| \}$.
+Let $Y \subseteq G$ and let $m = \min \{ l, |\{\mathit{date}(s) | s \in Y\}| \}$.
 We show that 
 \begin{equation}
 \max_{A \in \mathcal{B}(Y)} |A| \leq m * k_{sent} \label{eq:upper}
