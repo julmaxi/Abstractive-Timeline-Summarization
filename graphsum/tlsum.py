@@ -1692,7 +1692,7 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                     score, info = score_func(candidate, info)
                     cluster_candidates.append((candidate, score, info))
 
-                print(cluster_date, cl_rank + 1)
+                print(cluster_date, cl_rank + 1, len(cluster_candidates))
                 for item in cluster:
                     print(item.as_tokenized_string(), item.document.dct_tag)
                 print("\n")

@@ -1344,6 +1344,7 @@ Extractive & 0.542&0.359&0.113&0.170&0.100&0.175&0.101\\\hline
 
 
 We now evaluate our clustering algorithms in a practical context, along with our modified TextRank functions.
+We evaluate our two clustering methods, along with the TextRank variants we have developed to score informativeness. Senetence selection is conducted with the submodular method. For comparison, we also run our baseline system, which means prior date selection, document based clustering, per-cluster informativeness score and ILP based sentences selection.
 The results are shown in table \ref{tab:eval-cl-tr}.
 
 We find that while both our clustering algorithms outperform the document-clustering baseline in most cases, the affinity propagation clustering seems to work much better than the agglomerative multiclustering system. This confirms the results of the oracle summarization, where the affinity propagation oracle outperformed the agglomerative clustering based system considerably.
@@ -1372,7 +1373,7 @@ $f_{ling*TR^{(date)}}$   & 0.434    & 0.345 & 0.073$^{*}$   & 0.068$^{*}$   & 0.
 $f_{ling*TR^{(global)}}$     & 0.477    & 0.347 & 0.069 & 0.067$^{*}$   & 0.015 & 0.079$^{*}$   & 0.016 \\\hline
 $f_{\text{ling}*TR^{(cluster)}}$     & 0.473    & 0.338$^{\dagger}$ & 0.068$^{\dagger}$ & 0.063$^{\dagger}$ & 0.014$^{\dagger}$ & 0.073$^{\dagger}$ & 0.016$^{\dagger}$ \\\hline
 $f_{ling*TR^{(temp)}}$   & 0.448    & \textbf{0.356}$^{a}$  & \textbf{0.075}$^{*}$  & \textbf{0.071}    & \textbf{0.018}    & \textbf{0.084}$^{*}$  & \textbf{0.020}$^{b}$ \\\hline
-\multicolumn{8}{|l|}{ \textit{Document-Guided Clustering} }\\\hline
+\multicolumn{8}{|l|}{ \textit{Document-Guided Clustering + ILP + Date Selection (Baseline)} }\\\hline
 $f_{\text{ling}*TR^{(cluster)}}$     & \textbf{0.521}$^{\dagger\ddagger}$   & 0.131 & 0.026 & 0.018 & 0.004 & 0.021 & 0.004 \\\hline
 \hline\multicolumn{8}{|l|}{ \textbf{Crisis}}\\\hline
 \multicolumn{8}{|l|}{ \textit{Agglomerative Clustering} }\\\hline
@@ -1385,7 +1386,7 @@ $f_{ling*TR^{(date)}}$   & 0.056    & 0.324 & 0.048 & 0.006 & 0.001 & 0.015 & 0.
 $f_{ling*TR^{(global)}}$     & 0.208$^{*}$  & 0.294$^{*}$   & 0.050 & \textbf{0.027}$^{*}$  & 0.004$^{b}$   & \textbf{0.041}$^{*}$  & 0.006 \\\hline
 $f_{\text{ling}*TR^{(cluster)}}$     & 0.161    & \textbf{0.331}$^{\dagger}$    & 0.050$^{\dagger}$ & 0.019 & 0.002 & 0.033 & 0.003 \\\hline
 $f_{ling*TR^{(temp)}}$   & 0.109$^{a}$  & 0.318 & \textbf{0.055}$^{*}$  & 0.012$^{a}$   & 0.001 & 0.027$^{a}$   & 0.004 \\\hline
-\multicolumn{8}{|l|}{ \textit{Document-Guided Clustering} }\\\hline
+\multicolumn{8}{|l|}{ \textit{Document-Guided Clustering + ILP + Date Selection (Baseline)} }\\\hline
 $f_{\text{ling}*TR^{(cluster)}}$     & \textbf{0.302}$^{\dagger\ddagger}$   & 0.216 & 0.027 & 0.019 & 0.003 & 0.025 & 0.003 \\\hline
 \end{tabular}
 }
@@ -1729,12 +1730,6 @@ This points to multiple problems:
     \item{The redundancy component of the submodular function does not prevent the inclusion of the redundant sentences }
 \end{itemize}
 
-
-1) exploded April 20 killing 11 workers
-(3rd largest)
-2) Oil has been leaking
-3)
-
 The first concern suggests it might be worth investigating the output of the clusterer more closely.
 We refer to the clusters as cluster 1, 2, 3 and 4, corresponding to the order of their representatives in example \ref{ex:redundancy}.
 We find that the four clusters differ in subtle ways.
@@ -1742,10 +1737,21 @@ For example, ~70\% of sentences in cluster 3 contain the word ''explosion'', whi
 While the word ''spill'' is mentioned in clusters 1 and 3 in almost one-third of the sentences, it is only once mentioned in clusters 2 and 4., which instead have a higher frequency of the word ''leaking'', as in ''leaking oil''.
 It is unsurprising that our tf-idf model is not able to pick up on these slight variations that allow the sentences to end up in different clusters. As \citet{chieu} has already noted, cosine similarity does not reliably predict whether two sentences report the same event.
 
-The problem is further aggrevated by the fact that the initial explosion of the platform is a key event to 
+The problem is further aggrevated by the fact, that the initial explosion of the platform is a key event to the oil spill corpus and is thus mentioned relatively frequently. The clusters are the 3rd, 7th, 2nd and 1st largest clusters on the corpus. Members of these clusters thus have a large number of very similar sentences. The preference values that guide how likely it is for a sentence $s$ to become an exemplar are based on the median of incoming similarities for $s$ and thus these values are bound to be higher for these sentences.
+Higher preference values in turn result in more, smaller clusters \citep{ap}, which further explains the results we see here.
 
+Fixing this problem would require us to introduce a more sophistic similarity metric. Alternatively, it might be reasonable to investigate ways in which we can avoid the bias towards splitting these large clusters of sentences up into smaller sentences.
 
-An investigation of the partitioning for the redundancy function, which is different from the clusters for sentence generation, reveals that none of the four sentences were clustered into the same partition. Apparently the k-means algorithm divides the huge number of candidates that were generated from the large clusters we have described before into multiple partitions, so they are not subject to the redundancy constraints.
+For the second problem, we have formed two hypothesis for the cause. Either the scores of the sentences are so high, they are still attractive, even if other sentences from the cluster have been selected already, or the partitioning does not assign the sentences into the same blocks.
+An investigation of the partitioning for the redundancy function reveals that none of the four sentences were clustered into the same partition and thus . The k-means algorithm divides the huge number of candidates that were generated from the large clusters we have described before into multiple partitions, so they are not recognised as being redundant.
+
+While this observation might point to problems in the selection of the number of clusters, we speculate that there is another factor at work here.
+Generally, k-means is not good at detecting clusters which have different sizes and densities \citep{introduction-data-mining-tan}.
+This is a problem in our case, as very important events that may have multiple (sentence generation) clusters that describe them as show above, will lead to a huge number of very similar sentences being generated for them. To illustrate that point, consider that the most productive of the fource clusters mentioned above has 672 distinct candidate sentences after filtering, while some cluster generate only one candidates.
+
+Due to the limitations of k-means, these large clusters of similar sentences may be broken up into smaller clusters, thus resulting in redundant sentences ending up in different blocks of the partitioning.
+
+To alleviate this problem we would need to either find a different clustering algorithm for our submodular function, or an alternative way to formulate redundancy that does not rely on clustering.
 
 \section{Ungrammatical sentences} \label{sec:errors-grammar}
 
