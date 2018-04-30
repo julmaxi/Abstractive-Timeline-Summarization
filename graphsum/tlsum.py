@@ -1650,6 +1650,23 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             "doc_count": corpus.num_documents
         }
 
+    def generate_date_docs_cluster_stats(self, corpus):
+        self.generator.prepare(corpus)
+        clusters = self.create_clusters(corpus)
+        dated_clusters = list(((cluster, self.cluster_dater.date_cluster(cluster)) for cluster in clusters))
+        cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
+
+        candidate_counts_per_date = Counter()
+        for ((cluster, cluster_date), candidates_and_info) in zip(dated_clusters, cluster_candidates):
+            candidate_counts_per_date[cluster_date] += len(candidates_and_info)
+
+        samples = []
+        for date in set(corpus.iter_dates()) | candidate_counts_per_date.keys():
+            n_docs = len(corpus.per_date_documents[date])
+            n_candidates = candidate_counts_per_date[date]
+            samples.append((n_docs, n_candidates))
+
+        return samples
 
     def generate_timelines(self, corpus, all_parameters, reference_timelines=None):
         self.scorer.prepare(corpus)
@@ -1692,13 +1709,13 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                     score, info = score_func(candidate, info)
                     cluster_candidates.append((candidate, score, info))
 
-                print(cluster_date, cl_rank + 1, len(cluster_candidates))
-                for item in cluster:
-                    print(item.as_tokenized_string(), item.document.dct_tag)
-                print("\n")
-                for cand, score, info in sorted(cluster_candidates, key=lambda x: x[1], reverse=True):
-                    print(" ".join(map(lambda x: x[0], cand)), score)
-                    print(info)
+                #print(cluster_date, cl_rank + 1, len(cluster_candidates))
+                #for item in cluster:
+                #    print(item.as_tokenized_string(), item.document.dct_tag)
+                #print("\n")
+                #for cand, score, info in sorted(cluster_candidates, key=lambda x: x[1], reverse=True):
+                #    print(" ".join(map(lambda x: x[0], cand)), score)
+                #    print(info)
 
                 cluster_candidates = list(map(lambda x: (x[0], x[1]), cluster_candidates))
             else:

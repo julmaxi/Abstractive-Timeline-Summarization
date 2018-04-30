@@ -800,70 +800,73 @@ def main():
 
     document_basedir = sys.argv[1]
 
-    all_docs = []
-    all_sents = []
-    all_cluster_sents = []
-
-    from nltk.stem.snowball import SnowballStemmer
-
-    stemmer = SnowballStemmer("english")
-
-    for cluster_id in os.listdir(document_basedir):
-        cluster_sentences = []
-
-        cluster_dir = os.path.join(document_basedir, cluster_id)
-        for doc_fname in os.listdir(cluster_dir):
-            if not doc_fname.endswith(".out"):
-                continue
-            reader = StanfordXMLReader()
-            document = reader.run(os.path.join(cluster_dir, doc_fname))
-            all_docs.append(list(map(lambda t: stemmer.stem(t), document.as_token_attr_sequence("form"))))
-
-            cluster_sentences.extend(list(map(lambda s: list(map(stemmer.stem, s)), document.as_sentence_attr_sequence("form"))))
-
-        all_sents.extend(cluster_sentences)
-        all_cluster_sents.append(cluster_sentences)
-
-    vectorizer = TfidfVectorizer("english")
-    vectorizer.fit(map(lambda d: " ".join(d), all_docs))
-    tf_idf = vectorizer.transform(map(lambda d: " ".join(d), all_sents))
-
-    start_idx = 0
-
-    for cluster_sents in all_cluster_sents:
-        if len(cluster_sents) == 0:
-            continue
-        end_idx = start_idx + len(cluster_sents)
-
-        global_sims = cosine_similarity(tf_idf[start_idx:end_idx])
-        print("G", len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(global_sims > 0.5))))))), len(all_docs))
-
-        local_tf_idf = TfidfVectorizer("english").fit_transform(map(lambda d: " ".join(d), cluster_sents))
-        local_sims = cosine_similarity(local_tf_idf)
-        print("L", len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(local_sims > 0.5))))))), len(all_docs))
-
-
-        start_idx = end_idx
-
-
-    sim_model = SklearnTfIdfCosineSimilarityModel()
-    #sim_model.fit(all_docs)
-
-    tf_idf = TfidfVectorizer("english").fit_transform(map(lambda d: " ".join(d), all_docs))
-    sims = cosine_similarity(tf_idf)
-
-    print(len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(sims > 0.5))))))))
+    #all_docs = []
+    #all_sents = []
+    #all_cluster_sents = []
+#
+    #from nltk.stem.snowball import SnowballStemmer
+#
+    #stemmer = SnowballStemmer("english")
+#
+    #for cluster_id in os.listdir(document_basedir):
+    #    cluster_sentences = []
+#
+    #    cluster_dir = os.path.join(document_basedir, cluster_id)
+    #    for doc_fname in os.listdir(cluster_dir):
+    #        if not doc_fname.endswith(".out"):
+    #            continue
+    #        reader = StanfordXMLReader()
+    #        document = reader.run(os.path.join(cluster_dir, doc_fname))
+    #        all_docs.append(list(map(lambda t: stemmer.stem(t), document.as_token_attr_sequence("form"))))
+#
+    #        cluster_sentences.extend(list(map(lambda s: list(map(stemmer.stem, s)), document.as_sentence_attr_sequence("form"))))
+#
+    #    all_sents.extend(cluster_sentences)
+    #    all_cluster_sents.append(cluster_sentences)
+#
+    #vectorizer = TfidfVectorizer("english")
+    #vectorizer.fit(map(lambda d: " ".join(d), all_docs))
+    #tf_idf = vectorizer.transform(map(lambda d: " ".join(d), all_sents))
+#
+    #start_idx = 0
+#
+    #for cluster_sents in all_cluster_sents:
+    #    if len(cluster_sents) == 0:
+    #        continue
+    #    end_idx = start_idx + len(cluster_sents)
+#
+    #    global_sims = cosine_similarity(tf_idf[start_idx:end_idx])
+    #    print("G", len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(global_sims > 0.5))))))), len(all_docs))
+#
+    #    local_tf_idf = TfidfVectorizer("english").fit_transform(map(lambda d: " ".join(d), cluster_sents))
+    #    local_sims = cosine_similarity(local_tf_idf)
+    #    print("L", len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(local_sims > 0.5))))))), len(all_docs))
+#
+#
+    #    start_idx = end_idx
+#
+#
+    #sim_model = SklearnTfIdfCosineSimilarityModel()
+    ##sim_model.fit(all_docs)
+#
+    #tf_idf = TfidfVectorizer("english").fit_transform(map(lambda d: " ".join(d), all_docs))
+    #sims = cosine_similarity(tf_idf)
+#
+    #print(len(list(set(map(lambda x: tuple(sorted(x)), filter(lambda x: x[0] != x[1], zip(*np.where(sims > 0.5))))))))
 
     for cluster_id in os.listdir(document_basedir):
     #for cluster_id in ["331"]:
         documents = []
         cluster_dir = os.path.join(document_basedir, cluster_id)
+
         for doc_fname in os.listdir(cluster_dir):
             if not doc_fname.endswith(".out"):
                 continue
             reader = StanfordXMLReader()
             document = reader.run(os.path.join(cluster_dir, doc_fname))
             documents.append(document)
+        sim_model = SklearnTfIdfCosineSimilarityModel()
+        sim_model.fit([tok.form for s in d for tok in s] for d in documents)
         summarization = summarize_documents(documents, lm, sim_model)
 
         with open("{}.sum.txt".format(cluster_id), "w") as f_out:
@@ -1154,7 +1157,7 @@ def select_sentences(per_cluster_candidates, sim_model, maxlen=250):
                     select_switch[global_sent_idx] + select_switch[global_sent_idx_2] <= 1.0
 
     p.maximize(max_term)
-    maxlen_constraint <= maxlen
+    #maxlen_constraint <= maxlen
 
     for cluster_term in cluster_idx_sums.values():
         cluster_term <= 1.0
@@ -1494,8 +1497,8 @@ if __name__ == "__main__":
     #test_reallife_compression()
     #test_sentence_compression()
     
-    #main()
+    main()
 
     #timeline_main()
 
-    summ_with_premade_clusters()
+    #summ_with_premade_clusters()

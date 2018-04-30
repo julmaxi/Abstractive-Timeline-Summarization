@@ -95,13 +95,13 @@ def analyze_main():
 
     #print()
     gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
-    print()
+    #print()
     gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results, use_tok=True)
     #print()
 
-    print()
-    gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
-    print()
+    #print()
+    #gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
+    #print()
 
     gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     print()
@@ -286,6 +286,7 @@ def gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results=None, 
         "ap-abstractive-oracle.json",
         "agglo-abstractive-oracle.json",
         "baseline-oracle.json",
+        "baseline-oracle-submod.json",
         "extractive-oracle.json"
     ]
 
@@ -298,7 +299,8 @@ def gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results=None, 
         all_names = [n + "+tok" for n in all_sys_names]
 
     for sys_1, sys_2, symbol in [
-        ("baseline-oracle.json", "agglo-abstractive-oracle.json", "*"),
+        ("baseline-oracle.json", "baseline-oracle-submod.json", "\\circ"),
+        ("baseline-oracle-submod.json", "agglo-abstractive-oracle.json", "*"),
         ("ap-abstractive-oracle.json", "agglo-abstractive-oracle.json", "\\dagger"),
         ("ap-abstractive-oracle.json", "extractive-oracle.json", "\\ddagger")
     ]:
@@ -324,14 +326,14 @@ def gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results=None, 
             for metric in metrics.split():
                 if sig_level_tl17[metric] < 0.05:
                     symbol = "+"
-                    if getattr(tl17_entries[system + "+tok"], metric) < getattr(tl17_entries[system + "+sent"], metric):
+                    if getattr(tl17_entries[system + "+tok"], metric).f1 < getattr(tl17_entries[system + "+sent"], metric).f1:
                         symbol = "-"
                     significant_diff_systems_tl17.setdefault((system + "+tok", metric), []).append(symbol)
 
                 symbol = "^" + symbol
                 if sig_level_crisis[metric] < 0.05:
                     symbol = "+"
-                    if getattr(crisis_entries[system + "+tok"], metric) < getattr(crisis_entries[system + "+sent"], metric):
+                    if getattr(crisis_entries[system + "+tok"], metric).f1 < getattr(crisis_entries[system + "+sent"], metric).f1:
                         symbol = "-"
                     significant_diff_systems_crisis.setdefault((system + "+tok", metric), []).append(symbol)
 
@@ -405,10 +407,13 @@ def gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_cri
         "agglo-abstractive-datetr-noclsize.json+sent",
         "agglo-abstractive-noclsize.json+sent",
         "agglo-abstractive-globaltr.json+sent",
+        "baseline-submod.json+sent",
         "baseline.json+sent"
     ]
 
     all_names = sorted(filter(lambda n: n in systems, set(tl17_entries.keys()) & set(crisis_entries.keys())))
+
+    print(all_names)
 
     lines = []
 
@@ -437,10 +442,10 @@ def gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_cri
         else:
             doc_cl_symbol = "\\ddagger"
 
-        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, cl_algo + "-abstractive-noclsize.json+sent", "baseline.json+sent", symbol=doc_cl_symbol).items():
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, cl_algo + "-abstractive-noclsize.json+sent", "baseline-submod.json+sent", symbol=doc_cl_symbol).items():
             tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
 
-        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-noclsize.json+sent", "baseline.json+sent", symbol=doc_cl_symbol).items():
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-noclsize.json+sent", "baseline-submod.json+sent", symbol=doc_cl_symbol).items():
             crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
 
         for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-datetr-noclsize.json+sent", symbol="a").items():
@@ -454,6 +459,12 @@ def gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_cri
 
         for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-globaltr.json+sent", symbol="b").items():
             crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+    for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, "baseline-submod.json+sent", "baseline.json+sent", symbol="\\circ").items():
+        tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+    for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, "baseline-submod.json+sent", "baseline.json+sent", symbol="\\circ").items():
+        crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
 
 
 
@@ -477,13 +488,14 @@ def gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_cri
 
 def create_sig_diff_dict(results, entries, sys_1, sys_2, symbol="*"):
     result = {}
+    #print(sys_1, sys_2)
     sig_level = check_significance(results, sys_1, sys_2)
 
     #print(sys_1, sys_2, sig_level)
 
     for metric in metrics.split():
         if sig_level[metric] < 0.05:
-            if getattr(entries[sys_2], metric) > getattr(entries[sys_1], metric):
+            if getattr(entries[sys_2], metric).f1 > getattr(entries[sys_1], metric).f1:
                 system = sys_2
             else:
                 system = sys_1
@@ -503,7 +515,8 @@ def gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results
         "ap-abstractive-datetr-dateref.json+sent",
         "ap-abstractive-datetr-dateref-path.json+sent",
         "ap-abstractive-globaltr-dateref-clsize.json+sent",
-        "ap-abstractive-globaltr-dateref-clsize-path.json+sent"
+        "ap-abstractive-globaltr-dateref-clsize-path.json+sent",
+        "chieu.json+sent"
     ]
 
     tl17_sig_diff_sys = {}
@@ -517,8 +530,8 @@ def gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results
         sys_1 = base_system + ".json+sent"
         sys_2 = base_system + "-path.json+sent"
 
-        tl17_sig_diff_sys.update(create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2))
-        crisis_sig_diff_sys.update(create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2))
+        tl17_sig_diff_sys.update(create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2, symbol="*"))
+        crisis_sig_diff_sys.update(create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2, symbol="*"))
 
     for sys_1, sys_2 in [
         ["ap-abstractive-temptr-dateref-clsize.json+sent", "ap-abstractive-temptr.json+sent"],
@@ -592,11 +605,14 @@ def gen_table_part_for_corpus(all_names, all_result_entries, significant_diff_sy
 
             data_cells.append(cell_str)
 
-        cl_method, score_func = clusterer_and_score_func_name_from_system_description(system)
-
-        if previous_clusterer_name != cl_method:
-            previous_clusterer_name = cl_method
-            lines.append("\multicolumn{{{}}}{{|l|}}{{ \\textit{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, previous_clusterer_name))
+        if "chieu" not in system:
+            cl_method, score_func = clusterer_and_score_func_name_from_system_description(system)
+    
+            if previous_clusterer_name != cl_method:
+                previous_clusterer_name = cl_method
+                lines.append("\multicolumn{{{}}}{{|l|}}{{ \\textit{{{}}} }}\\\\\\hline".format(len(metrics.split()) + 1, previous_clusterer_name))
+        else:
+            score_func = "Chieu"
 
         lines.append("{} \t & {} \\\\\\hline".format(score_func, "\t& ".join(data_cells)))
 
@@ -670,12 +686,12 @@ def gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_cris
     #all_names = sorted(set(map(lambda x: x.split("+")[0], filter(lambda n: "oracle" not in n, set(tl17_entries.keys()) & set(crisis_entries.keys())))))
 
     all_names = [
-        "ap-abstractive-temptr-dateref-clsize.json",
-        "ap-abstractive-temptr-dateref-clsize-path.json",
         "ap-abstractive-datetr-dateref.json",
         "ap-abstractive-datetr-dateref-path.json",
         "ap-abstractive-globaltr-dateref-clsize.json",
-        "ap-abstractive-globaltr-dateref-clsize-path.json"
+        "ap-abstractive-globaltr-dateref-clsize-path.json",
+        "ap-abstractive-temptr-dateref-clsize.json",
+        "ap-abstractive-temptr-dateref-clsize-path.json",
     ]
 
 
@@ -743,7 +759,10 @@ def clusterer_and_score_func_name_from_system_description(sys_key):
     clustering_method_names = {"agglo": "Agglomerative Clustering", "ap": "Affinity Propagation"}
 
     if parts[0] == "baseline":
-        scorer_names = ["\\text{ling}", "TR^{(cluster)}"]
+        if len(parts) == 2 and parts[1] == "submod":
+            scorer_names = ["\\text{ling}", "TR^{(cluster)}", "submod"]
+        else:
+            scorer_names = ["\\text{ling}", "TR^{(cluster)}"]
         clustering_method = "Document-Guided Clustering"
     elif len(parts) == 2 and parts[1] == "abstractive":
         scorer_names = ["\\text{ling}", "TR^{(cluster)}", "\\text{cluster size}"]
