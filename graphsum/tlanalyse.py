@@ -94,9 +94,9 @@ def analyze_main():
     print_results_table(crisis_entries)
 
     #print()
-    gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
+    #gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     #print()
-    gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results, use_tok=True)
+    #gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results, use_tok=True)
     #print()
 
     #print()
@@ -460,6 +460,13 @@ def gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_cri
         for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-globaltr.json+sent", symbol="b").items():
             crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
 
+        for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-noclsize.json+sent", symbol="c").items():
+            tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+        for entry, vals in create_sig_diff_dict(all_crisis_results, crisis_entries, cl_algo + "-abstractive-temptr.json+sent", cl_algo + "-abstractive-noclsize.json+sent", symbol="c").items():
+            crisis_sig_diff_sys.setdefault(entry, []).extend(vals)
+
+
     for entry, vals in create_sig_diff_dict(all_tl17_results, tl17_entries, "baseline-submod.json+sent", "baseline.json+sent", symbol="\\circ").items():
         tl17_sig_diff_sys.setdefault(entry, []).extend(vals)
 
@@ -490,6 +497,9 @@ def create_sig_diff_dict(results, entries, sys_1, sys_2, symbol="*"):
     result = {}
     #print(sys_1, sys_2)
     sig_level = check_significance(results, sys_1, sys_2)
+
+    if symbol == "c":
+        print(sys_1, sys_2, sig_level)
 
     #print(sys_1, sys_2, sig_level)
 

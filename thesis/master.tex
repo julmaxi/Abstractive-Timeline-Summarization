@@ -102,7 +102,7 @@ Dr. Katja Markert
 \\
 
 Timeline summarization (TLS) is the task of taking a set of documents related to some large event, for example a military conflict or natural disaster, to identify and summarize the most important dates within that larger event.
-All prior work in the area of TLS we are aware of has thus far focused on directly extracting interesting sentences from the original documents, an approach that is called extractive summarization. A more human-like approach to summarization is abstractive summarization which generates novel sentences to form a summarization. While many abstractive systems have been proposed for generic summarization tasks, we are not aware of any that have been used for TLS.
+All prior work in the area of TLS, that we are aware of, has thus far focused on directly extracting interesting sentences from the original documents, an approach that is called extractive summarization. A more human-like approach to summarization is abstractive summarization which generates novel sentences to form a summarization. While many abstractive systems have been proposed for generic summarization tasks, we are not aware of any that have been used for TLS.
 
 In this thesis we present an abstractive approach to timeline summarization that builds on existing systems for abstractive multi-document summarization (MDS). We adapt the system to better handle and take advantage of the special properties of TLS. We then evaluate this modified system and compare it to the original, unmodified system on two large TLS corpora.
 We also conduct an annotation study to determine the lingustic quality of the generated summaries.
@@ -117,14 +117,14 @@ While a manual evaluation shows that there are still significant difficulties wi
 \\
 
 Timeline summarization (TLS), zu deutsch am ehesten Zeitstrahlzusammenfassung, beschreibt das Identifizieren und Zusammenfassen wichtiger Daten innerhalb großer Dokumentensammlungen über lange andauernde Ereignisse, wie beispielsweise Bürgerkriege oder Naturkatastrophen.
-Alle uns bekannten Systeme für TLS setzen dafür auf sogenannte extraktive Zusammenfassung. Extraktive Zusammenfassung identifiziert wichtige Sätze in den Eingabedokumenten und kopiert sie direkt in die Zusammenfassung. Das Gegenstück zur extraktiven Zusammenfassung, die abstraktive Zusammenfassung, hingegen erstellt eine Zusammenfassung basierend auf den Inhalten der Dokumente, aber mit neu generierten Sätzen. Sie ist damit dem gängigen Verständnis einer Textzusammenfassung deutlich näher.
+Alle uns bekannten Systeme für TLS setzen dafür auf sogenannte extraktive Zusammenfassung. Extraktive Zusammenfassung identifiziert wichtige Sätze in den Eingabedokumenten und kopiert sie direkt in die Zusammenfassung. Das Gegenstück zur extraktiven Zusammenfassung, die abstraktive Zusammenfassung, hingegen erstellt eine Zusammenfassung basierend auf den Inhalten der Dokumente aus neu generierten Sätzen. Sie ist damit dem gängigen Verständnis einer Textzusammenfassung deutlich näher.
 
-In dieser Arbeit präsentieren wir einen abstraktiven Ansatz zur Timeline summarization, der auf einem abstraktiven System für Multi-Document-Summarization (MDS) basiert. Wir stimmen dieses System auf die Besonderheiten und Anforderungen von TLS ab und evaluieren sowohl die ursprüngliche, unmodifizierte Variante, als auch die an TLS angepasste Version auf zwei großen TLS-spezifischen Corpora.
+In dieser Arbeit präsentieren wir einen abstraktiven Ansatz zur Timeline Summarization, der auf einem abstraktiven System für Multi-Document-Summarization (MDS) basiert. Wir stimmen dieses System auf die Besonderheiten und Anforderungen von TLS ab und evaluieren sowohl die ursprüngliche, unmodifizierte Variante, als auch die an TLS angepasste Version auf zwei großen TLS-spezifischen Corpora.
 Wir evaluieren außerdem die Grammatikalität der ge~ner~ier~ten Sätze.
 
 Die Ergebnisse zeigen, dass obwohl der originale MDS Algorithmus schlechte Ergebnisse liefert, die angepasste Variante bessere Ergebnisse erzielt, als ein extraktives Vergleichsssystem.
 Eine Evaluation von Orakel-Zusammenfassungen legt weiterhin nahe, dass die Verwendung von abstraktiven Zusammenfassungen deutlich größeres Potenzial hat, als rein extraktive Systeme.
-Obwohl die Gram~ma~ti~ka~li~täts~e~va~lu~a~tion signifikante Probleme in der Qualität der Systemausgabe aufweist, ermuntern die Ergebnisse zu weiteren Anstregungen in der Entwicklung abstraktiver TLS-Systeme. 
+Obwohl die Gram~ma~ti~ka~li~täts~e~va~lu~a~tion signifikante Probleme in der Qualität der Systemausgabe aufweist, ermuntern die Ergebnisse zu weiteren Anstrengungen in der Entwicklung abstraktiver TLS-Systeme. 
 
 \newpage
 \normalsize
@@ -180,7 +180,7 @@ We thus aim to make the following contributions with this thesis:
 
 \begin{enumerate}
 \item{Evaluate the performance of using a well-performing abstractive MDS system to conduct abstractive TLS}
-\item{Evaluate the potential for improvements over these scores by using the abstractive TLS system as a starting point and adapting it to TLS}
+\item{Evaluate the potential for improvements over these scores by using the abstractive MDS system as a starting point and adapting it to TLS}
 \item{Compare the performance of our system to an extractive approach}
 \item{Evaluate the grammaticality of the system output}
 \end{enumerate}
@@ -230,7 +230,7 @@ For cuts the features describe the phrase types in the cut subtree.
 
 To learn the parameter $w$ \citeauthor{berg-kirkpatrick} train a soft-margin SVM for structured learning \citet{svm} with bigram recall on a reference summary as the loss function. To ensure that the system is theoretically able to reproduce the target summaries, the training corpus is not composed of fully abstractive summaries, but instead of extractive summaries that were selected for maximum coverage of the input documents and shortened by human annotators.
 
-While the inference phase of the problem can be stated as an ILP, \citet{berg-kirkpatrick} find that the space of possible cut choices makes an exact solution infeasible in many cases. They thus use an approximation procedure. Instead of selecting the sentences directly from the whole corpus, they first create a shorter extractive summary based on bigram coverage only and then run the system on this summary. By creating smaller intermediate summaries, they can reduce computation time for difficult cases on the expense of summary quality.
+While the inference phase of the problem can be stated as an ILP, \citet{berg-kirkpatrick} find that the space of possible cut choices makes an exact solution infeasible in many cases. They thus use an approximation procedure. Instead of selecting the sentences directly from the whole corpus, they first create a shorter extractive summary based on bigram coverage only and then run the system on this summary. By creating smaller intermediate summaries, they can reduce computation time for difficult cases at the expense of summary quality.
 
 %\citet{almeida} try to solve this complexity problem in a similar setting by using 
 
@@ -241,7 +241,7 @@ While the inference phase of the problem can be stated as an ILP, \citet{berg-ki
 %For example, \citet{almeida} work on dependency trees and solve an ILP (WRONG) to determine both which sentences should be included in the summarization and which nodes can be deleted based on a learned scoring function. They use a multi-task learning setup to learn appropriate scores using both corpora for extractive summarization and sentence compression to increase available training data. Similarly \citet{berg-kirkpatrick} work on parse trees and also solve an ILP to jointly choose sentences to extract and nodes to discard from a sentence based on scores learned on a training set.
 
 %Other approaches allow for more complex operations on the sentences.
-While the system described before only can only compress a single sentence, other approaches have tried to fuse multiple sentences to generate a single sentence that summarizes their content.
+While the system described before can only compress a single sentence, other approaches have tried to fuse multiple sentences to generate a single sentence that summarizes their content.
 For example, \citet{bing} extract NPs and VPs from different sentences and recombine them to generate new sentences.
 To find candidate phrases to combine, they filter valid combinations based on their \textit{compatibility}. To identify compatible phrases, they first group coreferent NPs together. Similarly, VPs are grouped together based on n-gram and named-entity overlap. Both sets of similar phrases form what \citeauthor{bing} call \textit{alternatives} to each other. A NP node $q$ and a VP node $p$ are compatible if either $q$ is an alternative to an NP that has the same parent node as $p$, or $p$ is an alternative to a VP node that has the same parent node as $q$. A single NP from the set of alternative is selected as a subject and can be combined with multiple VPs, which follow it. VPs are heuristically connected by inserting coordinations.
 
@@ -281,7 +281,7 @@ As the system of \citet{banerjee} forms the basis of this work, we describe it i
 
 
 Finally, a very recent avenue of research is the use of neural networks for abstractive summarization. A typical architecture is to use an encoder-decoder architecture with some kind of recurrent neural network, for example an LSTM. See \citet{nallapati, rush} for examples of such approaches.
-While many early models were limited to summarize only short passages of texts, recent developments combining this architecture with methods from reinforment learning have substantially increased performance of neural summarizers for longer summaries. \citep{paulus}
+While many early models were limited to summarize only short passages of texts, recent developments combining this architecture with methods from reinforcement learning have substantially increased performance of neural summarizers for longer summaries. \citep{paulus}
 
 
 
@@ -307,10 +307,10 @@ At regular intervals, the system may add sentences to a summarizations of the in
 Crucially, however, once it has generated a sentence, it can not change it back.
 While this task also requires the identification of important events in huge corpora of input documents, it is different from TLS, where timelines are optimized globally. For this reason, update summarization is also sometimes called \textit{online} summarization, while TLS is an \textit{offline} summarization task.
 
-\citet{swan+allen-temporal-summaries} have formulated a setting similar to this. Instead of requiring a binary decision of whether a sentence should be included in a summary or not, however, they assign a score to each sentence, where more important sentences should receive a higher score. Similarly to which we would expect in an update summarization setting, they assign these scores directly when processing an article and not globally.
+\citet{swan+allen-temporal-summaries} have formulated a setting similar to this. Instead of requiring a binary decision of whether a sentence should be included in a summary or not, they assign a score to each sentence, where more important sentences should receive a higher score. Similarly to which we would expect in an update summarization setting, they assign these scores directly when processing an article and not globally.
 
 They formulate two measures for sentence importance: usefulness and novelty.
-Usefulness measures to what extend the sentence covers the topic of our summarization. Novelty measures the extend to which a sentence introduces new information into the summary, that was not covered by other sentences before.
+Usefulness measures to what extent the sentence covers the topic of our summarization. Novelty measures the extent to which a sentence introduces new information into the summary, that was not covered by other sentences before.
 A good summary optimizes both.
 
 They evaluate two variants of both measures.
@@ -329,14 +329,14 @@ They assume that a sentence is novel, if it is unlikely to be generated from lan
 A more recent example for such a system is \citet{salient-updates}, an update summarization system for the domain of disaster summarization.
 In their setting, they receive a batch of sentences each hour, which they then score for their salience. They add sentences to their summary, if they are both novel and salient.
 
-They compute salience based on a number of features. Notably, they also compute a form of sentence \textit{burstiness}, which is characterized by a sudden change in the tf-idf score of a sentence in the last 24 hours. This tries to capture situations when certain terms suddenly increase in importance in the stream. This is similar to the metric of the same name in TLS, which we describe further below.
+They compute salience based on a number of features. Notably, they also compute a form of sentence \textit{burstiness} which is characterized by a sudden change in the tf-idf score of a sentence in the last 24 hours. This tries to capture situations when certain terms suddenly increase in importance in the stream. This is similar to the metric of the same name in TLS, which we describe further below.
 % Compare Lang Model
 
 We now turn to systems which employ the same general setup for TLS, as our system. In particular, they fulfill the following two criteria:
 
 \begin{enumerate}
     \item{The generated timelines are a collection of individual summaries that each cover a specific point in time during a larger event. Summaries have a date-tag that identifies, which date of the event they summarize.}
-    \item{The summarizers have full access to all document during timeline generation.}
+    \item{The summarizers have full access to all documents during timeline generation.}
 \end{enumerate}
 
 
@@ -361,11 +361,11 @@ $\lnot$ Within $k$ days of $\mathit{date}(s)$ & $c$ & $d$ \\
 \label{tab:chieu}
 \end{table}
 
-To match sentences to a date, each sentence needs to be assigned a date tag. This tag is determined either by the first date expression in the sentence or the time of document publication, if no such expression can be found in the document. \citeauthor{chieu} develop a small rule-based system for this by hand, as more complex (yet still rule-based) stand-alone solutions for date tagging such as Heideltime \citep{heideltime}, which is used by modern TLS systems \citep{tran-headlines, markert}, were not yet available at the time.
+To match sentences to a date, each sentence needs to be assigned a date tag. This tag is determined either by the first date expression in the sentence or the time of document publication, if no such expression can be found in the document. \citeauthor{chieu} develop a small rule-based system for this by hand, because more complex (yet still rule-based) stand-alone solutions for date tagging such as Heideltime \citep{heideltime}, which is used by modern TLS systems \citep{tran-headlines, markert}, were not yet available at the time.
 
 
 Because there is no easy way to decide automatically whether two sentences report the same event or not, \citeauthor{chieu} instead use a similarity score to determine sentences which report the same event. They compute the similarity of two sentences $s, s'$ using cosine distance between their vector representations $\vec{s}, \vec{s'}$: $\mathit{sim}(s, s') = \cos(\vec{s}, \vec{s'})$.
-As cosine similarity is not realible enough for their purpose, they filter sentences whose date tags are further apart than some threshold $T$ of dates.
+As cosine similarity is not reliable enough for their purpose, they filter sentences whose date tags are further apart than some threshold $T$ of dates.
 
 They then define interest as:
 
@@ -448,7 +448,7 @@ For example, \citet{tran-headlines} build two seperate linear regression models,
 Their features for date scoring mostly rely on the number of times a date is mentioned in the corpus.
 For sentence extraction they use a variety of features, that include the TF-IDF scores of the words in a sentence, its length and whether it includes a time expression, among others.
 
-They train on a binary objective for dates, where the objective is $1$, if the date is in a reference timelines and $0$, if it is not.
+They train on a binary objective for dates, where the objective is $1$, if the date is in one of the reference timelines and $0$, if it is not.
 For a sentence $s$ that is part of a document published at date $d$, they fit a model on the maximum similarity of $s$ to any sentence in one of the reference timelines at date $d$.
 They evaluate their system on a corpus of mutiple topics, each of which contains a number of human-authored timelines and articles crawled from mayor online news publications. This corpus is usually called \textit{Timeline 17} in literature. As we use it in our experiments, we outline its properties in section \ref{sec:setup-corpora}. The regressors are trained by cross-evaluation, where one topic is used for evaluation and the rest as training data.
 
@@ -459,8 +459,8 @@ They first construct a matrix $M \in \mathbb{R}^{m \times n}$, which has one row
 There are two types of features:
 
 \begin{description}
-\item[Textual Features:]{These include the publication date of the document of $s_i$, unigram occurences and occurences of Subject-Verb-Object tuples}
-\item[Image Features:]{For each sentence an image is retrieved using an image search machine with the sentence as input. The top-ranked result is encoded as a fixed-size vector by taking the activations of the last layer of a CNN for the image. The CNN used in their implementation was created by \citet{Simonyan+Zisserman} and trained on the ImageNet \citep{ImageNet} object recognition challenge dataset}
+\item[Textual Features:]{These include the publication date of the document of $s_i$, unigram occurences and occurences of Subject-Verb-Object tuples.}
+\item[Image Features:]{For each sentence an image is retrieved using an image search machine with the sentence as input. The top-ranked result is encoded as a fixed-size vector by taking the activations of the last layer of a CNN for the image. The CNN used in their implementation was created by \citet{Simonyan+Zisserman} and trained on the ImageNet \citep{ImageNet} object recognition challenge dataset.}
 \end{description}
 
 To learn a scoring function on $M$, \citet{multimodal} decompose $M$ into two matrices $P \in \mathbb{R}^{k \times m}, Q \in \mathbb{R}^{k \times n}$, so that $M \approx P^T * Q$. Here $k$ is a hyper~parameter, that determines how many latent dimensions each matrix has and thus the number of model parameters. Intuitively, each row in $P$ can be thought of as an embedding of a sentence in $C$ in a $k$-dimensional vector space and the $i$-th row of P can be used to predict the appropriate value of feature $i$ from such an embedding.
@@ -531,10 +531,10 @@ While \citeauthor{banerjee} suggest multiple variations to their system, we only
 
 \subsection{Clustering}  \label{sec:baseline-clustering}
 
-Given a set of documents $\bar{D}$ The clustering phase is divided in two distinct steps. In the first step, \citeauthor{banerjee} select what they call a most important document $D_{imp}$. This document is expected to contain the most important content of the input document set and is used to guide the actual clustering process. The second step is the assignment of sentences to appropriate clusters.
+Given a set of documents $\bar{D}$, the clustering phase is divided in two distinct steps. In the first step, \citeauthor{banerjee} select what they call a most important document $D_{imp}$. This document is expected to contain the most important content of the input document set and is used to guide the actual clustering process. The second step is the assignment of sentences to appropriate clusters.
 
-The best performing method for identifying the most important document on an evaluation conducted on DUC data is what \citeauthor{banerjee} call document set similarity.
-The document set similarity of a document $ \in \bar{D}$, is the cosine similarity between the vector representation of $D$ and the representation for the concatenation of all documents in $\bar{D}$.
+\citeauthor{banerjee} conduct an evaluation on the DUC2004 \citep{duc2004} and DUC2005 \citep{duc2005} corpora and report the best clustering approach is based on what they call document set similarity.
+The document set similarity of a document $D \in \bar{D}$, is the cosine similarity between the vector representation of $D$ and the representation for the concatenation of all documents in $\bar{D}$.
 Following \citeauthor{banerjee} we represent each document as a tf-idf vector. We compute the document frequency based on all documents in $\bar{D}$.
 
 In the clustering phase, we initialize one cluster for each sentence $s_j \in D_{imp}$. For all sentences $s_i \in D, D \in \bar{D} \setminus \{D_{imp}\}$ from other documents we iterate over each sentence of $D_{imp}$ and find the sentence $s_j$ most similar to $s_i$ as determined by the cosine similarity of their vector representations: $\argmax_{s_j} \cos(\vec{s_i}, \vec{s_j})$. The sentence is then added to the cluster induced by sentence $s_j$. To exclude sentences $s_i$ from the final clustering that are irrelevant to the summarization and not very similar to any sentence in $D_{imp}$, $s_i$ and $s_j$ must have a minimum similarity to be clustered.
@@ -742,7 +742,7 @@ The reason for this relaxation becomes clearer, if we analyze the effects of pla
 If we add a sentence to a cluster it does not belong to, it is, in the worst case, going to introduce a number of new paths to the graph, which do not correspond to good summaries. However, no paths that were previously possible are removed from the graph. This means we can filter these sentences out with good enough scoring methods.
 The second problem, on the other hand, is much more difficult to correct at a later step. If a sentence carrying useful information is not included in a cluster, that information is lost to the summarizer. A sentence that corresponds to a path that does not exist in the graph can never be generated. It seems thus reasonable to choose a generation strategy that prefers making mistakes of the former kind instead of the latter.
 
-Based on this observation, we formulate the following clustering strategy. We first partition all sentences $U$ of the input documents into sets $U_{d_1}, \dots U_{d_n}$, $d_1, \dots, d_n \in \{ date(s) | s \in U \}$ so that all sentences that refer to the same date are in one set. We assume that the correct date tag for each sentence is the first complete date tag encountered in the sentence, or the document creation time, if there is no such tag. While this is in line with prior work on TLS \citep{chieu, markert}, it is possible to improve on this assumptions, which we show in the next section.
+Based on this observation, we formulate the following clustering strategy. We first partition all sentences $U$ of the input documents into sets $U_{d_1}, \dots U_{d_n}$, $d_1, \dots, d_n \in \{ date(s) | s \in U \}$ so that all sentences that refer to the same date are in one set. We assume that the correct date tag for each sentence is the first complete date tag encountered in the sentence, or the document creation time, if there is no such tag. While this is in line with prior work on TLS \citep{chieu, markert}, it is possible to improve on this assumptions, as we show in the next section.
 
 We then consider each sentence $s$ in a block $U_d$ and build a cluster based on $s$ by finding similar sentences in $U_d$.
 To construct the cluster for sentence $s$, we find every sentence $s' \in U_d$ so that $\mathit{sim}(s, s') > 0.5$ and add $s'$ to the cluster induced by $s$. Note that we have taken the clustering threshold directly from \citet{banerjee}. It was not tuned on the corpus.
@@ -792,7 +792,7 @@ This assumption, however, is not always correct. Many date references are incomp
  % corpora/syria/articles/2011-04-08/100.htm.txt: 
 
 Instead of refering to an exact date, the article contains an approximate reference to ''last month''. While this construction would be recognized by a time expression tagger, such as HeidelTime \citep{heideltime}, many traditional TLS systems would discard this inexact reference, because it does not refer to an exact date.
-Where it is handled, for example in the system of \citet{chieu}, it may be taken into account to determine the importance of other sentences, but it not usually assigned an exact date.
+Where it is handled, for example in the system of \citet{chieu}, it may be taken into account to determine the importance of other sentences, but it is usually not assigned an exact date.
 A small corpus study on the \textit{Timeline 17} and \textit{Crisis} corpora we use for evaluation (see section \ref{sec:setup-corpora}, for a description of the corpora) presented in table \ref{tab:ambigous-date-ref} shows, that these constructions are not uncommon.
 
 \begin{table}
@@ -812,14 +812,14 @@ Timeline 17 & 4374 & 17655 & 23138 \\\hline
 Handling them becomes even more attractive when we consider that \citet{datesel-graph} have argued that events which are referenced a long time after they have happened are likely to be very important, because they have apparently remained in collective memory. %(CITE!)
 %In the same vein, it might be useful to try to resolve date assignment for sentences with multiple date references instead of just discarding all date references besides the first.
 
-Extracting the time an event has happened, has also been studied as a standalone problem. \citet{event-time-extraction} have developed a tree of neural classifiers, that tries to determine event dates based on the context of sentence it is mentioned in and surrounding time expressions. Unlike our system, which is solely concerned with determining the exact date for inexact expressions, their system also allows to date sentences with no date tag at all, instead of just falling back to the DCT.
+Extracting the time an event has happened, has also been studied as a standalone problem. \citet{event-time-extraction} have developed a tree of neural classifiers, that tries to determine event dates based on the context of the sentence it is mentioned in and surrounding time expressions. Unlike our system, which is solely concerned with determining the exact date for inexact expressions, their system also allows to date sentences with no date tag at all, instead of just falling back to the DCT.
 While it would certainly be interesting to test the applicability of such a system to TLS, we leave this investigation to future work, as it could easily be integrated later as a preprocessing step to our system.
 We instead focus on an approach that integrates the event date determination for sentences without exact dates with the clustering step.
 
 To determine the date an inexact reference in sentence $s$ refers to, we find similar sentences which have an exact date within the timespan referred to. If there are many sentences at some date $d$ that are similar to $s$, $s$ is likely to describe the same event as these and thus to refer to the same date. In order to do this, we cast the problem of sentence clustering as a graph-clustering problem where nodes are candidate sentences and edges are preferences for two sentences to be clustered together. By restricting which edges are included in the graph based on the dates referenced in the sentences they connect, we can ensure that sentences only end up in the same cluster if their dates match.
 
 We define the function $\mathit{daterefs}(s)$ to return the set of date references of sentence $s$. These references include all TimeML-expressions \citep{timeml} contained in the sentence of type ''date'' and the document creation time of the parent document of $s$.
-We call a reference $r \in \mathit{daterefs}(s)$ \textit{exact}, iff it corresponds to the resolution of the timeline, i.e. the smallest unit of time the timeline covers in one summary. Usually this resolution is one day. We assume the document creation times are always exact references. All other references are \textit{inexact}.
+We call a reference $r \in \mathit{daterefs}(s)$ \textit{exact}, if it corresponds to the resolution of the timeline, i.e. the smallest unit of time the timeline covers in one summary. Usually this resolution is one day. We assume the document creation times are always exact references. All other references are \textit{inexact}.
 
 %Intuitively this encodes that a sentence that mentions one ore more exact dates will refer to one of these dates. A sentence with one or more inexact tags might refer to a point in time inside the mentioned timespan, or it might refer to events happening at the time of publication. A sentence without any tags will always assumed to refer to the date of publication.
 Intuitively this procedure encodes the assumption that a sentence that refers to an event in the past will contain some sort of reference to the date of that event, otherwise it is likely to refer to an event that has happened on the date of publication.
@@ -831,7 +831,7 @@ Naturally it would be possible to extend the number of possible date references 
 %Note that this definition is not set in stone. For example one may assume that an untagged sentence would be likely to refer to any date mentioned in the same document. However, constructing a graph for two many date references quickly becomes computationally expensive, so we restrict ourselves to the above mentioned defintion.
 
 To deal with the problem of inexact references, we also need the notion of one date reference being contained by another, for example, the second calendar week of 2013 is contained in the month January of that year.
-A date reference $r_1$ is contained in a date reference $r_2$ iff $r_1$ falls within the timespan covered by $r_2$, or both references reference the same timespan.
+A date reference $r_1$ is contained in a date reference $r_2$ if $r_1$ falls within the timespan covered by $r_2$, or both references reference the same timespan.
 
 Using these notions, given a set of sentences $U$ we define a weighted, directed graph $H = (V, E)$ with weight function $w$ as follows:
 \begin{align}
@@ -1014,7 +1014,7 @@ where $\mathit{pathweight}$ is the weight of the path that $s$ was generated fro
 
 As described in section \ref{sec:baseline-selection}, the MDS system of \citet{banerjee} we use as a baseline and starting point for our system, solves an ILP to find an optimal summary from their candidate sentences.
 However, as \citet{mcdonald} has shown, running ILP to find a summarization is challenging even for a moderate amount of textual units and quickly becomes infeasible.
-This problem is aggrevated on TLS corpora, as they can be an order of magnitude larger than traditional MDS systems. For example, while the DUC2004 data has at most 10 documents per input cluster, the Crisis corpus we use for evaluation has $\approx 4000$ news stories per topic. Additionally, generating a huge number of candidate sentences can increase the number of sentences even more, further limiting the usefulness of ILPs. As a consequence the system with the ILP can only be run per date and with external date selection. Furthermore, inter-date redundancy can not be prevented by the constraints.
+This problem is aggravated on TLS corpora, as they can be an order of magnitude larger than traditional MDS systems. For example, while the DUC2004 data has at most 10 documents per input cluster, the Crisis corpus we use for evaluation has $\approx 4000$ news stories per topic. Additionally, generating a huge number of candidate sentences can increase the number of sentences even more, further limiting the usefulness of ILPs. As a consequence the system with the ILP can only be run per date and with external date selection. Furthermore, inter-date redundancy can not be prevented by the constraints.
 
 %\subsection{Submodular Functions}
 
@@ -1034,7 +1034,7 @@ To avoid redundancy, we adapt a function from a submodular MDS system by \citet{
 f_{\mathit{submod}}(T) = \sum_{i = 1}^{m} \sqrt{\sum_{s \in G \cap P_i} f_{\mathit{score}}(s)}
 \end{equation}
 
-where $T \subseteq G$ and $P_1, ..., P_m$ form a semantic partitioning of the generated sentences into $m$ disjoint sets. Note that these are not the same clusters that were used for candidate generation. Including more than one sentence from the same cluster results in diminishing returns for further sentences from the same cluster, because the square root function will saturate.
+where $T \subseteq G$ and $P_1, ..., P_m$ form a semantic partitioning of the generated sentences into $m$ disjoint sets. Note, that these are not the same clusters that were used for candidate generation. Including more than one sentence from the same cluster results in diminishing returns for further sentences from the same cluster, because the square root function will saturate.
 By partitioning semantically similar sentences into the same block, this property can be used to avoid redundancy in the summary.
 Following \citet{lin+blimes} we obtain the clustering by k-means clustering on the tf-idf vectors of the generated sentences. We do, however, modify the number of clusters we generate. Both \citet{lin+blimes} and \citet{markert} use $0.2 * |U|$ clusters. The analogue for our setting would be $0.2 * |G|$ clusters. This ignores, however, that the generation process naturally produces a much larger number of very similar sentences. We instead choose to set the number of clusters based on the average number of sentences in the daily summaries multiplied with the number of dates to summarize times 2.
 
@@ -1088,18 +1088,18 @@ For our setup, we have $h = 8$ due to the way sentences are generated (see secti
 
 %In addition to the 
 
-Note that with this selection algorithm it is no longer necessary to limit the number of generated sentences to just 200, so we move the limit to 2500 sentences.
+Note, that with this selection algorithm it is no longer necessary to limit the number of generated sentences to just 200, so we move the limit to 2500 sentences.
 We do not completely eliminate the limit, because the huge number of possible paths in a graph makes it infeasible to always generate all simple paths. The cubic complexity of the k-shortest simple paths algorithm further limits the number of sentences we can generate in an acceptable timeframe.
 
 \chapter{Corpora and Experimental Setup} \label{sec:setup}
 
 \section{Corpora} \label{sec:setup-corpora}
 
-We use two different timeline corpora for all our experiments, the \textit{Timeline 17} corpus \citep{tran-tl17} and the \textit{Crisis} corpus \citep{tran-headlines}. They both have a similar structure. Each covers a set of different events and has one or more timelines per event that were crawled from large news websites. The timelines all have different lengths and often cover different periods of time. The corpus also includes a set of news documents that were crawled from news articles relating to the timeline. All articles were stripped of HTML tags and annotated with the time they were published, the document creation time.
+We use two different timeline corpora for all our experiments, the \textit{Timeline 17} corpus \citep{tran-tl17} and the \textit{Crisis} corpus \citep{tran-headlines}. They both have a similar structure. Each covers a set of different events and has one or more timelines per event that were crawled from large news websites. The timelines all have different lengths and often cover different periods of time. The corpus also includes a set of news documents that were crawled from news articles relating to the timeline. All articles were stripped of HTML tags and annotated with the date they were published, the document creation time.
 
-While the \textit{Crisis} dataset focuses on several uprisings resulting from the Arab Spring, the Timeline 17 dataset covers a more diverse range of topics from natural disasters to the death of Michael Jackson and subsequent legal proceedings. See table \ref{tab:corpus-topics} for an overview over the events covered in the two corpora
+While the \textit{Crisis} dataset focuses on several uprisings resulting from the Arab Spring, the Timeline 17 dataset covers a more diverse range of topics from natural disasters to the death of Michael Jackson and subsequent legal proceedings. See table \ref{tab:corpus-topics} for an overview over the events covered in the two corpora.
 
-In table \ref{tab:corpus-stats} we give a brief overview over the characteristics of the two corpora. It is apparent that both corpora are very different in size and distribution of articles. Even though the number of topics is much higher for time Timeline 17 corpus, the Crisis corpus has both more documents and timelines. This is a result of the Timeline 17 corpus having mostly just one timeline per topic.
+In table \ref{tab:corpus-stats} we give a brief overview over the characteristics of the two corpora. It is apparent that both corpora are very different in size and distribution of articles. Even though the number of topics is much higher for time Timeline 17 corpus, the Crisis corpus has both more documents and timelines. This is a result of the Timeline 17 corpus having just one timeline for most topics.
 
 \begin{table}
 \begin{centering}
@@ -1149,36 +1149,35 @@ Crisis & 22 & 18,246 & 689,165 \\\hline
 \section{Preprocessing}
 
 Our approach requires all input documents to be annotated with part-of-speech tags, which we obtain by running the POS-tagger included in the Stanford CoreNLP suite of NLP tools \citep{stanford-corenlp}. The suite also takes care of proper tokenization and sentence splitting for us.
-To obtain sentence level annotation of date expressions, we run the HeidelTime tagger \citet{heideltime}. Heideltime is a rule based system that tags date expressions in a corpus and labels them according to the Timex3\footnote{\url{http://www.timeml.org/}} annotation standard.
+To obtain sentence level annotation of date expressions, we run the HeidelTime tagger \citep{heideltime}. Heideltime is a rule based system that tags date expressions in a corpus and labels them according to the Timex3\footnote{\url{http://www.timeml.org/}} annotation standard.
 
 \section{Experimental Setting} \label{sec:setup-settings}
 
 As \citet{markert} note, there are a number of different settings for TLS.
-For example, \citet{chieu} create summaries with a fixed number of dates and one sentence summaries, while \citet{yan-trans} use a fixed compression ratio, relative to the corpus size.
-We follow the evaluation setup they propose and parameterize our timelines by two properties: Number of dates and number of sentences per date. Both are set from the reference timelines, where the number of sentences per date is the rounded-down average of sentences per date in the reference timeline.
+For example, \citet{chieu} create summaries with a fixed number of dates and one sentence summaries, while \citet{yan-trans} use a fixed compression ratio.
+We follow the evaluation setup \citeauthor{markert} propose and parameterize our timelines by two properties: Number of dates and number of sentences per date.
 
-However, while restricting the length in terms of number of sentences is a common setting in TLS, used for example by \citet{chieu} and \citet{yan-trans}, traditional summarization is usually restricted by number of tokens, see, for example, the DUC 2005 challenge \citep{duc2005}. In fact, restricting the number of sentences enables our system to effectively circumvent the length constraints by fusing several sentences together, to form one very long one.
+While restricting the length in terms of number of sentences is a common setting in TLS, used for example by \citet{chieu} and \citet{yan-trans}, traditional summarization is usually restricted by number of tokens, see for example the DUC 2005 challenge \citep{duc2005}. In fact, restricting the number of sentences enables our system to effectively circumvent the length constraints by fusing several sentences together, to form one very long one.
 We thus also evaluate each system using the constraints for the number of tokens in a summary we have described in sections \ref{sec:baseline-selection} and \ref{sec:system-selection}.
 
-As timelines also differ in length and covered time periods, we follow \citet{markert} and generate one system timeline per reference timeline with the appropriate parameters. The desired date range of the output is set from the first and last date of the timeline, the number of dates allowed is the number of dates in the reference and the per-summary length constraint is determined by averaging the number of sentences or tokens per daily summary in the reference.
+As timelines also differ in length and covered time periods, we follow \citet{markert} and generate one system timeline per reference timeline with the appropriate parameters. The desired date range of the output is set from the first and last date of the timeline. The number of dates allowed is the number of dates in the reference timeline and the per-summary length constraint is determined by averaging the number of sentences or tokens per daily summary in the reference.
 
 We run the clustering and sentence generation only once for every topic and afterwards restrict the generated clusters to the appropriate date range for each timeline.
 
 \subsection{Oracle Summaries}
 
-In addition to the regular evaluation, we also produce a set of oracle summaries. We compute the ROUGE-2 score of each candidate sentence, instead of using our scoring methods. The ROUGE-score is computed with respect to the daily summary of the cluster date of the sentence. We also add a small value $\epsilon$ to each score, to avoid sentences with a score of 0. This accounts for the fact that some sentences might have an incorrect date tag but can still be useful, because their deviation from the correct date is small. Without this small change, our selection functions would just discard the sentences outright.
+In addition to the regular evaluation, we also produce a set of oracle summaries. We compute the ROUGE-2 evaluation score of each candidate sentence, instead of using our scoring methods. For a description of the score see section \ref{tab:evaluation-auto-setup}. The ROUGE-score is computed with respect to the daily summary of the cluster date of the sentence. We also add a small value $\epsilon$ to each score, to avoid sentences with a score of 0. This accounts for the fact that some sentences might have an incorrect date tag, but can still be useful, because their deviation from the correct date is small. Without this small change, our selection functions would just discard the sentences outright.
 
-The rest of the system remains unchanged. Note, that the resulting summaries are not true oracle summaries, in that they are not theoretically optimal solutions. They merely show the performance our system could have with perfect information about the score of each sentence. The selection phase still uses the submodular sentence selection method in all settings. The systems also ignore the grammaticality of included sentences.
-They are, however, a useful tool that can help evaluate both the effect of summarizing from abstractive candidate sentences, instead of the original corpus and the quality of our clustering methods.
+The rest of the system remains unchanged. Note, that the resulting summaries are not true oracle summaries, in that they are not truly optimal solutions. They merely show the performance our system could have with perfect information about the score of each sentence. The selection phase still uses the ILP or submodular sentence selection methods. The oracles also ignore the grammaticality of included sentences. They are, however, a useful tool that can help evaluate both the effect of summarizing from abstractive candidate sentences instead of the original corpus and the quality of our clustering methods.
 
 
 
 \section{Corpus Statistics} \label{sec:setup-stats}
 
 Before we evaluate our systems, we first gather some statistics about the properties of our corpus.
-One characteristic we have repeatedly emphasized is the importance of date references in sentences.
-To quantify their importance, we count the number of sentences references in each corpus, that have an exact reference to a date that is not the publishing date.
-We also count the number of times the ten most frequent dates in every topic are referred to by documents published at another date.
+One characteristic we have repeatedly emphasized is the importance of date references.
+To quantify this, we count the number of sentences in each corpus, that have an exact reference to a date that is not the publishing date.
+We also count the number of times the ten most frequent dates in every topic are referred to in documents published at another date.
 In table \ref{tab:datestats} we show the two statistics for both our corpora.
 
 \begin{table}
@@ -1195,7 +1194,7 @@ Corpus & Num. sent. with outside reference & Avg. num. docs@10 \\\hline
 \label{tab:datestats}
 \end{table}
 
-This result confirms our assumption that important dates are mentioned across many documents in the corpus. It also shows that there are many sentences with references to dates that are not the same as their publishing dates. This highlights the potential benefits of tagging sentences individually and allowing sentences that are part of documents published at different dates to be clustered together.
+The statistics confirm our assumption that important dates are mentioned across many documents in the corpus. It also shows that there are many sentences with references to dates that are not the same as their publishing dates. This highlights the potential benefits of tagging sentences individually and allowing sentences that are part of documents published at different dates to be clustered together.
 
 We also evaluate the characteristics of our three clustering approaches on the two corpora.
 Table \ref{tab:genstats} shows the average number of clusters and the average number of generated candidates for our two evaluation corpora.
@@ -1220,7 +1219,7 @@ Document (Baseline) & 4,872.3 & 21,453.0 \\\hline
 \end{table}
 
 We can see that our two newly developed clustering algorithms generate more clusters and thus also more candidates than the document based clustering of our baseline. Especially the difference between the affinity propagation algorithm and the other two systems is very noticeable.
-Another noticable observation is that fact that while agglomerative clustering produces fewer clusters than document based clustering, it generates more candidates. This suggests that clusters on the baseline lack the ability to create graphs from which new sentences can be generated.
+Another interesting observation is that while agglomerative clustering produces fewer clusters than document based clustering, it generates more candidates. This suggests that clusters on the baseline lack the ability to create graphs from which many new sentences can be generated.
 
 The results also show the difference in scale between extractive summarization and our approach to abstractive summarization.
 While topics have an average of $150,438.5$ sentences for the Crisis corpus, the number of candidates is ten times that.
@@ -1275,11 +1274,11 @@ Based on recall and precision we can define the ROUGE-F1 score:
 
 We use report scores from three different scoring methods offered by \citet{tilse}:
 \begin{description}
-\item[concat] {is obtained by concatenating all date summaries in both system and reference timeline and computing the ROUGE metric on the pair.
-This completely ignores the partition of the timeline into daily summaries}
-\item[agree] {is obtained by comparing summaries only if they have the same date in both summary and system output. While this respects the structure of the timeline, it punishes small deviations in dates overly harsh. If a summary has a wrong date, even, if it is just off by one day, it receives a score of $0$}
-\item[align m:1] {solves this problem by allowing daily summaries of the system timeline to be aligned with summaries from the reference timelines, even if their dates do not match. We compute an alignment $f$ between dates in the references and those in the summary based on content overlap and the distance of the dates.
-The final score is discounted by the time difference in days of aligned dates. For ROUGE-N recall is then defined as:
+\item[concat] {is obtained by concatenating all date summaries in the timelines. The ROUGE metric can then be computed on the pair just like in traditional summarization.
+This completely ignores the partition of the timeline into daily summaries.}
+\item[agree] {is obtained by comparing summaries that have the same date in both reference and system output. While this respects the structure of the timeline, it punishes small deviations in dates overly harsh. If a summary has a wrong date, even if it is just off by one day, it receives a score of $0$.}
+\item[align m:1] {solves this problem by allowing daily summaries of the system timeline to be aligned with summaries from the reference timelines, even if their dates do not match. The measure computes an alignment $f$ between the dates in the references and those in the summary based on content overlap and the distance of the dates. The ROUGE score is computed by comparing the summaries for the dates aligned by $f$.
+The final score is discounted according to the time difference in days of aligned dates. For ROUGE-N the recall is then defined as:
 
 \begin{equation}
     \mathtt{ROUGE-N-R}(\bar{R}, T, d) =  \frac{
@@ -1294,9 +1293,9 @@ The final score is discounted by the time difference in days of aligned dates. F
         \mathit{cnt}_R(g)
     }
 \end{equation}
-where $E_{\bar{R}}$ is the set of dates in the reference summaries,
+where $E_{\bar{R}}$ is the set of all dates in the reference summaries,
 $f(d)$ is the date that the reference date $d$ was aligned to and $T(f(d))$ is the possibly empty system summary of that date.
-$t_{d,f(d)}$ is a penalty term for comparing summaries that are far apart.
+$t_{d,f(d)}$ is a penalty term for aligning dates that are far apart.
 It is defined as
 \begin{equation}
 t_{d_R, d_T} = \frac{1}{|d_R - d_T| + 1}
@@ -1310,7 +1309,7 @@ in the evaluation framework.
 
 
 %Note that we compute the per-topic macro average of all metrics, not the average across all reference timelines.
-Final scores are the average scores over all timelines.
+The final scores for a corpus are the average scores over all timelines.
 
 We check for significant differences in the results using an approximate randomization test \citep{art} using a library provided by Sebastian Martschat \footnote{\url{https://github.com/smartschat/art}}. %We find that all differences are significant, except for the improvements in ROUGE-1 align and agree from 
 
@@ -1318,23 +1317,23 @@ We check for significant differences in the results using an approximate randomi
 
 \subsection{Oracle Summarizations}
 
-We run the oracle summarizer with each of our three clustering methods (document clustering, agglomerative clustering and affinity propagation), was well as in an extractive setting, where we select from the sentences in the original document.
-The document clustering is evaluated both with the ILP sentence selection method, including prior date selection and with the submodular selection method without prior date selection.
+We run the oracle summarizer with each of our three clustering methods (document-based clustering, agglomerative clustering and affinity propagation), as well as in an extractive setting, where we select from the sentences in the original documents.
+The document clustering is evaluated with the ILP sentence selection method, including prior date selection.%, and with the submodular selection method without prior date selection.
 All other systems are run with the submodular selection method only.
 The results for the sentence constraint setting are shown in table \ref{tab:results-oracle-sent}, the results for the token constraint setting in table \ref{tab:results-oracle-tok}.
 
 The first interesting finding is that the choice of length constraint does not seem to have a big influence on the results of the oracle summaries. Even where the differences are statistically significant, they are usually small.
-We also identify the same trends in both setting, so we focus on the results for the sentence constraint.
+We also identify the same trends in both settings, so we focus on the results for the sentence constraint.
 
 %We find that the document clustering method of the baseline performs far worse than the other two clustering methods. Manual analysis reveals that this is in part due to the pipelined date selection. As the dates are selected before the system is run, it is possible that the system does not find a
-In general, the best results among the clustering methods are consistently achieved by the affinity propagation based system (AP), followed by the agglomerative multi-clustering system. All improvement of the former over the latter are statistically significant ($p < 0.05$). The baseline system performs by far worst of all three clustering methods. When looking into the timelines produced by the system, we find that there are many dates with empty summaries. These dates were selected by the date selection algorithm, but the system did not produce an abstractive sentence for them. This points to a general problem with prior date selection: The system is not guaranteed to have a sentence to fill the summary with content. This is exacerbated by the fact, that the timelines have different date ranges than the publishing dates of the articles, so for some dates there are now published documents. For example, the articles in the Syrian part of the Crisis dataset start from 2011/11/17, while the earliest date in any of the timelines is eight months earlier in 2011/03/15. As the document clustering method assigns each cluster the document creation time as a date, no candidates can be generated for dates before 2011/11/17.
+In general, the best results among the clustering methods are consistently achieved by the affinity propagation based system (AP), followed by the agglomerative multi-clustering system. All improvements of the former over the latter are statistically significant ($p < 0.05$). The baseline system with ILP performs by far worst of all three clustering methods. When looking at the timelines produced by the system, we find that almost $79\%$ of dates have empty summaries. These dates were selected by the date selection algorithm, but the system did not produce an abstractive sentence for them. This points to a general problem with prior date selection: The system is not guaranteed to have a sentence to fill the summary with content. This is exacerbated by the fact, that the timelines have different date ranges than the publishing dates of the articles, so for some dates there are no published documents. For example, the articles in the Syrian part of the Crisis dataset start from 2011/11/17, while the earliest date in any of the timelines is eight months earlier (2011/03/15). As the document clustering method assigns each cluster the document creation time as a date, no candidates can be generated for dates before 2011/11/17. In total, circa $16\%$ of dates in the reference timelines do not have a single document published on them.
 
-To confirm this intuition, we have also evaluated the document-based clustering method with the submodular optimizer, which allows us to remove the prior date selection. The results of this experiment, which we can also be seen in table \ref{tab:results-oracle-tok}, show that this change leads to a significant improvement in all metrics, except date selection F1.
-This confirms our hypothesis that the baseline system is hampered by the need for prior date selection, which does not allow the system to take into account that some important dates may be difficult for the summarizer to create a summary from.
+To confirm our intuition that prior date selection is indeed problematic, we have also evaluated the document-based clustering method with the submodular sentence selector, which allows us to remove the prior date selection. The results of this experiment, which can also be seen in table \ref{tab:results-oracle-tok}, show that this change leads to a significant improvement in all metrics, except date selection F1.
+This confirms our hypothesis that the baseline system is hampered by the need for prior date selection, which does not take into account that some important dates may be difficult for the summarizer to create a summary for.
 
 
 
-The affinity propagation system also improves significantly over the extractive oracle in many metrics, though we should emphazise again that these results are specific to our sentences selection method and are not true optimal summaries. One should also keep in mind, that the oracles optimize align ROUGE-2 score and ignore ROUGE-1 score. It is thus very well possible for a system, even with the same selection method, to outperform these oracles in one of the other metrics. Still, however, these results demonstrates that at least in our setup we can improve the potential summarization scores by moving from purely extractive summarization to abstractive systems.
+The affinity propagation system also improves significantly over the extractive oracle in many metrics, though we should emphasize again that these results are specific to our sentence selection method and are not true optimal summaries. One should also keep in mind, that the oracles optimize align-ROUGE-2 score and ignore ROUGE-1 score. It is thus very well possible for a system, even with the same selection method, to outperform these oracles in one of the other metrics. Still, however, these results demonstrate that at least in our setup we can improve the potential summarization scores by moving from purely extractive summarization to abstractive systems.
 
 \begin{table}
 \begin{centering}
@@ -1378,17 +1377,18 @@ System & Date & \multicolumn{ 2 }{c|}{Concat} & \multicolumn{ 2 }{c|}{Agree} & \
  & F1 & R1 & R2 & R1 & R2 & R1 & R2 \\\hline\hline
 
 \multicolumn{8}{|c|}{\textbf{Timeline 17}}\\\hline
-Affinity Propagation & 0.610$^{\dagger}$&\textbf{0.413}$^{\dagger}$&\textbf{0.157}$^{\dagger+}$&\textbf{0.195}$^{\dagger+}$&0.114$^{\dagger-}$&\textbf{0.201}$^{\dagger+}$&0.115$^{\dagger-}$\\
-Agglomerative & 0.531$^{*+}$&0.302$^{*+}$&0.094$^{*}$&0.118$^{*}$&0.063$^{*}$&0.126$^{*}$&0.065$^{*}$\\
+Affinity Propagation & 0.610$^{\dagger}$&\textbf{0.413}$^{\dagger}$&\textbf{0.157}$^{\dagger-}$&\textbf{0.195}$^{\dagger-}$&0.114$^{\dagger-}$&\textbf{0.201}$^{\dagger-}$&0.115$^{\dagger-}$\\
+Agglomerative & 0.531$^{*}$&0.302$^{*+}$&0.094$^{*}$&0.118$^{*}$&0.063$^{*}$&0.126$^{*}$&0.065$^{*}$\\
 Baseline + ILP & 0.523$^{\circ}$&0.101&0.026&0.017&0.005&0.018&0.006\\
-Baseline + Submod & 0.365&0.247$^{\circ}$&0.059$^{\circ}$&0.051$^{\circ}$&0.019$^{\circ}$&0.064$^{\circ}$&0.021$^{\circ}$\\
-Extractive & \textbf{0.665}&0.407&0.155&0.190&\textbf{0.123}&0.196&\textbf{0.124}\\\hline
+Baseline + Submod & 0.365&0.247$^{\circ}$&0.059$^{\circ}$&0.051$^{\circ}$&0.019$^{\circ}$&0.064$^{\circ}$&0.021$^{\circ}$\\\hline
+Extractive & \textbf{0.665}&0.407&0.155&0.190&\textbf{0.123}&0.196&\textbf{0.124}\\\hline\\\hline
 \hline\multicolumn{8}{|c|}{\textbf{Crisis}}\\\hline
-Affinity Propagation & \textbf{0.606}$^{\dagger}$&\textbf{0.440}$^{\dagger\ddagger}$&\textbf{0.177}$^{\dagger\ddagger+}$&\textbf{0.240}$^{\dagger\ddagger+}$&\textbf{0.155}$^{\dagger\ddagger-}$&\textbf{0.246}$^{\dagger\ddagger+}$&\textbf{0.156}$^{\dagger\ddagger-}$\\
+Affinity Propagation  & \textbf{0.606}$^{\dagger}$&\textbf{0.440}$^{\dagger\ddagger}$&\textbf{0.177}$^{\dagger\ddagger-}$&\textbf{0.240}$^{\dagger\ddagger-}$&\textbf{0.155}$^{\dagger\ddagger-}$&\textbf{0.246}$^{\dagger\ddagger-}$&\textbf{0.156}$^{\dagger\ddagger-}$\\
 Agglomerative & 0.411$^{*}$&0.348$^{*}$&0.103$^{*}$&0.137$^{*}$&0.080$^{*-}$&0.146$^{*}$&0.081$^{*-}$\\
-Baseline + ILP  & 0.296&0.183&0.027&0.017&0.005&0.022&0.006\\
-Baseline + Submod  & 0.259&0.311$^{\circ+}$&0.054$^{\circ}$&0.051$^{\circ}$&0.020$^{\circ}$&0.060$^{\circ}$&0.021$^{\circ}$\\
-Extractive & 0.542&0.359&0.113&0.170&0.100&0.175&0.101\\\hline\end{tabular}
+Baseline + ILP   & 0.296&0.183&0.027&0.017&0.005&0.022&0.006\\
+Baseline + Submod &  0.259&0.311$^{\circ+}$&0.054$^{\circ}$&0.051$^{\circ}$&0.020$^{\circ}$&0.060$^{\circ}$&0.021$^{\circ}$\\\hline
+Extractive & 0.542&0.359&0.113&0.170&0.100&0.175&0.101\\\hline
+\end{tabular}
 
 }
 \end{centering}
@@ -1419,24 +1419,30 @@ Extractive & 0.542&0.359&0.113&0.170&0.100&0.175&0.101\\\hline\end{tabular}
 
 We now investigate the clustering methods in a practical context, along with our modified TextRank functions.
 We evaluate our agglomerative and affinity propagation clustering methods, along with the TextRank variants we have developed to score informativeness. Sentence selection is conducted with the submodular method.
-The scoring functions all include the linguistic quality score and one of our text rank scores, so we write $TR^{(date)}$ where we mean the scoring function $f_{TR^{(date)} * ling}$, for example.
+The scoring functions all include the linguistic quality score and one of our text rank scores, so we use the shorthand $TR^{(date)}$ where we mean the scoring function $f_{TR^{(date)} * ling}$, for example.
 
 For comparison, we also run our baseline system, which means prior date selection, document based clustering, per-cluster informativeness score and ILP-based sentences selection.
-In addition to that, we also run the baseline system without ILP and prior date selection and replace them with the submodular sentence selection method, following our experience with the oracle summaries.
+In addition to that, we also run the baseline system with the submodular sentence selection method, following our experience with the oracle summaries.
 The results are shown in table \ref{tab:eval-cl-tr}.
 
 On the Timeline 17 dataset we find that while both our clustering algorithms outperform the document-clustering baseline in most cases, the affinity propagation clustering achieves better results than the agglomerative multiclustering system. This confirms the results of the oracle summarization, where the affinity propagation oracle outperformed the agglomerative clustering based system considerably.
 
-Of the four informativeness scores we have applied to our problem, the per-cluster score generally performs worst on the Timeline 17 dataset.
+Of the four informativeness scores we have applied to our problem, the per-cluster score generally performs worst on the Timeline 17 dataset, while the $TR^{(temp)}$ score has the best results, although most differences are not statistically significant.
 
 On the Crisis dataset, results are less clear.
 Scores are very low, with almost every system taking the lead in at least one category.
 A surprising result is that the submodular variant of the baseline system, which performs consistently worse than the other two clustering methods on the Timeline 17 corpus, performs better than any other system on the Crisis corpus in the agree and align metrics.
-This is mostly due to better date selection.
-We speculate that this is a results of the document clustering method depending on the number of documents published at the same date and thus implicitly on the \textit{burstiness} of the dates.
-As date selection is more difficult on the Crisis corpus \citep{markert}, this would also explain the differences between scores on the Timeline 17 and Crisis datasets.
 
-While we have no direct way of confirming this hypothesis, if it is true, we would expect the document clustering approach to not benefit a lot from the inclusion of additional features.
+We can explain the difference in behavior of this clustering method on the two corpora with their different sizes and the different number of candidates generated for them (see table \ref{tab:genstats}).
+On the relatively smaller article collections of the Timeline 17 corpus, the document based clustering method has trouble generating enough clusters for the timeline.
+On average it generates 17.7 daily summaries fewer per timeline than allowed by the constraints. At the same time, it only generates an average of 1.7 fewer summaries per date on the Crisis corpus.
+
+We speculate that the advantage of the document-based clustering over the other methods on the latter corpus is a result of it depending on the number of documents published at the same date and thus implicitly on the \textit{burstiness} of the dates. It also contains a filter for cluster size directly in the clustering method, as small clusters are deleted. This might give an advantage to the document-based clustering method over the other methods, which do not encode this information.
+While we have no direct way of confirming this hypothesis, if it is true, we would expect the document clustering approach to not benefit greatly from the inclusion of additional features that encode cluster size and date importance.
+
+
+%As date selection is more difficult on the Crisis corpus \citep{markert}, this would also explain the differences between scores on the Timeline 17 and Crisis datasets.
+
 
 \begin{table}
 \begin{centering}
@@ -1490,24 +1496,28 @@ $^\circ$ indicates significant improvement of submodular baseline over ILP basel
 \label{tab:eval-cl-tr}
 \end{table}
 
-
+We now investigate the effects of adding additional features to our systems.
 Taking into account the scores of the first round of evaluation, we focus our investigation on the affinity propagation clustering method and the global, local and date TextRank scores to evaluate the effect of adding the additional scoring functions we described in section \ref{sec:scoring}.
-We compare both the effect of adding only the $f_{dateref}$ and $f_{clsize}$ metrics, as well as also adding the $f_{path}$ score in addition to that. We also evaluate the submodular variant of the baseline system, to take into account its good performance the Crisis dataset.
+We compare both the effect of adding only the $f_{dateref}$ and $f_{clsize}$ metrics, as well as also adding the $f_{path}$ score in addition to that. We also evaluate the submodular variant of the baseline system, on account of its performance on the Crisis dataset.
 The results of that evaluation are presented in table \ref{tab:results-features}.
 
 We can observe that the addition of $f_{dateref}$ and $f_{clsize}$ leads to a significant jump in performance in most cases.
 Adding the path weight seems to always have a positive effect on the ROUGE-2 scores, while only slightly affecting ROUGE-1 in most cases.
-This is to be expected, as the path weight does not only take into account unigram occurrence, but can also assign scores to longer phrases, which the other content metrics can not.
+This is to be expected, as the path weight does not only take into account unigram occurrence, but can also assign scores to longer phrases, which the TextRank scores can not.
 
-The baseline performs much worse in comparison this time on the Crisis dataset as well, much more in line with its performance on the Timeline 17 dataset. Apparently it does not profit from the new information as much as the other systems. This seems to confirm that our earlier hypothesis was correct and that the document based clustering algorithm indeed contains some information about date importance implicitly.
+The baseline performs much worse in comparison this time on the Crisis dataset as well, much more in line with its performance on the Timeline 17 dataset. Apparently it does not benefit from the new information as much as the other systems. This supports our earlier hypothesis that the document-based clustering algorithm indeed contains some information about date importance and cluster size implicitly already, which the other methods lack.
 
-Interestingly, there seems to be a very huge jump in performance in case of the $TR^{(date)}$ informativeness metric, which performs much better than all other systems on the Crisis dataset. We investigate this surprising result and find that we can attribute most of the high score to the timelines generated for only one of the four corpora in the dataset, the Libyan uprising.
-If we remove this dataset from our evaluation, results for the system are still slightly better than for the other system, but the gap becomes much smaller and the differences statistically insignificant $(p < 0.05)$.
+Interestingly, there seems to be a very huge jump in performance in case of the $TR^{(date)}$ informativeness metric, which performs much better than all other systems on the Crisis dataset. We investigate this surprising result and find that we can attribute most of the high score to the timelines generated for only one of the four corpora in the dataset, the Libyan revolution.
+If we remove this dataset from our evaluation, results for the system are still slightly better than for the other system, but the gap becomes much smaller and the differences statistically insignificant $(p \geq 0.05)$.
 
-This reveals a problem with this evaluation corpus. While there is a total of 22 timelines in the corpus, there are only four corpora of articles that timelines are generated from. While timelines have different lengths and date ranges, they also overlap. As demonstrated in this example, that can disproportionately reward systems that perform very well on only one input corpus.
+This reveals a problem with this evaluation corpus. While there is a total of 22 timelines in the corpus, there are only four collections of articles that timelines are generated from. While the timelines have different lengths and date ranges, their date ranges overlap. In case of the Crisis Libya dataset for example, $\approx 54\%$ of all documents are inside the range of all timelines and $\approx 75\%$ are in the ranges of all but one timeline. This means the timelines are largely generated from the same documents. As demonstrated in this example, that can disproportionately reward systems that perform very well on one set of articles.
+Note that for other corpora in the Crisis dataset, the overlap is far less extreme.
+For Yemen, it is at $\approx 35\%$, for Syria at $\approx 20\%$ and the Egypt topic has no documents that were used in the generation of all timelines.
 
 Finally, we also compare our systems with the extractive system of \citet{chieu}, which we have described in section \ref{sec:prior-work}.
-We use the results reported by \citet{markert} for comparison. Our system seems to outperform this baseline, but we lack full access to the evaluation results, so we can not check for statistical significance.
+We use the results reported by \citet{markert} for comparison. Note that, unlike ours, this system filters the sentences of the documents using a hand-crafted set of query words before summarization.
+
+Our system seems to outperform this baseline, but we lack full access to the evaluation results, so we can not check for statistical significance.
 
 %\begin{table}
 %
@@ -1619,7 +1629,7 @@ $TR^{(temp)}$ + Feat.   & 0.310$^{\dagger}$    & 0.344 & 0.059 & 0.049$^{\dagger
 
 \caption{Evaluation results for affinity propagation and baseline clustering with additional features.
 $^\dagger$ indicates significant improvement of a system with features in comparison to its featureless counterpart in table \ref{tab:eval-cl-tr}.
-$^{*}$ indicates significant improvement of a system with path weight scoring over its counterpart without or vice verse.
+$^{*}$ indicates significant improvement of a system with path weight scoring over its counterpart without or vice versa.
 $^{a}$ and $^b$ mark significant improvement of $TR^{(date)}$ system with path over $TR^{(temp)}$ with path and $TR^{(global)}$ with path respectively (or vice versa).
 }
 \label{tab:results-features}
@@ -1685,14 +1695,14 @@ System & Date & \multicolumn{ 2 }{c|}{Concat} & \multicolumn{ 2 }{c|}{Agree} & \
 \label{tab:results-token}
 \end{table}
 
-We now evaluate the effect of constraining the number of tokens, instead of the number of sentences, on our best systems. In this context, we also add the $f_{length}$ weighting to the systems without path weight. While it made sense to remove it for the sentence constraint setting, in the token constraint setting the original reasoning of \citet{banerjee} that short sentences are preferable to longer ones is valid again.
+We now evaluate the effect of constraining the number of tokens, instead of the number of sentences, on our best systems. In this context, we also add the $f_{length}$ scoring function to the systems without path weight. While it made sense to remove it for the sentence constraint setting, in the token constraint setting the original reasoning of \citet{banerjee} applies that many short sentences are preferable to few long ones.
 
-We compare the results for the systems with features from table \ref{tav:results-features} in both settings and show the results in table \ref{tab:results-token}.
+We evaluate the affinity propagation based systems with features under the token constraint in table \ref{tab:results-token} and compare them to the results for the sentence constraint.
 
 We can find the same general picture in the results, as in the sentence constraint case. The $TR^{(date)}$ system with path weight remains the strongest system on the Crisis corpus and all systems with path weight are closely tied on the Timeline 17 dataset.
 While the effect of switching to token constraint is mostly positive for the path weight scoring functions, sometimes even resulting in significant score increases, it is mostly negative for systems without the path constraint. We speculate that this positive effect can in part be explained by the fact that the path weighted system selects very short sentences in both settings.
-For example, the average length of a sentence selected by the AP+$TR^{(temp)}$ setting is around 45, in the sentence constraint setting and around 40 in the token constraint setting, the system with path weight selects sentences with an average length of 15 tokens in both settings.
-By switching to a token constraint setting, the system can integrate more of these short sentences in the summaries and thus improve scores.
+For example, the average length of a sentence selected by the AP+$TR^{(temp)}$ setting is around 45 in the sentence constraint setting and around 40 in the token constraint setting. Meanwhile the system with $f_{\mathit{path}}$ selects sentences with an average length of 15 tokens in both settings.
+By switching to the token constraint setting, the system with $f_{\mathit{path}}$ can integrate more of these short sentences in the summaries and thus improve its scores.
 
 
 %We present the results for token constraints in table \ref{tab:results-token}.
@@ -1708,10 +1718,10 @@ By switching to a token constraint setting, the system can integrate more of the
 The evaluation has yielded a number of interesting insights about the performance of our system:
 
 \begin{enumerate}
-    \item{The choice of clustering algorithm is critical for the performance of the system. Our enhanced clustering methods perform much better than the original document based clustering in almost all cases.}
+    \item{The choice of clustering algorithm is critical for performance. Our affinity propagation clustering method performs much better than the original document based clustering in all metrics with all features enabled.}
     \item{Including TLS inspired features generally leads to a huge improvement in performance over just using keyword scores.}
     \item{Variations in the TextRank based informativeness scores have some influence when used on their own, but are generally not as important as the aforementioned features, except for one outlier.}
-    \item{Including path weight of generated sentences generally improves ROUGE-2 scores}
+    \item{Including path weight of generated sentences in the scoring function generally improves ROUGE-2 scores.}
 \end{enumerate}
 
 While the last finding may potentially also hold on traditional MDS corpora, the first and second point are more specific to TLS.
@@ -1719,22 +1729,22 @@ They support the idea that abstractive TLS is not just abstractive MDS on differ
 Still, our system can achieve good results by building on abstractive MDS to create an abstractive TLS system.
 This makes it seem worthwhile to investigate abstractive TLS as a problem related to abstractive MDS, but not equivalent to it.
 
-Our evaluation on both sentence constraint and token constraint settings has shown that our system is capable of performing well in both settings. It is also able to outperform an extractive baseline that is commonly used in the evaluation of abstractive TLS.
-Together with the results of our oracle summarization, which show that using abstractive summarization can push the potential scores of TLS, this emphasize that using advances in abstractive MDS to create abstractive TLS systems is both worthwhile and feasible.
+Our evaluation on both sentence constraint and token constraint settings has shown, that our system is capable of performing well in both settings. It is also able to outperform an extractive baseline that is commonly used in the evaluation of abstractive TLS.
+Unlike the baseline system, we do not require additional filtering of the corpus with a hand-crafted query to achieve our results.
+Together with the results of our oracle summarization, which show that using abstractive summarization can push the potential scores of TLS, this emphasizes that using advances in abstractive MDS to create abstractive TLS systems is both worthwhile and feasible.
 
 Besides these key points, the evaluation has also lead to two other interesting findings, that might be relevant to TLS as a whole.
 
-The first one are the potential problems with the Crisis dataset.
-As our evaluation has show, it is often difficult to discern clear trends in the results of the Crisis dataset.
-We have identified one case where good performance on only one part of four parts of the corpus has lead to disproportionate change in the total results.
-This is probably a result of the relatively small variety of topics of the dataset. While it has many more reference timelines per topic than the Timeline 17 dataset and even more articles, there are only four corpora from which these timelines are all ultimately generated.
+The first finding is a potential problem with the Crisis dataset for evaluation.
+We have identified one case where good performance on only one of four parts of the corpus has lead to disproportionate change in the total results.
+This is probably a result of the relatively small variety of topics of the dataset. While it has many more reference timelines per topic than the Timeline 17 dataset and even more articles, there are only four sets of articles from which these timelines are all ultimately generated. We argue that this is undesirable if average ROUGE scores over all generated timelines are used as an evaluation metric, as this means there is considerable overlap in the documents that each timeline is generated from and thus timelines are not independent of each other.
 
 The second interesting ancillary finding is the interaction between date selection and abstractive summarization.
 Our experiments have shown that if we treat date selection and summarization as two completely separate problems, the date selection algorithm may choose dates that are difficult to summarize for the summarizer, resulting in lower ROUGE scores. This highlights that it can be important for the summarizer to be able to communicate with the date selection algorithm to balance date importance and the feasibility of creating summaries for these dates.
 
 \chapter{Grammaticality Evaluation} \label{sec:results-manual}
 
-Besides the automatic evaluation presented in section \ref{sec:results-auto}, we also conduct a manual evaluation of the grammaticality our system's output.
+Besides the automatic evaluation presented in section \ref{sec:results-auto}, we also conduct a manual evaluation of the grammaticality of our system's output.
 Ideally, we would evaluate all our systems for both informativeness and readability. This is, however, not feasible given our limited resources.
 We thus reduce the scope of our evaluation to only include the grammaticality of individual sentences.
 To further reduce the size of the annotation task, we select a small subset of sentences from each timeline.
@@ -1752,9 +1762,9 @@ To keep the scope of the evaluation small, we only evaluate timelines generated 
 
 We sampled five sentences from each individual timeline our system has generated.
 The sentences were then split into three equally-sized batches. Each batch was annotated three times by three different annotators.
-Annotators were not aware, that sentences were generated by different systems and the sentences were presented in random order, to prevent potential bias.
+Annotators were not aware that sentences were generated by different systems and the sentences were presented in random order, to prevent potential bias.
 
-We have recruited a total of nine annotators. All of them are proficient in English, but it is not their mother tongue.
+We have recruited a total of nine annotators. All of them are proficient in English, but they are not native speakers.
 Each annotator was given one batch to annotate along with instructions on the rating scale. We ran a small pilot study with only four annotators and 20 items. We asked annotators to report any problems with the instructions. We found that it was unclear to annotators, whether headline style phrases are permissible.
 As some of the reference timelines were also written in that style, we explicitly allowed that in our guidelines.
 
@@ -1766,24 +1776,24 @@ We use Krippendorff's Alpha \citep{krippendorff} to compute the reliability of o
 The reliability is very low at only $0.316$. We think that this is due to the fact that none of our annotators are native speakers.
 
 We show both the average score of each system and the percentage of times it received a particular rating in table \ref{tab:results-manual}.
-We include latter following the suggestion of \citet{filippova}, as practically speaking the scores $3$ and $2$ are much closer to each other than $2$ and $1$, as 2 indicates only minor errors, while 1 also includes cases in which entire parts of the sentence may be missing.
+We include the latter following the suggestion of \citet{filippova}, as practically speaking the scores $3$ and $2$ are much closer to each other than $2$ and $1$, as 2 indicates only minor errors, while 1 also includes cases in which entire parts of the sentence may be missing.
 %The table also includes the results \citet{filippova} repr
 
 The results show that none of the systems receives consistently good ratings. The majority of sentences for baseline and AP system receive the worst score of 1, indicating mayor errors, except for the AP+path system.
-The best results are achieved by the AP+path system, which receives the best score of 3 in one-third of all cases. The improvement seems to be mostly down to the $f_{path}$ component of scoring function, as the AP performs much worse, with more than half of all sentences receiving a score of 1.
+The best results are achieved by the AP+path system, which receives the best score of 3 in one-third of all cases. The improvement seems to be mostly due to the $f_{path}$ component of the scoring function, as the AP performs much worse, with more than half of all sentences receiving a score of 1.
 We investigate a potential reason for this in section \ref{sec:errors-grammar}.
 
 Surprisingly, even the baseline system outperforms AP. We speculate that this is for two reasons:
 
 \begin{itemize}
-    \item{The $f_{ling}$ score has proportionally larger influence, because it has to compete with fewer other features}
-    \item{As show in \ref{sec:setup-corpora}, clusters in the document setting are smaller than those produced by AP. Smaller clusters produce graphs with less alternatives and thus reduce the chance to improperly combine paths from different sentences.}
+    \item{The $f_{ling}$ score has proportionally larger influence, because it has to compete with fewer other scores.}
+    \item{As shown in table \ref{tab:genstats}, the clusters of the document based clustering method are smaller than those produced by AP. Smaller clusters produce graphs with less alternatives and thus reduce the chance to improperly combine paths from different sentences.}
 \end{itemize}
 
 When we compare the results of our system to the evaluation of \citet{banerjee} and \citet{filippova}, we notice that our results are lower than we would expect given the baseline systems. \citet{banerjee} let human annotators rate linguistic quality of whole summaries on a scale from 1 to 5 and report an average score of $3.63$, while human summaries receive an average of $4.35$ points.
-While this score is not necessarily comparable to our rating scale and setting, \citet{filippova} report an average score of $1.44$ with the same rating scale we use in their evaluation of headline quality. Note that their system starts from $0$, not $1$, so this is equivalent to a score of $2.44$ in our setting. This score is also much better than what we achieve, although we should note that she conducts headline summarization, not general MDS.
+While this score is not necessarily comparable to our rating scale and setting, \citet{filippova} reports an average score of $1.44$ with the same rating scale we use in their evaluation of headline quality. Note that her rating scale starts from $0$, not $1$, so this is equivalent to a score of $2.44$ in our setting. This score is also much better than what we achieve, although we should note that she conducts headline summarization, not full MDS.
 
-Still, these results suggests that the core problem might not be in summarization component itself, but in the way we cluster, score and select sentences.
+Still, these results suggest that the core problem might not be in summarization component itself, but in the way we cluster, score and select sentences.
 
 Overall the results, even while unreliable, indicate that the grammaticality of our system output is not satisfactory and further work is required to improve the readability of our system output.
 
@@ -1798,14 +1808,14 @@ Baseline & 1.5 & 0.668 & 0.166 & 0.166 \\\hline
 \end{tabular}
 
 
-\caption{Average grammaticality score and relative frequency of scores for the three systems we evaluated}
+\caption{Average grammaticality score and relative frequency of scores for the three systems we evaluated.}
 \label{tab:results-manual}
 \end{table}
 
 \chapter{Error Analysis and Examples}  \label{sec:errors}
 
-Sections \ref{sec:results-auto} and \ref{sec:results-manual} give use important data to gauge the performance of our system, but it is also interesting to look at the full timelines.
-While we lack the resources to do an in depth evaluation of all timelines, we have manually identified several problems manually.
+Sections \ref{sec:results-auto} and \ref{sec:results-manual} give us important data to gouge the performance of our system, but it is also interesting to look at the full timelines.
+While we lack the resources to do an in-depth evaluation of all timelines, we have identified several problems manually.
 
 \section{An Example Timeline}
 
@@ -1846,8 +1856,8 @@ Table \ref{tab:tlbp} shows the first five dates of a timeline generated on the B
 For comparison, we also show the first five entries of the human-authored timeline.
 
 We can see that the generated timeline covers some of the same general events as the human timeline.
-The explosion of the 20. April, the sinking of the rig on 22. and the beginning of the oil spill on April 24, although our system misses the date by a day. The human-authored timeline, however, is far more detailed in many aspects and also includes many points the system does not.
-Another notable difference is the different length of summaries in both timelines. This is a result of the way constraints are determined. While the human timeline has an average length of two sentences, the entries for the first few days are up to four days long, while later entries are shorter.
+The explosion of April 20th, the sinking of the rig on the 22nd and the beginning of the oil spill on April 24th, although our system misses the date by one day. The human-authored timeline, however, is far more detailed in many aspects and also includes many points the system does not.
+Another notable difference is the different length of summaries in both timelines. This is a result of the way constraints are determined. While the human timeline has an average length of two sentences, the entries for the first few days are up to four sentences long, while later entries are shorter.
 As we have a per-date-length constraint, our system can not put additional focus on some dates at the expense of others. This suggests that it might be worthwhile to change constraints to allow for this behavior in the future.
 
 Besides this, there are a number of additional problems that are demonstrated in this example.
@@ -1886,30 +1896,29 @@ The first concern suggests it might be worth investigating the output of the clu
 We refer to the clusters as cluster 1, 2, 3 and 4, corresponding to the order of their representatives in example \ref{ex:redundancy}.
 We find that the four clusters differ in subtle ways.
 For example, ~70\% of sentences in cluster 3 contain the word ''explosion'', while the rest of the clusters only contain it once. They instead contain the word ''exploded'' in a similar frequency.
-While the word ''spill'' is mentioned in clusters 1 and 3 in almost one-third of the sentences, it is only once mentioned in clusters 2 and 4., which instead have a higher frequency of the word ''leaking'', as in ''leaking oil''.
-It is unsurprising that our tf-idf model is not able to pick up on these slight variations that allow the sentences to end up in different clusters. As \citet{chieu} has already noted, cosine similarity does not reliably predict whether two sentences report the same event.
+While the word ''spill'' is mentioned in clusters 1 and 3 in almost one-third of the sentences, it is only once mentioned in clusters 2 and 4, which have a higher frequency of the word ''leaking'' instead, as in ''leaking oil''.
+It is unsurprising that our tf-idf model is not able to pick up on these slight variations that allow the sentences to end up in different clusters. As \citet{chieu} have already noted, cosine similarity does not reliably predict whether two sentences report the same event.
 
-The problem is further aggravated by the fact, that the initial explosion of the platform is a key event to the oil spill corpus and is thus mentioned relatively frequently. The clusters are the 3rd, 7th, 2nd and 1st largest clusters on the corpus. Members of these clusters thus have a large number of very similar sentences. The preference values that guide how likely it is for a sentence $s$ to become an exemplar are based on the median of incoming similarities for $s$ and thus these values are bound to be higher for these sentences.
+The problem is further aggravated by the fact that the initial explosion of the platform is a key event in the oil spill corpus and is thus mentioned relatively frequently. The clusters the sentences were generated from are the 3rd, 7th, 2nd and 1st largest clusters in the corpus. Members of these clusters thus have a large number of very similar sentences. The preference values that guide how likely it is for a sentence $s$ to become an exemplar are based on the median of incoming similarities for $s$ and thus these values are bound to be higher for these sentences.
 Higher preference values in turn result in more, smaller clusters \citep{ap}, which further explains the results we see here.
 
-Fixing this problem would require us to introduce a more sophistic similarity metric. Alternatively, it might be reasonable to investigate ways in which we can avoid the bias towards splitting these large clusters of sentences up into smaller sentences.
+Fixing this problem would require us to introduce a more sophisticate similarity metric. Alternatively, it might be reasonable to investigate ways in which we can avoid the bias towards splitting these large clusters of sentences up into smaller sentences.
 
 For the second problem, we have formed two hypothesis for the cause. Either the scores of the sentences are so high, they are still attractive, even if other sentences from the cluster have been selected already, or the partitioning does not assign the sentences into the same blocks.
-An investigation of the partitioning for the redundancy function reveals that none of the four sentences were clustered into the same partition and thus . The k-means algorithm divides the huge number of candidates that were generated from the large clusters we have described before into multiple partitions, so they are not recognized as being redundant.
+An investigation of the partitioning for the redundancy function reveals the latter is true. None of the four sentences were clustered into the same block. Thus the k-means algorithm divides the huge number of candidates that were generated from the large clusters we have described before into multiple partitions, so they are not recognized as being redundant.
 
-While this observation might point to problems in the selection of the number of clusters, we speculate that there is another factor at work here.
+While this observation might point to problems in the selection of the number of blocks in the partition, we speculate that there is another factor at work here.
 Generally, k-means is not good at detecting clusters which have different sizes and densities \citep{introduction-data-mining-tan}.
-This is a problem in our case, as very important events that may have multiple (sentence generation) clusters that describe them as show above, will lead to a huge number of very similar sentences being generated for them. To illustrate that point, consider that the most productive of the four clusters mentioned above has 672 distinct candidate sentences after filtering, while some cluster generate only one candidates.
-
+This is a problem in our case, as very important events that have multiple (sentence generation) clusters that describe them, as shown above, will lead to a huge number of very similar sentences being generated for them. To illustrate that point, consider that the most productive of the four clusters mentioned above has 672 distinct candidate sentences after filtering, while some cluster generate only one candidate.
 Due to the limitations of k-means, these large clusters of similar sentences may be broken up into smaller clusters, thus resulting in redundant sentences ending up in different blocks of the partitioning.
 
 To alleviate this problem we would need to either find a different clustering algorithm for our submodular function, or an alternative way to formulate redundancy that does not rely on clustering.
 
-\section{Ungrammatical sentences} \label{sec:errors-grammar}
+\section{Ungrammatical Sentences} \label{sec:errors-grammar}
 
-Besides the problems with the selection of our timelines in general mentioned in the previous section, we also find some general problems with the quality of selected sentences themselves, which we outline here.
+Besides the problems with our timelines in general, mentioned in the previous section, we also find some problems with the linguistic quality of selected sentences, which we outline here.
 
-\subsubsection{Overly long sentences}
+\subsubsection{Overly Long Sentences}
 
 One problem we have encountered when we drop the normalization for length in the sentence constraint setting is that the system tends to join multiple sentences together to maximize keyword score:
 
@@ -1917,10 +1926,10 @@ One problem we have encountered when we drop the normalization for length in the
 More than half of the dead were reported in cairo overnight anger : 26 people have been injured in the protests , which have included violent clashes during the 18-day uprising in january revolution that toppled hosni mubarak today sacked his entire cabinet and promised reforms after the violent protests running battles were still taking place this morning despite a curfew and extra security forces stormed a sit - in at tahrir staged by several hundred protesters were killed in four days.
 }
 
-While this might partially be fixed by introducing a sentence length constraint, it points to a deeper problem, where the language model is not adequatly able to score this sentence as ungrammatical.
-This mirrors a problem encountered by \citet{mckeown}, where the language model score they use to assess grammaticality of generated sentences also did not always score grammatical sentences higher than ungrammatical ones. In fact it is not surprising this problem arrises with this particular instance. The sentence is a concatenation of multiple grammatical sentences, where the problem are mostly the boundaries, where content from different sentences is fused together. As the language model only sees one trigram at a time, this is difficult to detect. The only irregularities are at the seams between two sentences, e.g. ''in january revolution'', the rest of the trigrams would appear normal.
+While this might partially be fixed by introducing a sentence length constraint, it points to a deeper problem, where the language model is not adequately able to score this sentence as ungrammatical.
+This mirrors a problem encountered by \citet{mckeown}, where the language model score they use to assess grammaticality of generated sentences also did not always score grammatical sentences higher than ungrammatical ones. In fact it is not surprising this problem arises with this particular instance. The sentence is a concatenation of multiple grammatical sentences, where the problems are mostly at the boundaries, where content from different sentences is fused together. As the language model only sees one trigram at a time, this is difficult to detect, as the most parts of the sentence appear normal in isolation.
 
-\subsubsection{Incomplete sentences}
+\subsubsection{Incomplete Sentences}
 
 On the other end of the spectrum, we have sentences where crucial parts are missing, making the sentence ungrammatical. It thus appears that the heuristic filtering methods we have introduced for sentences are not sufficient.
 See the following example, generated by the AP+$f_{ ling*TR^{(date)}*\mathit{dateref}*\mathit{csize}*\mathit{path} }$ where we miss a verb in the subclause.
@@ -1933,7 +1942,7 @@ While our constraints during sentence generation enforce that there is a verb pr
 
 To alleviate both of the above mentioned problems, future work should focus on finding ways to score the linguistic quality of sentences taking into account their syntactic structure.
 
-\section{Factually wrong sentences}
+\section{Factually Wrong Sentences}
 
 Extractive summarization approaches have the advantage that all sentences that they include in their documents have been found in their source documents. As long as their source documents are reliable, the sentences are thus most likely not completely incorrect, although they might be missing context.
 This guarantee, however, can not be made for our abstractive system, which we demonstrate here.
@@ -1951,7 +1960,7 @@ In a sentencing memorandum delivered to Judge Michael Pastor in advance of Tuesd
 }{Source: Timline 17 corpus, document mj/2011-11-29/130.htm.txt}
 
 There is a significant difference between the statement being made by the sentencing judge and a prosecuting lawyer, which our system is unsurprisingly not aware of.
-While we do not have the means to widely fact-check our system output, this examples shows that not everything our system outputs is necessarily correct.
+While we do not have the means to widely fact-check our system output, this example shows that not everything our system outputs is necessarily correct.
 This would be a serious problem if a system such as ours would actually be relied upon to summarize news events. The fact that the sentence itself has no tell-tale signs of erroneous composition would make it impossible for anyone reading the sentence to deduce its incorrectness without looking up the story itself.
 
 While we might be able to fix this particular problem by restricting permissible paths and improving clustering, it also shows that there is an inherent risk to systems which only work on sentences superficially, instead of trying to extract their underlying meaning.
@@ -2012,7 +2021,7 @@ A tuple $(X, \mathcal{I})$ is a $p$-independence system, if for all $Y \subseteq
 
 Following \citet{markert}, we know that if we can proof that the set of generated sentences $G$ and our constraints form a $p$-independence system $(G, \mathcal{I})$, we can guarantee that our system finds a summary with a score that is within a constant factor of $1 / (1 + p)$ of the optimal score.
 
-\section{Proof under cluster membership constraint} \label{sec:proof-cluster-constr}
+\section{Proof under Cluster Membership Constraint} \label{sec:proof-cluster-constr}
 
 We first prove that the constraints \ref{eq:constr-cluster}, \ref{eq:constr-date} and \ref{eq:constr-len-sent} form a $p$-independence system with $p = k_{sent}$.
 The proof is almost the same as the one \citet{markert} give for their constraints, but includes the clustering constraint \ref{eq:constr-cluster}.
