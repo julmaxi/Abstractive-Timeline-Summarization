@@ -106,7 +106,7 @@ def analyze_main():
     gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     print()
     #print()
-    gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
+    #gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
 
     significance_pairs = [
         ("ap-abstractive-temptr-dateref-clsize-path.json", "ap-abstractive-datetr-dateref-path.json")
@@ -498,8 +498,8 @@ def create_sig_diff_dict(results, entries, sys_1, sys_2, symbol="*"):
     #print(sys_1, sys_2)
     sig_level = check_significance(results, sys_1, sys_2)
 
-    if symbol == "c":
-        print(sys_1, sys_2, sig_level)
+    #if symbol in "abc":
+    #    print(sys_1, sys_2, sig_level)
 
     #print(sys_1, sys_2, sig_level)
 
@@ -542,6 +542,14 @@ def gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results
 
         tl17_sig_diff_sys.update(create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2, symbol="*"))
         crisis_sig_diff_sys.update(create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2, symbol="*"))
+
+    for system in  ["ap-abstractive-temptr-dateref-clsize.json+sent",
+            "ap-abstractive-temptr-dateref-clsize-path.json+sent",
+            "ap-abstractive-datetr-dateref.json+sent",
+            "ap-abstractive-datetr-dateref-path.json+sent",
+            "ap-abstractive-globaltr-dateref-clsize.json+sent",
+            "ap-abstractive-globaltr-dateref-clsize-path.json+sent"]:
+        tl17_sig_diff_sys.update(create_sig_diff_dict(all_tl17_results, tl17_entries, system, "chieu.json+sent", symbol="\\circ"))
 
     for sys_1, sys_2 in [
         ["ap-abstractive-temptr-dateref-clsize.json+sent", "ap-abstractive-temptr.json+sent"],
