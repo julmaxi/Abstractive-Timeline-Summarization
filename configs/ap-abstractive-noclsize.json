@@ -7,7 +7,9 @@
         "method": "global_submod"
     },
     "scoring": {
-        "use_cluster_size": false
+        "use_local_informativeness": true,
+        "tr_cache_path": "caches/local-tr/transitive-global-date-ap"
     },
-    "cluster_cache_path": "caches/tl-clustering/global-date-ap"
+    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap",
+    "candidate_cache_dir": "caches/tl-candidates/transitive-global-date-ap"
 }

@@ -15,13 +15,15 @@ from utils import iter_files
 
 
 
-def determine_tl_parameters(timeline, use_average=True):
+def determine_tl_parameters(timeline, use_average=True, use_token_count=True):
     dateset = timeline.get_dates()
     earliest_date = min(*dateset)
     last_date = max(*dateset)
     tl_date_count = len(dateset)
 
     date_sent_counts = []
+
+    date_sent_lens = []
 
     max_date_sent_count = 0
     total_sent_len = 0
@@ -32,18 +34,36 @@ def determine_tl_parameters(timeline, use_average=True):
         max_date_sent_count = max(max_date_sent_count, len(sents))
         date_sent_counts.append(len(sents))
 
+        date_sent_lens.append(sum(len(sent.split()) for sent in sents))
+
     date_sent_count = None
+    date_token_count = None
 
     if use_average:
         date_sent_count = int(sum(date_sent_counts) / len(date_sent_counts))
+        date_token_count = int(sum(date_sent_lens) / len(date_sent_lens))
     else:
         date_sent_count = max_date_sent_count
+        date_token_count = max(date_sent_lens)
+
+    if not use_token_count:
+        date_token_count = None
+
+#    print(TimelineParameters(
+#        earliest_date,
+#        last_date,
+#        tl_date_count,
+#        total_sent_len,
+#        date_token_count,
+#        date_sent_count
+#    ))
 
     return TimelineParameters(
         earliest_date,
         last_date,
         tl_date_count,
         total_sent_len,
+        date_token_count,
         date_sent_count
     )
 
@@ -59,11 +79,19 @@ def load_corpus(fname):
 
 def evaluate_tl_main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-c", dest="constraint", default="sent")
     parser.add_argument("-t", dest="timelines", nargs="+")
     parser.add_argument("corpus_pickle")
     parser.add_argument("config")
 
     args = parser.parse_args()
+
+    if args.constraint == "sent":
+        use_token_count = False
+    elif args.constraint == "tok":
+        use_token_count = True
+    else:
+        raise ValueError("Unknown contraint {}".format(args.contraint))
 
     evaluator = rouge.TimelineRougeEvaluator(measures=["rouge_1", "rouge_2"])
 
@@ -73,6 +101,13 @@ def evaluate_tl_main():
     rouge_2_sum = 0
     rouge_2_r_sum = 0
     rouge_2_p_sum = 0
+
+    agree_rouge_1_sum = 0
+    agree_rouge_1_r_sum = 0
+    agree_rouge_1_p_sum = 0
+    agree_rouge_2_sum = 0
+    agree_rouge_2_r_sum = 0
+    agree_rouge_2_p_sum = 0
 
     align_rouge_1_sum = 0
     align_rouge_1_r_sum = 0
@@ -90,7 +125,7 @@ def evaluate_tl_main():
     timelines = []
 
     for tl_fname in args.timelines:
-        with open(tl_fname, encoding="latin-1") as f:
+        with open(tl_fname, errors="ignore") as f:
             timeline = Timeline.from_file(f)
             timelines.append((os.path.basename(tl_fname), timeline))
 
@@ -104,17 +139,21 @@ def evaluate_tl_main():
     corpus_basename = os.path.basename(args.corpus_pickle).split(".")[0]
     config_basename = os.path.basename(args.config)
 
-    out_timelines_dir = os.path.join("system_timelines", config_basename, corpus_basename)
-    results_dir = os.path.join("evaluation_results", config_basename)
+    out_timelines_dir = os.path.join("system_timelines", config_basename  + "+" + args.constraint, corpus_basename)
+    results_dir = os.path.join("evaluation_results", config_basename + "+" + args.constraint)
 
     if not os.path.isdir(out_timelines_dir):
         os.makedirs(out_timelines_dir)
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
 
-    sys_timelines = tl_gen.generate_timelines(corpus, [determine_tl_parameters(tl) for _, tl in timelines], reference_timelines=list(map(lambda x: x[1], timelines)))
+    sys_timelines = tl_gen.generate_timelines(corpus, [determine_tl_parameters(tl, use_token_count=use_token_count) for _, tl in timelines], reference_timelines=list(map(lambda x: x[1], timelines)))
+
+    if use_token_count:
+        config["scoring"]["use_length"] = True
+
     with open(os.path.join(results_dir, corpus_basename + ".txt"), "w") as f_out: 
-        f_out.write("Timeline        \tDate R\tDate P\tDate F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\n")
+        f_out.write("Timeline        \tDate R\tDate P\tDate F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\n")
 
         for (timeline_name, gold_timeline), sys_timeline in zip(timelines, sys_timelines):
             with open(os.path.join(out_timelines_dir, timeline_name), "w") as f_tl:
@@ -128,6 +167,15 @@ def evaluate_tl_main():
             rouge_2_sum += eval_results["rouge_2"]["f_score"]
             rouge_2_r_sum += eval_results["rouge_2"]["recall"]
             rouge_2_p_sum += eval_results["rouge_2"]["precision"]
+
+
+            eval_results_agree = evaluator.evaluate_agreement(sys_timeline, reference_timeline)
+            agree_rouge_1_sum += eval_results_agree["rouge_1"]["f_score"]
+            agree_rouge_1_r_sum += eval_results_agree["rouge_1"]["recall"]
+            agree_rouge_1_p_sum += eval_results_agree["rouge_1"]["precision"]
+            agree_rouge_2_sum += eval_results_agree["rouge_2"]["f_score"]
+            agree_rouge_2_r_sum += eval_results_agree["rouge_2"]["recall"]
+            agree_rouge_2_p_sum += eval_results_agree["rouge_2"]["precision"]
 
 
             eval_results_align = evaluator.evaluate_align_date_content_costs_many_to_one(sys_timeline, reference_timeline)
@@ -154,7 +202,7 @@ def evaluate_tl_main():
             date_f1_r_sum += date_recall
             date_f1_p_sum += date_precision
 
-            f_out.write("{:<16}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n".format(
+            f_out.write("{:<16}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n".format(
                 timeline_name,
                 date_recall,
                 date_precision,
@@ -166,16 +214,22 @@ def evaluate_tl_main():
                 eval_results["rouge_2"]["precision"],
                 eval_results["rouge_2"]["f_score"],
 
+                eval_results_agree["rouge_1"]["recall"],
+                eval_results_agree["rouge_1"]["precision"],
+                eval_results_agree["rouge_1"]["f_score"],
+                eval_results_agree["rouge_2"]["recall"],
+                eval_results_agree["rouge_2"]["precision"],
+                eval_results_agree["rouge_2"]["f_score"],
+
                 eval_results_align["rouge_1"]["recall"],
                 eval_results_align["rouge_1"]["precision"],
                 eval_results_align["rouge_1"]["f_score"],
                 eval_results_align["rouge_2"]["recall"],
                 eval_results_align["rouge_2"]["precision"],
                 eval_results_align["rouge_2"]["f_score"]
+        ))
 
-                ))
-
-        f_out.write("{:<16}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n".format(
+        f_out.write("{:<16}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n".format(
             "All",
             date_f1_r_sum / len(args.timelines),
             date_f1_p_sum / len(args.timelines),
@@ -186,6 +240,14 @@ def evaluate_tl_main():
             rouge_2_r_sum / len(args.timelines),
             rouge_2_p_sum / len(args.timelines),
             rouge_2_sum / len(args.timelines),
+
+            agree_rouge_1_r_sum / len(args.timelines),
+            agree_rouge_1_p_sum / len(args.timelines),
+            agree_rouge_1_sum / len(args.timelines),
+            agree_rouge_2_r_sum / len(args.timelines),
+            agree_rouge_2_p_sum / len(args.timelines),
+            agree_rouge_2_sum / len(args.timelines),
+
             align_rouge_1_r_sum / len(args.timelines),
             align_rouge_1_p_sum / len(args.timelines),
             align_rouge_1_sum / len(args.timelines),

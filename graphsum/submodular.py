@@ -26,7 +26,7 @@ class RedundancyFactor:
 
         clustering = MiniBatchKMeans(n_clusters=num_clusters, batch_size=1000).fit_predict(tf_idf)
 
-        clustering = [0] * len(sorted_sent_ids)
+        #clustering = [0] * len(sorted_sent_ids)
 
         sent_partitions = {}
 
@@ -38,6 +38,8 @@ class RedundancyFactor:
     def __init__(self, rewards, sent_partitions, normalize=True):
         self.rewards = rewards
         self.sent_partitions = sent_partitions
+
+        self.redundant_sentences = set()
 
         #self.all_partitions = set(sent_partitions.values())
 
@@ -57,6 +59,9 @@ class RedundancyFactor:
 
     def update_scores(self, new_sentence):
         new_sent_partition_id = self.sent_partitions[new_sentence]
+
+        if self.reward_sums[new_sent_partition_id] != 0:
+            self.redundant_sentences.add(new_sentence)
 
         self.reward_sums[new_sent_partition_id] += self.rewards[new_sentence]
         self.reward_sqrts[new_sent_partition_id] = math.sqrt(self.reward_sums[new_sent_partition_id])
@@ -107,7 +112,6 @@ class CoverageFactor:
 
         for did, overlap in list(self.overlaps.items()):
             self.overlaps[did] = overlap / max_overlap
-
 
     def update_scores(self, new_sentence):
         self.current_overlap_score += self.overlaps[new_sentence]
@@ -171,9 +175,28 @@ class SubsetKnapsackConstraint:
         if new_sent in self.relevant_sents:
             self.current_size += self.sent_sizes[new_sent]
 
-            return [sent for length, sents in self.buckets.items() for sent in sents if self.current_size + length > self.knapsack_size]
+            removed_candidates = [sent for length, sents in self.buckets.items() for sent in sents if self.current_size + length > self.knapsack_size]
+
+            return removed_candidates
 
         return []
+
+
+class ConstantSizeSubsetKnapsackConstraint:
+    def __init__(self, knapsack_size, relevant_sents):
+        self.knapsack_size = knapsack_size
+        self.current_size = 0
+        self.relevant_sents = set(relevant_sents)
+
+    def update(self, new_sent, filtered_sentences):
+        if new_sent in self.relevant_sents:
+            self.current_size += 1
+
+            if self.current_size >= self.knapsack_size:
+                return self.relevant_sents
+
+        return []
+
 
 class ClusterMembershipConstraint:
     def __init__(self, id_cluster_map):
