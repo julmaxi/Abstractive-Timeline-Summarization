@@ -9,7 +9,7 @@ import pickle
 import json
 import os
 
-from getsize import getsize
+#from getsize import getsize
 
 from utils import iter_files
 

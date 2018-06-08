@@ -678,7 +678,7 @@ if __name__ == "__main__":#java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.Stanfor
                 basename = os.path.basename(fname)[:-7]
                 toks = reader.run(fname)
 
-                with open(date_out_dir + "/" + basename, "w") as f_out:
+                with open(date_out_dir + "/" + basename + ".tokenized", "w") as f_out:
                     f_out.write(" ".join(map(fst, toks)))
 
 
