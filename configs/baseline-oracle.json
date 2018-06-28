@@ -1,0 +1,17 @@
+{
+    "clustering": {
+        "method": "document"
+    },
+    "min_cluster_size": 2,
+    "selection": {
+        "method": "ilp"
+    },
+    "scoring": {
+        "method": "rouge_oracle"
+    },
+    "date_selection": {
+        "method": "dateref_freq"
+    },
+    "cluster_cache_path": "caches/tl-clustering/docset",
+    "candidate_cache_dir": "caches/tl-candidates/docset"
+}
