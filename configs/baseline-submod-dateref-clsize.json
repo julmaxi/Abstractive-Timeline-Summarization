@@ -1,0 +1,15 @@
+{
+    "clustering": {
+        "method": "document"
+    },
+    "min_cluster_size": 2,
+    "selection": {
+        "method": "global_submod"
+    },
+    "scoring": {
+        "use_date_frequency": true,
+        "use_cluster_size": true
+    },
+    "cluster_cache_path": "caches/tl-clustering/docset",
+    "candidate_cache_dir": "caches/tl-candidates/docset"
+}

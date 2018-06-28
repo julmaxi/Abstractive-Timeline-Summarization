@@ -1,0 +1,16 @@
+{
+    "clustering": {
+        "method": "agglo"
+    },
+    "min_cluster_size": 2,
+    "selection": {
+        "method": "global_submod"
+    },
+    "scoring": {
+        "use_local_informativess": false,
+        "use_temporalized_informativeness": true,
+        "temporalized_informativeness_cache_dir": "caches/tl-datetr-agglo"
+    },
+    "cluster_cache_path": "caches/tl-clustering/local-date-agglo",
+    "candidate_cache_dir": "caches/tl-candidates/local-date-agglo"
+}

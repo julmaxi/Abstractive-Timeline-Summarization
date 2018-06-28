@@ -1,0 +1,23 @@
+{
+    "clustering": {
+        "method": "ap"
+    },
+    "min_cluster_size": 2,
+    "selection": {
+        "method": "global_submod"
+    },
+    "scoring": {
+        "use_path_weight": true,
+        "use_local_informativeness": false,
+        "use_temporalized_informativeness": true,
+        "use_date_frequency": true,
+        "use_cluster_size": true,
+        "temporalized_informativeness_cache_dir": "caches/tl-datetr"
+    },
+    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap",
+    "candidate_cache_dir": "caches/tl-candidates/transitive-global-date-ap",
+
+    "date_selection": {
+        "method": "dateref_freq"
+    }
+}
