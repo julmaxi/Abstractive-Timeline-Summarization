@@ -7,7 +7,11 @@ import matplotlib.pyplot as plt
 from nltk.tokenize.punkt import PunktSentenceTokenizer
 from nltk.tokenize.regexp import WhitespaceTokenizer
 import nltk
-from pymprog import model
+
+try:
+    from pymprog import model
+except:
+    pass
 
 from collections import Counter, defaultdict, deque
 

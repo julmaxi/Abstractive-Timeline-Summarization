@@ -17,6 +17,11 @@ import numpy as np
 import json
 from urllib.parse import quote, unquote
 
+try:
+    from pymprog import model
+except:
+    pass
+
 from graphsum import summarize_timeline_dir, read_clusters, save_cluster
 
 import pickle
@@ -144,6 +149,19 @@ class RougeReimplementation:
             "rouge_2_p_count": prec_denom,
             "rouge_2_m_count": recall_denom,
         }
+
+from collections.abc import Sequence
+
+class Cluster(Sequence):
+    def __init__(self, members):
+        self.members = members
+        self.context = {}
+
+    def __getitem__(self, idx):
+        return self.members[idx]
+
+    def __len__(self):
+        return len(self.members)
 
 
 def determine_parameters(gold_dir):
@@ -439,6 +457,25 @@ def compute_relative_date_frequencies(corpus):
     return dict((date_ref, score / num_sents) for date_ref, score in dateref_counter.items())
 
 
+def read_structured_file(fname, item_processor=lambda x: x):
+    all_segments = []
+    with open(fname) as f:
+        curr_segment = []
+        for line in f:
+            line = line.strip()
+
+            if len(line) == 0:
+                all_segments.append(curr_segment)
+                curr_segment = []
+            else:
+                curr_segment.append(item_processor(line))
+
+    if len(curr_segment) > 0:
+        all_segments.append(curr_segment)
+
+    return all_segments
+
+
 class SentenceScorer:
     def __init__(self, config):
         self.lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
@@ -448,6 +485,8 @@ class SentenceScorer:
         self.use_cluster_size = False
 
         self.use_lm = config.get("use_lm", True)
+        self.lm_aggregator = config.get("lm_aggregator", "avg")
+
         self.use_local_informativeness = config.get("use_local_informativeness", True)
         assert "use_local_info" not in config
         self.use_cluster_size = config.get("use_cluster_size", False)
@@ -466,6 +505,9 @@ class SentenceScorer:
         #!!!!!!!!!
         self.use_length = config.get("use_length", False)
 
+        self.use_precomputed_quality = config.get("use_precomputed_quality", False)
+        self.precomputed_quality_dir = config.get("precomputed_quality_dir")
+
         if self.use_path_weight:
             self.use_length = False
 
@@ -483,6 +525,11 @@ class SentenceScorer:
 
         self.corpus_name = corpus.name
 
+        if self.use_precomputed_quality:
+            info_filename = os.path.join(self.precomputed_quality_dir, self.corpus_name.replace("/", "_") + ".txt")
+
+            self.precomputed_quality_information = read_structured_file(info_filename, lambda x: float(x.split()[0]))
+
     def prepare_for_clusters(self, clusters):
         self.max_cluster_size = max(map(lambda c: len(c[0]), clusters))
 
@@ -490,6 +537,11 @@ class SentenceScorer:
         for cluster, date in clusters:
             if date is not None:
                 sentences_per_date[date].extend(cluster)
+
+        if self.use_precomputed_quality:
+            for cluster, info in zip(clusters, self.precomputed_quality_information):
+                print(cluster)
+                cluster[0].context["precomputed_quality"] = info
 
         if self.use_temporalized_informativeness or self.use_per_date_informativeness:
             must_recompute_tr = True
@@ -588,10 +640,15 @@ class SentenceScorer:
 
             return local_informativeness_score
 
-        def sfunc_mult(sent, info):
+        def sfunc_mult(sidx, sent, info):
             score_info = {}
 
             score = 1
+
+            if self.use_precomputed_quality:
+                precomputed_score = cluster.context["precomputed_quality"][sidx]
+                score *= precomputed_score
+                score_info["precomputed_quality_score"] = precomputed_score
 
             if self.use_local_informativeness:
                 local_informativeness_score = calc_local_informativeness(sent)
@@ -614,7 +671,12 @@ class SentenceScorer:
                 score_info["global_informativeness"] = global_informativeness
 
             if self.use_lm:
-                lm_score = 1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent))))
+                if self.lm_aggregator == "avg":
+                    lm_score = 1 / (1.0 - self.lm.estimate_sent_log_proba(list(map(lambda t: t[0], sent))))
+                elif self.lm_aggregator == "min-avg":
+                    min_probas = sorted(self.lm.estimate_full_sent_log_probas(list(map(lambda t: t[0], sent))))[:5]
+                    lm_score = 1 / (1.0 - sum(min_probas) / len(min_probas))
+
                 score *= lm_score
                 score_info["lm_score"] = lm_score
 
@@ -685,7 +747,7 @@ class ROUGESenteneScorer:
 
 class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
     def __init__(self, config):
-        self.lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
+        self.lm = KenLMLanguageModel.from_file("lm_giga_64k_nvp_3gram.bin")
 
         self.local_informativeness_factor = config.get("local_informativeness_factor", 1)
         self.lm_factor = config.get("lm_factor", 1)
@@ -844,7 +906,7 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
 
             return local_informativeness_score
 
-        def sfunc_add(sent, info):
+        def sfunc_add(sidx, sent, info):
             return self.svm.predict(
                 [
                     [
@@ -1055,7 +1117,7 @@ class GlobalLocalSentenceScorer(ROUGESenteneScorer):
 
             return local_informativeness_score
 
-        def sfunc_add(sent, info):
+        def sfunc_add(sidx, sent, info):
             local_score = 0
             global_score = 0
             local_score += self.local_informativeness_factor * calc_local_informativeness(sent)
@@ -1352,8 +1414,6 @@ class AgglomerativeClusterer:
         #    clusters.append((sent_vec, [sentences[idx]]))
 
         return list(map(lambda x: x[1], clusters))
-
-from pymprog import model
 
 
 class ILPSentenceSelector:
@@ -1705,8 +1765,8 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
             cluster_candidates = []
             if hasattr(self.scorer, "score_function_for_cluster"):
                 score_func = self.scorer.score_function_for_cluster(cluster, cluster_date)
-                for candidate, info in candidates_and_info:
-                    score, info = score_func(candidate, info)
+                for sidx, (candidate, info) in enumerate(candidates_and_info):
+                    score, info = score_func(sidx, candidate, info)
                     cluster_candidates.append((candidate, score, info))
 
                 #print(cluster_date, cl_rank + 1, len(cluster_candidates))
@@ -1772,6 +1832,8 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                 save_cluster(os.path.join(cache_path, "{}.txt".format(idx)), cluster)
         else:
             clusters = [cluster for _, cluster in sorted(read_clusters(cache_path, corpus).items())]
+
+        clusters = [Cluster(cluster) for cluster in clusters]
 
         return clusters
 

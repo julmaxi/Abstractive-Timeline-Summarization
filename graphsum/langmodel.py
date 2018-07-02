@@ -20,6 +20,9 @@ class KenLMLanguageModel:
 
         return log10score / math.log(2)
 
+    def estimate_full_sent_log_probas(self, sent):
+        return [proba for proba, _, _ in self.kenlm_model.full_scores(" ".join(sent))]
+
 
 class StoredLanguageModel:
     @staticmethod

@@ -160,7 +160,7 @@ def evaluate_tl_main():
                 f_tl.write(str(sys_timeline))
 
             reference_timeline = GroundTruth([gold_timeline])
-            eval_results = evaluator.evaluate_concat(sys_timeline, reference_timeline)
+            eval_results = evaluator.evaluate_concat("TL", sys_timeline, reference_timeline)
             rouge_1_sum += eval_results["rouge_1"]["f_score"]
             rouge_1_r_sum += eval_results["rouge_1"]["recall"]
             rouge_1_p_sum += eval_results["rouge_1"]["precision"]
@@ -169,7 +169,7 @@ def evaluate_tl_main():
             rouge_2_p_sum += eval_results["rouge_2"]["precision"]
 
 
-            eval_results_agree = evaluator.evaluate_agreement(sys_timeline, reference_timeline)
+            eval_results_agree = evaluator.evaluate_agreement("TL", sys_timeline, reference_timeline)
             agree_rouge_1_sum += eval_results_agree["rouge_1"]["f_score"]
             agree_rouge_1_r_sum += eval_results_agree["rouge_1"]["recall"]
             agree_rouge_1_p_sum += eval_results_agree["rouge_1"]["precision"]
@@ -178,7 +178,7 @@ def evaluate_tl_main():
             agree_rouge_2_p_sum += eval_results_agree["rouge_2"]["precision"]
 
 
-            eval_results_align = evaluator.evaluate_align_date_content_costs_many_to_one(sys_timeline, reference_timeline)
+            eval_results_align = evaluator.evaluate_align_date_content_costs_many_to_one("TL", sys_timeline, reference_timeline)
             align_rouge_1_sum += eval_results_align["rouge_1"]["f_score"]
             align_rouge_1_r_sum += eval_results_align["rouge_1"]["recall"]
             align_rouge_1_p_sum += eval_results_align["rouge_1"]["precision"]

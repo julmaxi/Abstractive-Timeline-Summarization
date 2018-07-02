@@ -138,6 +138,13 @@ class Sentence:
     def as_tokenized_string(self):
         return " ".join(map(lambda t: t.form, self.tokens))
 
+    def as_tokenized_string_with_attribute(self, attr):
+        toks = []
+        for t in self.tokens:
+            str_repr = "/".join((t.form, getattr(t, attr)))
+            toks.append(str_repr)
+        return " ".join(toks)
+
     def __iter__(self):
         return iter(self.tokens)
 
@@ -145,6 +152,9 @@ class Sentence:
         if not self.zero_based_indexing:
             idx -= 1
         return self.tokens[idx]
+
+    def __len__(self):
+        return len(self.tokens)
 
     def as_token_tuple_sequence(self, *args):
         return TokenListView(self, args)

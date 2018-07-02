@@ -197,7 +197,9 @@ def analyze_system_results_dir(results_dir, macro_average=False):
 
                 tl_data = []
 
+                print(results_file, len(components))
                 for range_start in range(1, len(components), 3):
+                    #print(range_start)
                     tl_data.append(FMeasureEntry(*map(float, components[range_start:range_start + 3])))
 
                 entry = ResultEntry(*tl_data)
@@ -212,7 +214,10 @@ def analyze_system_results_dir(results_dir, macro_average=False):
             tl17_results[os.path.basename(results_file)] = topic_result
         all_results[os.path.basename(results_file)] = topic_result
 
-    macro_average_entry = compute_macro_averages(all_results)
+    if macro_average:
+        macro_average_entry = compute_macro_averages(all_results)
+    else:
+        macro_average_entry = compute_micro_averages(all_results)
     if len(tl17_results) > 0:
         if macro_average:
             tl17_macro_average_entry = compute_macro_averages(tl17_results)

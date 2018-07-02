@@ -9,13 +9,7 @@ from collections import defaultdict, Counter
 
 import matplotlib.pyplot as plt
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("configs")
-    parser.add_argument("corpora", nargs="+")
-
-    args = parser.parse_args()
-
+def gen_stats(args):
     all_samples = []
 
     for corpus_fname in args.corpora:
@@ -30,6 +24,42 @@ if __name__ == "__main__":
 
     plt.scatter([s[0] for s in all_samples], [s[1] for s in all_samples])
     plt.show()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("configs")
+    parser.add_argument("corpora", nargs="+")
+
+    args = parser.parse_args()
+
+    cluster_lengths = Counter()
+
+    for corpus_fname in args.corpora:
+        for config_name in args.configs.split(","):
+            with open(config_name) as f:
+                config = json.load(f)
+            corpus = load_corpus(corpus_fname)
+            tl_gen = GloballyClusteredSentenceCompressionTimelineGenerator(config)
+
+            clusters = tl_gen.create_clusters(corpus)
+            cluster_lengths.update(len(c) for c in clusters)
+
+    num_cl_at_least_2 = 0
+    num_cl_at_least_5 = 0
+    num_cl_at_least_10 = 0
+
+    for cl_size, cnt in sorted(cluster_lengths.items()):
+        if cl_size >= 2:
+            num_cl_at_least_2 += cnt
+
+            if cl_size >= 5:
+                num_cl_at_least_5 += cnt
+
+                if cl_size >= 10:
+                    num_cl_at_least_10 += cnt
+
+    print(num_cl_at_least_2, num_cl_at_least_5, num_cl_at_least_10)
 
 
 #    score_sums = defaultdict(Counter)
