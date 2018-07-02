@@ -37,7 +37,7 @@ def iter_gigaword_dir(gw_dir, fname_filter=lambda f: True):
     for fname in os.listdir(gw_dir):
         if not fname.endswith(".xml.gz") or not fname_filter(fname):
             continue
-        with gzip.open(fname, 'rb') as f:
+        with gzip.open(os.path.join(gw_dir, fname), 'rb') as f:
             content = f.read()
             yield content
 
