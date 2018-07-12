@@ -73,6 +73,9 @@ class RedundancyFactor:
         return delta_s
 
 
+
+
+
 class CoverageFactor:
     @classmethod
     def from_sentences(cls, doc_sents, summary_sents):

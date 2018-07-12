@@ -26,7 +26,7 @@ from graphsum import summarize_timeline_dir, read_clusters, save_cluster
 
 import pickle
 
-from langmodel import KenLMLanguageModel
+from langmodel import KenLMLanguageModel, KenLMPOSLanguageModel
 from reader import DatedSentenceReader, DatedTimelineCorpusReader
 from clustering import generate_affinity_matrix_from_dated_sentences, write_similarity_file, read_ap_file, cluster_sentences_ap
 from similarity import SklearnTfIdfCosineSimilarityModel
@@ -672,9 +672,9 @@ class SentenceScorer:
 
             if self.use_lm:
                 if self.lm_aggregator == "avg":
-                    lm_score = 1 / (1.0 - self.lm.estimate_sent_log_proba(list(map(lambda t: t[0], sent))))
+                    lm_score = 1 / (1.0 - self.lm.estimate_sent_log_proba(sent))
                 elif self.lm_aggregator == "min-avg":
-                    min_probas = sorted(self.lm.estimate_full_sent_log_probas(list(map(lambda t: t[0], sent))))[:5]
+                    min_probas = sorted(self.lm.estimate_full_sent_log_probas(sent)[:5])
                     lm_score = 1 / (1.0 - sum(min_probas) / len(min_probas))
 
                 score *= lm_score
@@ -747,7 +747,8 @@ class ROUGESenteneScorer:
 
 class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
     def __init__(self, config):
-        self.lm = KenLMLanguageModel.from_file("lm_giga_64k_nvp_3gram.bin")
+        #self.lm = KenLMLanguageModel.from_file("lm_giga_64k_nvp_3gram.bin")
+        self.lm = KenLMPOSLanguageModel.from_file("lm_giga_pos_7gram.bin")
 
         self.local_informativeness_factor = config.get("local_informativeness_factor", 1)
         self.lm_factor = config.get("lm_factor", 1)
@@ -911,7 +912,7 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
                 [
                     [
                         calc_local_informativeness(sent),
-                        1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent)))),
+                        1 / (1.0 - self.lm.estimate_sent_log_proba(sent)),
                         len(cluster) / self.max_cluster_size,
                         (self.relative_date_frequencies.get(cluster_date, 0)),
                         info["rel_frequency"]
@@ -921,7 +922,7 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
 
             score = 0
             score += self.local_informativeness_factor * calc_local_informativeness(sent)
-            score += self.lm_factor * 1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent))))
+            score += self.lm_factor * 1 / (1.0 - self.lm.estimate_sent_log_proba(sent))
             score += self.cluster_size_factor * len(cluster) / self.max_cluster_size
             score += self.dateref_factor * (self.relative_date_frequencies.get(cluster_date, 0))
             score += self.path_weight_factor * info["rel_frequency"]
@@ -937,7 +938,7 @@ class WeightedSentenceScorer(SentenceScorer, ROUGESenteneScorer):
 
         return np.array([
             local_informativeness_score,
-            1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], s)))),
+            1 / (1.0 - self.lm.estimate_sent_log_proba(s)),
             len(cluster) / max_cluster_size,
             dateref_score,
             info["rel_frequency"]
@@ -1121,7 +1122,7 @@ class GlobalLocalSentenceScorer(ROUGESenteneScorer):
             local_score = 0
             global_score = 0
             local_score += self.local_informativeness_factor * calc_local_informativeness(sent)
-            local_score += self.lm_factor * 1 / (1.0 - self.lm.estimate_sent_log_proba(" ".join(map(lambda t: t[0], sent))))
+            local_score += self.lm_factor * 1 / (1.0 - self.lm.estimate_sent_log_proba(sent))
             local_score += self.path_weight_factor * info["rel_frequency"]
             global_score += self.cluster_size_factor * len(cluster) / self.max_cluster_size
             global_score += self.dateref_factor * (self.relative_date_frequencies.get(cluster_date, 0))

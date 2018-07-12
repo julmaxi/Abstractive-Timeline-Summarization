@@ -15,13 +15,21 @@ class KenLMLanguageModel:
     def __init__(self, kenlm_model):
         self.kenlm_model = kenlm_model
 
+    def to_str(self, sent):
+        return " ".join(map(lambda x: x[0], sent))
+
     def estimate_sent_log_proba(self, sent):
-        log10score = self.kenlm_model.score(" ".join(sent)) / len(sent)
+        log10score = self.kenlm_model.score(self.to_str(sent)) / len(sent)
 
         return log10score / math.log(2)
 
     def estimate_full_sent_log_probas(self, sent):
-        return [proba for proba, _, _ in self.kenlm_model.full_scores(" ".join(sent))]
+        return [proba for proba, _, _ in self.kenlm_model.full_scores(self.to_str(sent))]
+
+
+class KenLMPOSLanguageModel:
+    def to_str(self, sent):
+        return " ".join(map(lambda x: x[1], sent))
 
 
 class StoredLanguageModel:
