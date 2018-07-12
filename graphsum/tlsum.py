@@ -1734,7 +1734,15 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
         self.generator.prepare(corpus)
         self.sentence_selector.prepare(corpus)
 
-        clusters = self.create_clusters(corpus)
+        from component import ConstantPromise, CacheManager
+
+        corpus_promise = ConstantPromise(corpus, corpus.name, CacheManager())
+
+        cluster_promise = corpus_promise.chain(self.clusterer.cluster_corpus, key="clusters")
+
+        clusters = cluster_promise.get()
+
+        #clusters = self.create_clusters(corpus)
 
         #for idx, (vals, candidates) in enumerate(sorted(zip(clusters, cluster_candidates), key=lambda x: len(x[0]), reverse=True)):
         #    print("====Cluster {}====".format(idx))
@@ -1750,7 +1758,7 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
 
         dated_clusters = list(((cluster, self.cluster_dater.date_cluster(cluster)) for cluster in clusters))
-        cluster_candidates = self.generate_candidates_for_clusters(corpus, clusters)
+        cluster_candidates = cluster_promise.chain(lambda clusters: self.generate_candidates_for_clusters(corpus, clusters), key="candidates").get()
 
         #dated_clusters.extend((sent.as_token_tuple_sequence("form", "pos"), self.cluster_dater.date_cluster([sent])) for doc in corpus for sent in doc)
         #cluster_candidates.extend([(sent.as_token_tuple_sequence("form", "pos"), {})] for doc in corpus for sent in doc)
