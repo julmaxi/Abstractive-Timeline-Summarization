@@ -1,0 +1,8 @@
+language: cpp
+sudo: required
+services: docker
+compiler:
+- g++
+- clang
+before_install: "./ci/before_install.sh"
+script: "./ci/build.sh"
