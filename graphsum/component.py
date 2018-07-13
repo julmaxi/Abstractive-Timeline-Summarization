@@ -63,17 +63,35 @@ def component(key):
 
 
 class ComponentConfigParser:
-    def parse_config(self, config_dict):
-        self.parse_partial_config(self.root_schema, config_dict)
+    @classmethod
+    def from_dict(cls, dic, include_unknown_keys=False):
+        return cls(DictValue(dic, include_unknown_keys=include_unknown_keys))
 
-    def parse_partial_config(self, root_schema, config_dict):
-        for key, val_schema in root_schema.items():
-            pass
+    def __init__(self, root_schema):
+        self.root_schema = root_schema
+
+    def parse_config(self, config_dict):
+        return self.root_schema.parse(config_dict)
+
+
+class ListVaĺue:
+    def __init__(self, elem_schema):
+        self.elem_schema = elem_schema
+
+    def parse(self, config):
+        result_list = []
+
+        for raw_elem in config:
+            elem = self.elem_schema.parse(raw_elem)
+            result_list.append(elem)
+
+        return result_list
 
 
 class DictValue:
-    def __init__(self, schema):
+    def __init__(self, schema, include_unknown_keys=False):
         self.schema = schema
+        self.include_unknown_keys = include_unknown_keys
 
     def parse(self, config):
         result_dict = {}
@@ -83,7 +101,10 @@ class DictValue:
             result_dict[key] = processed_val
 
         for key in set(config) - set(self.schema):
-            logger.warn("Unknown key {}".format(key))
+            if self.include_unknown_keys:
+                logger.warn("Unknown key {}".format(key))
+            else:
+                result_dict[key] = config[key]
 
         return result_dict
 
@@ -95,10 +116,13 @@ class Value:
 
 class ComponentValue:
     def parse(self, config):
-        implementation_name = config["__impl"]
-        component_cls = ComponentRegistry.find_impl(implementation_name)
-        config_value = DictValue(component_cls.get_parameters())
-        parameters = config_value.parse(config)
+        if isinstance(config, dict):
+            implementation_name = config["__impl"]
+            component_cls = ComponentRegistry.find_impl(implementation_name)
+            config_value = DictValue(component_cls.get_parameters())
+            parameters = config_value.parse(config)
+        else:
+            component_cls = ComponentRegistry.find_impl(config)
 
         return component_cls(parameters)
 
