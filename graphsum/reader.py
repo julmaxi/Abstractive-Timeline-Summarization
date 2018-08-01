@@ -601,7 +601,7 @@ class DependencyTree:
 #        self.roots = []
 
     def add_token(self, token):
-        self.token_heads[token] = None
+        self.token_heads[token] = (None, None)
 
     def add_edge(self, head_token, token, edge_type):
         self.token_heads[token] = (head_token, edge_type)
@@ -611,11 +611,11 @@ class DependencyTree:
 
     def as_head_idx_sequence(self):
         seq = []
-        for token, head_token in self.token_heads:
+        for token, (head_token, edge_type) in self.token_heads.items():
             if head_token is None:
                 seq.append((token.idx, -1))
             else:
-                seq.append((token.idx, ))
+                seq.append((token.idx, head_token.idx))
 
         seq.sort()
         return [head_idx for _, head_idx in seq]
