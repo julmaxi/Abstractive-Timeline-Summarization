@@ -268,8 +268,8 @@ class StanfordXMLReader:
             tree.add_token(tok)
 
         for dep in xml_deps.iter("dep"):
-            gov_id = dep.find("governor").attrib["idx"]
-            dep_id = dep.find("dependent").attrib["idx"]
+            gov_id = int(dep.find("governor").attrib["idx"])
+            dep_id = int(dep.find("dependent").attrib["idx"])
             extra = dep.attrib.get("extra", False)
             if extra:
                 continue
