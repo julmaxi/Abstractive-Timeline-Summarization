@@ -162,6 +162,7 @@ class Sentence:
     def as_token_attr_sequence(self, arg):
         return TokenAttrListView(self, arg)
 
+
 class Token:
     def __init__(self,
                  form=None,
@@ -264,7 +265,7 @@ class StanfordXMLReader:
         tree = DependencyTree()
         node_idx_map = {}
         for tok in tokens:
-            node_idx_map[tok.idx] = tree.append_token(tok)
+            tree.add_token(tok)
 
         for dep in xml_deps.iter("dep"):
             gov_id = dep.find("governor").attrib["idx"]
@@ -274,16 +275,15 @@ class StanfordXMLReader:
                 continue
             edge_type = dep.attrib["type"]
 
-            if "subj" in edge_type:
-                edge_type = "SB"
-            elif "obj" in edge_type:
-                edge_type = "OA"
+            #if "subj" in edge_type:
+            #    edge_type = "SB"
+            #elif "obj" in edge_type:
+            #    edge_type = "OA"
 
             if edge_type != "root":
-                dep_tok = node_idx_map[dep_id]
-
-                if dep_tok.parent is None:
-                    node_idx_map[gov_id].add_child(dep_tok, edge_type)
+                gov_tok = tokens[gov_id]
+                dep_tok = tokens[dep_id]
+                tree.add_edge(gov_tok, dep_tok, edge_type)
 
         return tree
 
@@ -441,6 +441,12 @@ class DateTag:
         else:
             return "DateTag({}, {}, {})".format(self.dtype, self.year, self.week)
 
+    def __str__(self):
+        if self.dtype != DateTag.WEEK:
+            return "{}-{}-{}".format(self.year, self.month, self.day)
+        else:
+            return "{}-W{}".format(self.year, self.week)
+
 class DatedSentenceReader:
     def __init__(self):
         self.stanford_reader = StanfordXMLReader()
@@ -588,65 +594,66 @@ class DatedSentenceReader:
 
 class DependencyTree:
     def __init__(self):
-        self.nodes = []
-        self.roots = []
+        self.token_heads = {}
+#        self.nodes = []
+#        self.roots = []
 
-    def append_token(self, token, parent=None, edge_type=None, **args):
-        node = DependencyTreeNode(token, self, len(self.nodes), **args)
-        self.nodes.append(node)
-        if parent:
-            parent.add_child(node, edge_type)
-        else:
-            self.roots.append(node)
+    def add_token(self, token):
+        self.token_heads[token] = None
 
-        return node
+    def add_edge(self, head_token, token, edge_type):
+        self.token_heads[token] = (head_token, edge_type)
 
     def __str__(self):
         return "\n".join(map(lambda n: str(n), self.roots))
 
-    def node_for_token(self, token):
-        for node in self.nodes:
-            if node.token == token:
-                return node
-        else:
-            return None
+    def as_head_idx_sequence(self):
+        seq = []
+        for token, head_token in self.token_heads:
+            if head_token is None:
+                seq.append((token.idx, -1))
+            else:
+                seq.append((token.idx, ))
+
+        seq.sort()
+        return [head_idx for _, head_idx in seq]
 
 
-class DependencyTreeNode:
-    def __init__(self, token, tree, idx):
-        self.token = token
-        self.children = []
-        self.tree = tree
-        self.parent = None
-        self.incoming_edge_type = None
-        self.idx = idx
-
-    def add_child(self, child, edge_type):
-        if child.parent is None:
-            self.tree.roots.remove(child)
-        else:
-            child.parent.remove_child(child)
-        self.children.append((child, edge_type))
-        child.parent = self
-        child.incoming_edge_type = edge_type
-
-    def line_repr(self, indent=0):
-        if indent == 0:
-            indent_str = ""
-        elif indent == 1:
-            indent_str = "+----"
-        else:
-            indent_str = "     " * (indent - 1) + "+----"
-        own_line = indent_str + "({}) {}".format(
-            self.incoming_edge_type, self.token)
-        lines = [(self.idx, own_line)]
-        for child, _ in self.children:
-            lines += child.line_repr(indent + 1)
-
-        return lines
-
-    def __str__(self, indent=0):
-        return "\n".join(map(lambda t: t[1], sorted(self.line_repr())))
+#class DependencyTreeNode:
+#    def __init__(self, token, tree, idx):
+#        self.token = token
+#        self.children = []
+#        self.tree = tree
+#        self.parent = None
+#        self.incoming_edge_type = None
+#        self.idx = idx
+#
+#    def add_child(self, child, edge_type):
+#        if child.parent is None:
+#            self.tree.roots.remove(child)
+#        else:
+#            child.parent.remove_child(child)
+#        self.children.append((child, edge_type))
+#        child.parent = self
+#        child.incoming_edge_type = edge_type
+#
+#    def line_repr(self, indent=0):
+#        if indent == 0:
+#            indent_str = ""
+#        elif indent == 1:
+#            indent_str = "+----"
+#        else:
+#            indent_str = "     " * (indent - 1) + "+----"
+#        own_line = indent_str + "({}) {}".format(
+#            self.incoming_edge_type, self.token)
+#        lines = [(self.idx, own_line)]
+#        for child, _ in self.children:
+#            lines += child.line_repr(indent + 1)
+#
+#        return lines
+#
+#    def __str__(self, indent=0):
+#        return "\n".join(map(lambda t: t[1], sorted(self.line_repr())))
 
 
 class DatedTimelineCorpusReader:

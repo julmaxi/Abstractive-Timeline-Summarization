@@ -120,11 +120,14 @@ class ComponentValue:
             implementation_name = config["__impl"]
             component_cls = ComponentRegistry.find_impl(implementation_name)
             config_value = DictValue(component_cls.get_parameters())
-            parameters = config_value.parse(config)
+            clean_config = dict(config)
+            del clean_config["__impl"]
+            parameters = config_value.parse(clean_config)
         else:
             component_cls = ComponentRegistry.find_impl(config)
+            parameters = {}
 
-        return component_cls(parameters)
+        return component_cls(**parameters)
 
 
 class Component:
@@ -163,7 +166,7 @@ class CacheManager:
         pass
 
     def key_to_path(self, key):
-        return "test-caches/" + str(base64.encodestring(bytearray(key, "utf8")), "utf8")
+        return "test-caches/" + key.replace("/", "_") #str(base64.encodestring(bytearray(key, "utf8")), "utf8")
 
     def load_cached_data(self, key):
         presumed_cache_path = self.key_to_path(key)

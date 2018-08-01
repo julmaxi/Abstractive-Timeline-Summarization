@@ -73,7 +73,31 @@ class RedundancyFactor:
         return delta_s
 
 
+class NGramCoverageFactor:
+    def __init__(self, id_sentence_map, word_score_map):
+        self.covered_words = set()
+        self.id_sentence_map = id_sentence_map
+        self.word_score_map = {}
 
+        max_val = max(word_score_map.values())
+
+        for key, val in word_score_map.items():
+            self.word_score_map[key] = word_score_map[key] / max_val
+
+    def find_score_delta(self, sent_id):
+        sent = self.id_sentence_map[sent_id]
+        all_words = set(sent)
+        new_words = all_words - self.covered_words
+
+        left_over_score = 0
+        for word in new_words:
+            left_over_score += self.word_score_map.get(word, 0)
+
+        return left_over_score / len(all_words)
+
+    def update_scores(self, new_sent_id):
+        new_sentence = self.id_sentence_map[new_sent_id]
+        self.covered_words.update(new_sentence)
 
 
 class CoverageFactor:

@@ -226,11 +226,15 @@ class SentenceCompressionGraph:
 
         self.surface_to_nodes_map = defaultdict(set)
 
-    def add_sentences(self, sentences):
-        for sent in sentences:
-            self.add_sentence(sent)
+    def add_sentences(self, sentences, dependency_data=None):
+        if sentence_data is None:
+            for sent in sentences:
+                self.add_sentence(sent)
+        else:
+            for sent, data in zip(sentences, dependency_data):
+                self.add_sentence(sent, data)
 
-    def add_sentence(self, sentence):
+    def add_sentence(self, sentence, dependency_data=None):
         normalized_sentence = []
         for tok in sentence:
             assert len(tok) == 2, "Expecting two-tuple of (form, pos)"
@@ -255,7 +259,10 @@ class SentenceCompressionGraph:
             else:
                 edge["frequency"] += 1
 
-            self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, sentence))
+            if dependency_data is not None:
+                self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, dependency_data[t_idx], sentence))
+            else:
+                self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, sentence))
             prev_node = node
 
         end_edge = self.graph[prev_node].get("END")
@@ -424,7 +431,69 @@ class SentenceCompressionGraph:
         for src, trg, data in self.graph.edges(data=True):
             data["rel_frequency"] = data["frequency"] / max_freq
 
-    def generate_compression_candidates(self, n=2500, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=600, return_weight=False, max_tries=2500):
+    def alternate_compression_generation(self, validator):
+        from collections import deque
+        import heapq
+        self.calculate_strong_links_weights()
+        nodes_by_freq = []
+        for node, data in self.graph.nodes(data=True):
+            nodes_by_freq.append((len(data.get("mapped_tokens", [])), node))
+
+        seen_sequences = set()
+        seen_sents = set()
+
+        nodes_by_freq = sorted(nodes_by_freq, reverse=True)
+
+        curr_expansions = [(0, (starting_node[1],)) for starting_node in nodes_by_freq[:3]]
+
+        tries_left = 5000
+
+        while len(curr_expansions) > 0 and tries_left > 0:
+            tries_left -= 1
+            _, curr_expansion = heapq.heappop(curr_expansions)
+
+            if curr_expansion in seen_sequences:
+                continue
+            seen_sequences.add(curr_expansion)
+
+            curr_expansion_text = tuple(self.graph.nodes[n]["token"] for n in curr_expansion)
+            if curr_expansion_text not in seen_sents and validator(curr_expansion_text):
+                seen_sents.add(curr_expansion_text)
+                full_len = 0
+                prev_node = curr_expansion[0]
+                freq_sum = 0
+                for node in curr_expansion[1:]:
+                    full_len += self.graph[prev_node][node]["weight_sl"]
+                    freq_sum += self.graph[prev_node][node]["rel_frequency"]
+                    prev_node = node
+
+                yield curr_expansion_text, {"weight": full_len, "avg_rel_frequency": freq_sum / len(curr_expansion)}
+
+            right_expansions = list(self.graph.successors(curr_expansion[-1]))
+            left_expansions = list(self.graph.predecessors(curr_expansion[0]))
+
+            for l_exp in left_expansions:
+                if l_exp == "START":
+                    continue
+                if l_exp in curr_expansion:
+                    continue
+                new_exp = (l_exp,) + (curr_expansion)
+                freq = self.graph[l_exp][curr_expansion[0]]["frequency"]
+
+                heapq.heappush(curr_expansions, (-freq, new_exp))
+
+            for r_exp in right_expansions:
+                if r_exp == "END":
+                    continue
+                if r_exp in curr_expansion:
+                    continue
+                new_exp = (curr_expansion) + (r_exp,)
+                freq = self.graph[curr_expansion[-1]][r_exp]["frequency"]
+
+                heapq.heappush(curr_expansions, (-freq, new_exp))
+
+
+    def generate_compression_candidates(self, n=2500, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=600, return_weight=False, max_tries=2500, use_dep_filtering=False):
         self.calculate_strong_links_weights()
 
         num_yielded = 0
@@ -472,6 +541,9 @@ class SentenceCompressionGraph:
             if not filterfunc(tokens):
                 continue
 
+            if use_dep_filtering and not self.passes_dep_filter(path):
+                continue
+
             if tuple(tokens) not in candidate_set:
                 if return_weight is True:
                     full_len = 0
@@ -491,6 +563,28 @@ class SentenceCompressionGraph:
                 break
 
         logging.debug("Needed {} tries to create {} items".format(num_tries, num_yielded))
+
+    def passes_dep_filter(self, path):
+        required_heads = []
+        for node in path[1:-1]:
+            node_required_heads = set()
+            for tidx, token, head_idx, sentence in self.graph.nodes[node]["mapped_tokens"]:
+                if head_idx != -1:
+                    head_tok = sentence[head_idx]
+                    node_required_heads.add(head_tok)
+            required_heads.append(node_required_heads)
+
+#        print([self.graph.nodes[node]["token"] for node in path[1:-1]])
+
+        present_toks = set([self.graph.nodes[node]["token"] for node in path[1:-1]])
+        for head_choice in required_heads:
+            if len(head_choice) == 0:
+                continue
+            if not any(h in present_toks for h in head_choice):
+       #         print(present_toks, head_choice)
+                return False
+
+        return True
 
 
 def insert_into_top_n_list(l, new_item, n):
@@ -1261,11 +1355,13 @@ def calculate_keyword_text_rank(sentences, window_size=None):
         for tok, pos in sent:
             if tok.lower() in STOPWORDS or not tok.isalnum():
                 continue
+            if not pos.lower()[0] in "vn":
+                continue
             graph.add_node((tok, pos))
             for context_tok, context_pos in context:
                 if context_tok == tok and context_pos == pos:
                     continue
-                if (context_tok.lower() not in STOPWORDS and context_tok.isalnum()):
+                if (context_tok.lower() not in STOPWORDS and context_tok.isalnum() and context_pos.lower()[0] in "vn"):
                     graph.add_edge((context_tok, context_pos), (tok, pos))
 
     pr = nx.pagerank(graph)
