@@ -271,8 +271,9 @@ class StanfordXMLReader:
             tree.add_token(tok)
 
         for dep in xml_deps.iter("dep"):
-            gov_id = int(dep.find("governor").attrib["idx"])
-            dep_id = int(dep.find("dependent").attrib["idx"])
+            # CoreNLP uses 1 based indexing
+            gov_id = int(dep.find("governor").attrib["idx"]) - 1
+            dep_id = int(dep.find("dependent").attrib["idx"]) - 1
             extra = dep.attrib.get("extra", False)
             if extra:
                 continue
