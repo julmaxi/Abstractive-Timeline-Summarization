@@ -227,7 +227,7 @@ class SentenceCompressionGraph:
         self.surface_to_nodes_map = defaultdict(set)
 
     def add_sentences(self, sentences, dependency_data=None):
-        if sentence_data is None:
+        if dependency_data is None:
             for sent in sentences:
                 self.add_sentence(sent)
         else:
