@@ -182,7 +182,7 @@ class Token:
 
     def __repr__(self):
         return "Token(idx = {!r}, {!r}, sentence_idx = {!r})".format(
-        self.idx, self.form, self.sentence.idx)
+        self.idx, self.form, self.sentence.idx if self.sentence is not None else None)
 
     def __eq__(self, other):
         return self.form.lower() == other.form.lower()
@@ -253,12 +253,15 @@ class StanfordXMLReader:
             tokens.append(token)
             token_idx_map[tid] = token
 
+        dep_tree = None
         for deps in xml_sent.iter("dependencies"):
             if deps.attrib["type"] == "enhanced-plus-plus-dependencies":
                 dep_tree = self.process_dependencies(deps, tokens)
                 break
 
-        return Sentence(tokens, zero_based_indexing=False)
+        if dep_tree is None:
+            print(dep_tree)
+        return Sentence(tokens, zero_based_indexing=False, dependency_tree=dep_tree)
 
     def process_dependencies(self, xml_deps, tokens):
         tree = DependencyTree()
@@ -405,7 +408,6 @@ class DateTag:
             else:
                 return DateTag(DateTag.MONTH, int(parts[0]), int(parts[1]))
 
-        print(expr)
         raise ValueError("Expression {!r} is not a date tag".format(expr))
 
     def __init__(self, dtype, *args):
@@ -487,7 +489,6 @@ class DatedSentenceReader:
                 doc.all_date_tags.add(tag)
                 if tag.dtype == DateTag.DAY:
                     possible_exact_dates.append(tag)
-                    print(timeex.value)
                 #try:
                 #    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d").date()
                 #    possible_exact_dates.append(date)
