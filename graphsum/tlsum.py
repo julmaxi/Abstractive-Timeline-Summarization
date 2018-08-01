@@ -1195,6 +1195,7 @@ class GraphCandidateGenerator(TLSumModuleBase):
 
     def process_batch(self, batch):
         results = []
+        print(batch[0])
         for cl, dep_data in batch:
             results.append(self.generate_candidates(cl, dep_data))
 

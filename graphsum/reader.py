@@ -245,7 +245,7 @@ class StanfordXMLReader:
 
             tid = token.attrib["id"]
             token = Token(
-                idx=tid,
+                idx=int(tid) - 1,
                 form=token.find("word").text,
                 lemma=token.find("lemma").text,
                 pos=pos,
