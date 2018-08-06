@@ -185,12 +185,6 @@ class Token:
         return "Token(idx = {!r}, {!r}, sentence_idx = {!r})".format(
         self.idx, self.form, self.sentence.idx if self.sentence is not None else None)
 
-    def __eq__(self, other):
-        return self.form.lower() == other.form.lower()
-
-    def __hash__(self):
-        return hash(self.form.lower())
-
     @property
     def form_lowercase(self):
         return self.form.lower()
@@ -260,8 +254,6 @@ class StanfordXMLReader:
                 dep_tree = self.process_dependencies(deps, tokens)
                 break
 
-        if dep_tree is None:
-            print(dep_tree)
         return Sentence(tokens, zero_based_indexing=False, dependency_tree=dep_tree)
 
     def process_dependencies(self, xml_deps, tokens):
@@ -449,6 +441,7 @@ class DateTag:
             return "{}-{}-{}".format(self.year, self.month, self.day)
         else:
             return "{}-W{}".format(self.year, self.week)
+
 
 class DatedSentenceReader:
     def __init__(self):

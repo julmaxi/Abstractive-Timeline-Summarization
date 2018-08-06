@@ -171,6 +171,7 @@ class CacheManager:
     def load_cached_data(self, key):
         presumed_cache_path = self.key_to_path(key)
         if os.path.isfile(presumed_cache_path):
+            logger.debug("Loading data for key {!r} from {!r}".format(key, presumed_cache_path))
             with open(presumed_cache_path, "rb") as f:
                 return pickle.load(f)
 

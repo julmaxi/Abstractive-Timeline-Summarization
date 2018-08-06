@@ -262,7 +262,7 @@ class SentenceCompressionGraph:
             if dependency_data is not None:
                 self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, dependency_data[t_idx], sentence))
             else:
-                self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, sentence))
+                self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, None, sentence))
             prev_node = node
 
         end_edge = self.graph[prev_node].get("END")
@@ -414,8 +414,8 @@ class SentenceCompressionGraph:
 
             diff = 0.0
 
-            for t_idx_1, _, sent_1 in self.graph.nodes[src]["mapped_tokens"]:
-                for t_idx_2, _, sent_2 in self.graph.nodes[trg]["mapped_tokens"]:
+            for t_idx_1, _, _, sent_1 in self.graph.nodes[src]["mapped_tokens"]:
+                for t_idx_2, _, _, sent_2 in self.graph.nodes[trg]["mapped_tokens"]:
                     if sent_1 == sent_2 and t_idx_1 < t_idx_2:
                         diff += (t_idx_2 - t_idx_1) ** -1
 

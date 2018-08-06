@@ -9,10 +9,12 @@ from collections import namedtuple, defaultdict
 import art.scores
 import art.significance_tests
 import art.aggregators
+from tleval import load_corpus
+from tilse.data.timelines import Timeline
 
 metrics = "datesel rouge_1_concat rouge_2_concat rouge_1_agree rouge_2_agree rouge_1_align rouge_2_align"
 
-ResultEntry = namedtuple("ResultEntry", metrics)
+ResultEntry = namedtuple("ResultEntry", metrics + " num_tl num_sent num_copied")
 FMeasureEntry = namedtuple("FMeasureEntry", "recall precision f1")
 
 
@@ -21,7 +23,7 @@ def print_results_table(all_entries):
 
     longest_name_len = max(map(len, all_names))
 
-    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 agree", "R2 agree", "R1 align", "R2 align"
+    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 agree", "R2 agree", "R1 align", "R2 align", "#TL", "%copy"
 
     print("{}\t{}".format("System".ljust(longest_name_len), "\t".join(val_headers)))
 
@@ -31,7 +33,7 @@ def print_results_table(all_entries):
 
         cells = [sys_name.ljust(longest_name_len)]
 
-        for val, header in zip((entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1), val_headers):
+        for val, header in zip((entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1, entry.num_tl, entry.num_copied / entry.num_sent), val_headers):
             cells.append("{:.3f}".format(val).ljust(len(header)))
 
         print("\t".join(cells))
@@ -167,6 +169,73 @@ def analyze_main():
     #    print("\t".join(map(str, (sys_name, entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1))))
 
 
+def count_tl_copied_sentences(corpus_sentences, tl):
+    num_copied = 0
+    for date in tl:
+        for sent in tl[date]:
+            sent = sent.lower()
+            if tuple(sent.split()) in corpus_sentences:
+                num_copied += 1
+
+    return num_copied
+
+
+
+class CachedCorpusReader:
+    loaded_corpora = {}
+
+    @classmethod
+    def load_corpus(cls, name):
+        corpus = cls.loaded_corpora.get(name)
+        if not corpus:
+            corpus = load_corpus(name)
+            cls.loaded_corpora[name] = corpus
+        return corpus
+
+
+def analyse_results_file(results_file):
+    system_path, topic_fname = os.path.split(results_file)
+    topic_name = topic_fname.rsplit(".", 1)[0]
+    _, system_name = os.path.split(system_path)
+
+    sys_tl_path = os.path.join("system_timelines", system_name, topic_name)
+    corpus_name = os.path.join("corpora", topic_name + ".pkl")
+
+    corpus = CachedCorpusReader.load_corpus(corpus_name)
+
+    with open(results_file) as f:
+        topic_result = {}
+        for idx, line in enumerate(f):
+            if idx == 0:
+                continue
+
+            components = line.strip().split()
+
+            if components[0].lower() == "all":
+                continue
+
+            tl_name = components[0]
+            tl_fname = os.path.join(sys_tl_path, tl_name)
+            with open(tl_fname) as f_tl:
+                tl = Timeline.from_file(f_tl)
+                num_copied = count_tl_copied_sentences(set(map(lambda s: tuple(s.as_token_attr_sequence("form_lowercase")), corpus.sentences)),tl)
+                total_sent_count = tl.get_number_of_sentences()
+
+            tl_data = []
+
+            for range_start in range(1, len(components), 3):
+                tl_data.append(FMeasureEntry(*map(float, components[range_start:range_start + 3])))
+
+            tl_data.append(1)  # Number of timelines for this entry
+            tl_data.append(total_sent_count)
+            tl_data.append(num_copied)
+
+            entry = ResultEntry(*tl_data)
+
+            topic_result[components[0]] = entry
+    return topic_result
+
+
 def analyze_system_results_dir(results_dir, macro_average=False):
     all_results = {}
 
@@ -179,32 +248,12 @@ def analyze_system_results_dir(results_dir, macro_average=False):
         return None, None, None, None, None
 
     for results_file in relevant_files:
-        topic_result = {}
 
         #if "libya" in results_file and "crisis" in results_file:
         #    print(results_file)
         #    continue
 
-        with open(results_file) as f:
-            for idx, line in enumerate(f):
-                if idx == 0:
-                    continue
-
-                components = line.strip().split()
-
-                if components[0].lower() == "all":
-                    continue
-
-                tl_data = []
-
-                print(results_file, len(components))
-                for range_start in range(1, len(components), 3):
-                    #print(range_start)
-                    tl_data.append(FMeasureEntry(*map(float, components[range_start:range_start + 3])))
-
-                entry = ResultEntry(*tl_data)
-
-                topic_result[components[0]] = entry
+        topic_result = analyse_results_file(results_file)
 
         all_results[os.path.basename(results_file)] = topic_result
 
@@ -242,6 +291,8 @@ def compute_micro_averages(topic_results):
     global_average_result_entries = defaultdict(lambda: [0., 0., 0.])
 
     num_tl = 0
+    sum_copied = 0
+    sum_total = 0
 
     for topic_name, tl_results in topic_results.items():
         topic_average_result_entries = defaultdict(lambda: [0., 0., 0.])
@@ -253,9 +304,16 @@ def compute_micro_averages(topic_results):
 
             num_tl += 1
 
+            sum_total += entry.num_sent
+            sum_copied += entry.num_copied
+
     entry_params = []
     for metric in metrics.split():
         entry_params.append(FMeasureEntry(*map(lambda v: v / num_tl, global_average_result_entries[metric])))
+
+    entry_params.append(num_tl)
+    entry_params.append(sum_total)
+    entry_params.append(sum_copied)
 
     return ResultEntry(*entry_params)
 

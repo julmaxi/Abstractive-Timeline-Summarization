@@ -1155,7 +1155,7 @@ class TLSumModuleBase:
 
 import multiprocessing
 from pathos.multiprocessing import ProcessingPool
-
+from multiprocessing import Pool
 
 class GraphCandidateGenerator(TLSumModuleBase):
     def __init__(self, config):
@@ -1184,7 +1184,7 @@ class GraphCandidateGenerator(TLSumModuleBase):
             batches.append(inputs[batch_cursor:batch_cursor + batch_size])
             batch_cursor += batch_size
 
-        pool = ProcessingPool()
+        pool = Pool()
 
         for batch_result in pool.imap(self.process_batch, batches):
             for result in batch_result:
@@ -1194,20 +1194,21 @@ class GraphCandidateGenerator(TLSumModuleBase):
         pool.join()
 
     def process_batch(self, batch):
+        print(len(batch), len(batch[0]))
         results = []
-        print(batch[0])
-        for cl, dep_data in batch:
-            results.append(self.generate_candidates(cl, dep_data))
+        for cluster in batch:
+            results.append(self.generate_candidates(cluster))
 
         return results
 
-    def generate_candidates(self, cluster, dep_data):
+    def generate_candidates(self, cluster):
         all_candidates_and_info = []
 
         compressor = SentenceCompressionGraph(STOPWORDS)
-        compressor.add_sentences(cluster, dep_data)
+        for s, dep_data in cluster:
+            compressor.add_sentence(s, dep_data)
 
-        cluster_vectors = self.tfidf_model.transform(list(map(lambda s: " ".join([t[0] for t in s]), cluster)))
+        cluster_vectors = self.tfidf_model.transform(list(map(lambda s: " ".join([t[0] for t in s[0]]), cluster)))
 
         def check_closeness(sent):
             return True
@@ -1842,7 +1843,7 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                 for sidx, (candidate, info) in enumerate(candidates_and_info):
                     score, info = score_func(sidx, candidate, info)
                     cluster_candidates.append((candidate, score, info))
-                if True:
+                if False:
                     print(cluster_date, cl_rank + 1, len(cluster_candidates))
                     for item in cluster:
                         print(item.as_tokenized_string(), str(item.document.dct_tag))

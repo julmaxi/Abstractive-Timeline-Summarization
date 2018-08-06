@@ -12,7 +12,5 @@
         "use_date_frequency": true,
         "use_cluster_size": true,
         "temporalized_informativeness_cache_dir": "caches/tl-datetr"
-    },
-    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap",
-    "candidate_cache_dir": "caches/tl-candidates/transitive-global-date-ap"
+    }
 }
