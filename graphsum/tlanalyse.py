@@ -231,12 +231,14 @@ def analyse_results_file(results_file, compute_copy_rate):
 
             tl_name = components[0]
             tl_fname = os.path.join(sys_tl_path, tl_name)
-            with open(tl_fname) as f_tl:
-                tl = Timeline.from_file(f_tl)
-                num_copied = None
-                if compute_copy_rate:
+            num_copied = None
+            total_sent_count = 0
+
+            if compute_copy_rate:
+                with open(tl_fname) as f_tl:
+                    tl = Timeline.from_file(f_tl)
                     num_copied = count_tl_copied_sentences(set(map(lambda s: tuple(s.as_token_attr_sequence("form_lowercase")), corpus.sentences)),tl)
-                total_sent_count = tl.get_number_of_sentences()
+                    total_sent_count = tl.get_number_of_sentences()
 
             tl_data = []
 
