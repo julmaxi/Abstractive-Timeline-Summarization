@@ -18,23 +18,29 @@ ResultEntry = namedtuple("ResultEntry", metrics + " num_tl num_sent num_copied")
 FMeasureEntry = namedtuple("FMeasureEntry", "recall precision f1")
 
 
-def print_results_table(all_entries):
+def print_results_table(all_entries, compute_copy_rate, restricted_to_prefixes=None):
     all_names = all_entries.keys()
 
     longest_name_len = max(map(len, all_names))
 
-    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 agree", "R2 agree", "R1 align", "R2 align", "#TL", "%copy"
+    val_headers = "Date F1", "R1 concat", "R2 concat", "R1 agree", "R2 agree", "R1 align", "R2 align", "#TL"
+
+    if compute_copy_rate:
+        val_headers = val_headers + ("%copy",)
 
     print("{}\t{}".format("System".ljust(longest_name_len), "\t".join(val_headers)))
 
     for sys_name, entry in sorted(all_entries.items(), key=lambda i: i[1].rouge_2_concat.f1, reverse=True):
-        if "+sent" not in sys_name:
+        if restricted_to_prefixes is not None and not any(pre in sys_name for pre in restricted_to_prefixes):
             continue
 
         cells = [sys_name.ljust(longest_name_len)]
 
-        for val, header in zip((entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1, entry.num_tl, entry.num_copied / entry.num_sent), val_headers):
+        for val, header in zip((entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1, entry.num_tl), val_headers):
             cells.append("{:.3f}".format(val).ljust(len(header)))
+
+        if compute_copy_rate:
+            cells.append(entry.num_copied / entry.num_sent)
 
         print("\t".join(cells))
 
@@ -64,6 +70,12 @@ def check_significance(all_entries, key_1, key_2):
 
 
 def analyze_main():
+    parser = ArgumentParser()
+    parser.add_argument("-c", dest="compute_copy_rate", action="store_true", default=False)
+    parser.add_argument("-f", dest="system_filters", nargs="+")
+
+    args = parser.parse_args()
+
     results_basedir = "evaluation_results"
 
     all_entries = {}
@@ -73,8 +85,10 @@ def analyze_main():
     all_tl17_results = {}
     all_crisis_results = {}
 
+    prefixes = args.system_filters
+
     for system_dir in iter_dirs(results_basedir):
-        entry, tl17_entry, crisis_entry, tl17_results, crisis_results = analyze_system_results_dir(system_dir)
+        entry, tl17_entry, crisis_entry, tl17_results, crisis_results = analyze_system_results_dir(system_dir, compute_copy_rate=args.compute_copy_rate)
         if entry is not None:
             all_entries[os.path.basename(system_dir)] = entry
 
@@ -89,11 +103,11 @@ def analyze_main():
    #baseline_sig = check_significance(all_tl17_results, "agglo-abstractive-temptr-dateref-clsize-path.json", "baseline.json")
    #full_system_sig = check_significance(all_tl17_results, "ap-abstractive-temptr-dateref-clsize-path.json+tok", "agglo-abstractive-temptr-dateref-clsize-path.json")
 
-    print_results_table(all_entries)
+    print_results_table(all_entries, compute_copy_rate=args.compute_copy_rate, restricted_to_prefixes=prefixes)
     print("\n===== TL17 =====")
-    print_results_table(tl17_entries)
+    print_results_table(tl17_entries, compute_copy_rate=args.compute_copy_rate, restricted_to_prefixes=prefixes)
     print("\n===== Crisis =====")
-    print_results_table(crisis_entries)
+    print_results_table(crisis_entries, compute_copy_rate=args.compute_copy_rate, restricted_to_prefixes=prefixes)
 
     #print()
     #gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
@@ -150,7 +164,7 @@ def analyze_main():
             else:
                 all_results = all_crisis_results
             results = check_significance(all_results, key_1, key_2)
-    
+
             all_results = []
             for metric in metrics.split():
                 result = results[metric]
@@ -158,7 +172,7 @@ def analyze_main():
                     all_results.append("X")
                 else:
                     all_results.append("-")
-    
+
             print(corpus, key_1, key_2, " ".join(all_results))
 
 
@@ -193,7 +207,7 @@ class CachedCorpusReader:
         return corpus
 
 
-def analyse_results_file(results_file):
+def analyse_results_file(results_file, compute_copy_rate):
     system_path, topic_fname = os.path.split(results_file)
     topic_name = topic_fname.rsplit(".", 1)[0]
     _, system_name = os.path.split(system_path)
@@ -218,7 +232,9 @@ def analyse_results_file(results_file):
             tl_fname = os.path.join(sys_tl_path, tl_name)
             with open(tl_fname) as f_tl:
                 tl = Timeline.from_file(f_tl)
-                num_copied = count_tl_copied_sentences(set(map(lambda s: tuple(s.as_token_attr_sequence("form_lowercase")), corpus.sentences)),tl)
+                num_copied = None
+                if compute_copy_rate:
+                    num_copied = count_tl_copied_sentences(set(map(lambda s: tuple(s.as_token_attr_sequence("form_lowercase")), corpus.sentences)),tl)
                 total_sent_count = tl.get_number_of_sentences()
 
             tl_data = []
@@ -236,7 +252,7 @@ def analyse_results_file(results_file):
     return topic_result
 
 
-def analyze_system_results_dir(results_dir, macro_average=False):
+def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_average=False):
     all_results = {}
 
     tl17_results = {}
@@ -253,7 +269,7 @@ def analyze_system_results_dir(results_dir, macro_average=False):
         #    print(results_file)
         #    continue
 
-        topic_result = analyse_results_file(results_file)
+        topic_result = analyse_results_file(results_file, compute_copy_rate=compute_copy_rate)
 
         all_results[os.path.basename(results_file)] = topic_result
 
@@ -291,7 +307,7 @@ def compute_micro_averages(topic_results):
     global_average_result_entries = defaultdict(lambda: [0., 0., 0.])
 
     num_tl = 0
-    sum_copied = 0
+    sum_copied = None
     sum_total = 0
 
     for topic_name, tl_results in topic_results.items():
@@ -305,7 +321,11 @@ def compute_micro_averages(topic_results):
             num_tl += 1
 
             sum_total += entry.num_sent
-            sum_copied += entry.num_copied
+            if entry.num_copied is not None:
+                if sum_copied is not None:
+                    sum_copied += entry.num_copied
+                else:
+                    sum_copied = entry.num_copied
 
     entry_params = []
     for metric in metrics.split():

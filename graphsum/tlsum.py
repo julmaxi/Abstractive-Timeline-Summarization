@@ -63,7 +63,7 @@ class RougeReimplementation:
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
         if ignore_stopwords:
-            with open("./venv/lib/python3.5/site-packages/pyrouge/tools/ROUGE-1.5.5/data/smart_common_words.txt") as my_file:
+            with open("./libs/pyrouge/tools/ROUGE-1.5.5/data/smart_common_words.txt") as my_file:
                 self.stopwords = set(my_file.read().splitlines())
 
     def score_summary(self, summary, references):
@@ -323,7 +323,7 @@ def select_tl_sentences_submod(per_date_cluster_candidates, doc_sents, parameter
         id_sentence_map,
         num_clusters=min(max(sent_idx_counter // 5, 2), num_clusters))
     factors.append(kmeans_redundancy_factor)
-#    factors.append(NGramCoverageFactor(id_sentence_map, tr_scores))
+    #factors.append(NGramCoverageFactor(id_sentence_map, tr_scores))
 
 
 
@@ -1787,7 +1787,7 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
 
         return samples
 
-    def generate_timelines(self, corpus, all_parameters, reference_timelines=None):
+    def generate_timelines(self, corpus, all_parameters, query_words=None, reference_timelines=None):
         self.scorer.prepare(corpus)
         self.generator.prepare(corpus)
         self.sentence_selector.prepare(corpus)
@@ -1842,7 +1842,11 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                     candidates_and_info = filter_canidates_by_integrity(cluster, candidates_and_info)
                 for sidx, (candidate, info) in enumerate(candidates_and_info):
                     score, info = score_func(sidx, candidate, info)
-                    cluster_candidates.append((candidate, score, info))
+
+                    forms = set(w[0] for w in candidate)
+                    if query_words is None or any(qw in forms for qw in query_words):
+                        cluster_candidates.append((candidate, score, info))
+
                 if False:
                     print(cluster_date, cl_rank + 1, len(cluster_candidates))
                     for item in cluster:
@@ -1853,7 +1857,10 @@ class GloballyClusteredSentenceCompressionTimelineGenerator:
                         print(" ".join(map(lambda x: x[0], cand)), score)
                         print(info)
 
-                cluster_candidates = list(map(lambda x: (x[0], x[1]), cluster_candidates))
+                cluster_candidates = list(
+                    map(lambda x: (x[0], x[1]), cluster_candidates)
+                )
+
             else:
                 cluster_candidates = candidates_and_info
 

@@ -492,7 +492,6 @@ class SentenceCompressionGraph:
 
                 heapq.heappush(curr_expansions, (-freq, new_exp))
 
-
     def generate_compression_candidates(self, n=2500, minlen=8, maxlen=None, filterfunc=lambda c: True, use_weighting=True, timeout=600, return_weight=False, max_tries=2500, use_dep_filtering=False):
         self.calculate_strong_links_weights()
 
@@ -532,11 +531,16 @@ class SentenceCompressionGraph:
 
             tokens = [self.graph.nodes[node]["token"] for node in path[1:-1]]
 
+            wp_count = 0
+            verb_count = 0
+
             for form, pos in tokens:
-                if pos[0] == "V":
-                    break
-            else:
-                continue
+                if pos[0] == "V" and pos in ("VB", "VBD", "VBN", "VBP", "VBZ") and form not in STOPWORDS:
+                    verb_count += 1
+                if pos.startswith("WP"):
+                    wp_count += 1
+            #if wp_count > verb_count:
+            #    continue
 
             if not filterfunc(tokens):
                 continue
@@ -568,20 +572,30 @@ class SentenceCompressionGraph:
         required_heads = []
         for node in path[1:-1]:
             node_required_heads = set()
-            for tidx, token, head_idx, sentence in self.graph.nodes[node]["mapped_tokens"]:
-                if head_idx != -1:
-                    head_tok = sentence[head_idx]
-                    node_required_heads.add(head_tok)
-            required_heads.append(node_required_heads)
+            if not is_punctuation(self.graph.nodes[node]["token"][0]) and self.graph.nodes[node]["token"][0] not in STOPWORDS:
+                for tidx, token, head_idx, sentence in self.graph.nodes[node]["mapped_tokens"]:
+                    if head_idx != -1:
+                        head_tok = sentence[head_idx]
+                        node_required_heads.add(head_tok)
+                    else:
+                        node_required_heads = set()
+                        break
+
+                    #print(token, node_required_heads)
+            required_heads.append((self.graph.nodes[node]["token"], node_required_heads))
+
+        #print(required_heads)
 
 #        print([self.graph.nodes[node]["token"] for node in path[1:-1]])
 
         present_toks = set([self.graph.nodes[node]["token"] for node in path[1:-1]])
-        for head_choice in required_heads:
+        for token, head_choice in required_heads:
             if len(head_choice) == 0:
                 continue
             if not any(h in present_toks for h in head_choice):
-       #         print(present_toks, head_choice)
+                tokens = [self.graph.nodes[node]["token"] for node in path[1:-1]]
+                print(" ".join(map(lambda x: x[0], tokens)), token, head_choice)
+                print(list(filter(lambda i: i[1] > 1 and i[0] is not None and i[0][0] not in STOPWORDS, Counter(self.graph.nodes[node].get("token") for node in self.graph).items())))
                 return False
 
         return True
@@ -735,6 +749,9 @@ STOPWORDS.add("'s")
 STOPWORDS.add("n't")
 STOPWORDS.add("-LRB-")
 STOPWORDS.add("-RRB-")
+
+
+STOPWORDS.add("said")
 
 
 def compute_neighbourhood_overlap(sent, graph, token_idx, node_idx, window_size=2, include_stopwords=True):

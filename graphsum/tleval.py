@@ -81,6 +81,7 @@ def evaluate_tl_main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", dest="constraint", default="sent")
     parser.add_argument("-t", dest="timelines", nargs="+")
+    parser.add_argument("--queryfile")
     parser.add_argument("corpus_pickle")
     parser.add_argument("config")
 
@@ -139,15 +140,24 @@ def evaluate_tl_main():
     corpus_basename = os.path.basename(args.corpus_pickle).split(".")[0]
     config_basename = os.path.basename(args.config)
 
-    out_timelines_dir = os.path.join("system_timelines", config_basename  + "+" + args.constraint, corpus_basename)
-    results_dir = os.path.join("evaluation_results", config_basename + "+" + args.constraint)
+    results_basename = config_basename
+    if args.queryfile:
+        results_basename += "+queryfilter"
+
+    out_timelines_dir = os.path.join("system_timelines", results_basename + "+" + args.constraint, corpus_basename)
+    results_dir = os.path.join("evaluation_results", results_basename + "+" + args.constraint)
 
     if not os.path.isdir(out_timelines_dir):
         os.makedirs(out_timelines_dir)
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
 
-    sys_timelines = tl_gen.generate_timelines(corpus, [determine_tl_parameters(tl, use_token_count=use_token_count) for _, tl in timelines], reference_timelines=list(map(lambda x: x[1], timelines)))
+    query_words = None
+    if args.queryfile is not None:
+        with open(args.queryfile) as f:
+            query_words = [l.strip() for l in f]
+
+    sys_timelines = tl_gen.generate_timelines(corpus, [determine_tl_parameters(tl, use_token_count=use_token_count) for _, tl in timelines], reference_timelines=list(map(lambda x: x[1], timelines)), query_words=query_words)
 
     if use_token_count:
         config["scoring"]["use_length"] = True
