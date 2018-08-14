@@ -215,7 +215,8 @@ def analyse_results_file(results_file, compute_copy_rate):
     sys_tl_path = os.path.join("system_timelines", system_name, topic_name)
     corpus_name = os.path.join("corpora", topic_name + ".pkl")
 
-    corpus = CachedCorpusReader.load_corpus(corpus_name)
+    if compute_copy_rate:
+        corpus = CachedCorpusReader.load_corpus(corpus_name)
 
     with open(results_file) as f:
         topic_result = {}
