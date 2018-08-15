@@ -63,7 +63,7 @@ class RougeReimplementation:
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
         if ignore_stopwords:
-            with open("./libs/pyrouge/tools/ROUGE-1.5.5/data/smart_common_words.txt") as my_file:
+            with open("./libs/pyrouge/pyrouge/tools/ROUGE-1.5.5/data/smart_common_words.txt") as my_file:
                 self.stopwords = set(my_file.read().splitlines())
 
     def score_summary(self, summary, references):
