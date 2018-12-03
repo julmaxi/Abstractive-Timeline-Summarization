@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 from utils import iter_files, iter_dirs
 
 import os
+import re
 
 from collections import namedtuple, defaultdict
 
@@ -18,8 +19,11 @@ ResultEntry = namedtuple("ResultEntry", metrics + " num_tl num_sent num_copied")
 FMeasureEntry = namedtuple("FMeasureEntry", "recall precision f1")
 
 
-def print_results_table(all_entries, compute_copy_rate, restricted_to_prefixes=None):
+def print_results_table(all_entries, compute_copy_rate):
     all_names = all_entries.keys()
+
+    if len(all_names) == 0:
+        return
 
     longest_name_len = max(map(len, all_names))
 
@@ -30,9 +34,7 @@ def print_results_table(all_entries, compute_copy_rate, restricted_to_prefixes=N
 
     print("{}\t{}".format("System".ljust(longest_name_len), "\t".join(val_headers)))
 
-    for sys_name, entry in sorted(all_entries.items(), key=lambda i: i[1].rouge_2_concat.f1, reverse=True):
-        if restricted_to_prefixes is not None and not any(pre in sys_name for pre in restricted_to_prefixes):
-            continue
+    for sys_name, entry in sorted(all_entries.items(), key=lambda i: i[1].rouge_1_align.f1, reverse=True):
 
         cells = [sys_name.ljust(longest_name_len)]
 
@@ -40,7 +42,7 @@ def print_results_table(all_entries, compute_copy_rate, restricted_to_prefixes=N
             cells.append("{:.3f}".format(val).ljust(len(header)))
 
         if compute_copy_rate:
-            cells.append(entry.num_copied / entry.num_sent)
+            cells.append("{:.3f}".format(entry.num_copied / entry.num_sent))
 
         print("\t".join(cells))
 
@@ -85,9 +87,17 @@ def analyze_main():
     all_tl17_results = {}
     all_crisis_results = {}
 
-    prefixes = args.system_filters
+    if args.system_filters:
+        prefixes = [re.compile(expr) for expr in args.system_filters]
+    else:
+        prefixes = None
 
     for system_dir in iter_dirs(results_basedir):
+        system_name = os.path.split(system_dir.rstrip("/"))[1]
+
+        if prefixes is not None and not any(p.match(system_name) for p in prefixes):
+            continue
+
         entry, tl17_entry, crisis_entry, tl17_results, crisis_results = analyze_system_results_dir(system_dir, compute_copy_rate=args.compute_copy_rate)
         if entry is not None:
             all_entries[os.path.basename(system_dir)] = entry
@@ -103,11 +113,11 @@ def analyze_main():
    #baseline_sig = check_significance(all_tl17_results, "agglo-abstractive-temptr-dateref-clsize-path.json", "baseline.json")
    #full_system_sig = check_significance(all_tl17_results, "ap-abstractive-temptr-dateref-clsize-path.json+tok", "agglo-abstractive-temptr-dateref-clsize-path.json")
 
-    print_results_table(all_entries, compute_copy_rate=args.compute_copy_rate, restricted_to_prefixes=prefixes)
+    #print_results_table(all_entries, compute_copy_rate=args.compute_copy_rate, restricted_to_prefixes=prefixes)
     print("\n===== TL17 =====")
-    print_results_table(tl17_entries, compute_copy_rate=args.compute_copy_rate, restricted_to_prefixes=prefixes)
+    print_results_table(tl17_entries, compute_copy_rate=args.compute_copy_rate)
     print("\n===== Crisis =====")
-    print_results_table(crisis_entries, compute_copy_rate=args.compute_copy_rate, restricted_to_prefixes=prefixes)
+    print_results_table(crisis_entries, compute_copy_rate=args.compute_copy_rate)
 
     #print()
     #gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
@@ -119,13 +129,21 @@ def analyze_main():
     #gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     #print()
 
-    gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
+    #gen_latex_table_sent(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     print()
     #print()
     #gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
 
     significance_pairs = [
-        ("ap-abstractive-temptr-dateref-clsize-path.json", "ap-abstractive-datetr-dateref-path.json")
+        #('apuntangle-abstractive-oracle-depfiltered-greedy.json', 'extractive-oracle-greedy.json'),
+        ('ap-abstractive-oracle-depfiltered-greedy.json', 'extractive-oracle-greedy.json'),
+       #('ap-abstractive-oracle-depfiltered-greedy.json', 'extractive-oracle-greedy.json'),
+       #('ap-abstractive-temptr-dateref-clsize-path-depfiltered-greedy.json', 'extractive-baseline.json'),
+       #('ap-abstractive-temptr-dateref-clsize-path-depfiltered.json', 'extractive-baseline.json'),
+
+       #('ap-abstractive-oracle-depfiltered-greedy.json', 'extractive-oracle-nosubmod.json'),
+       #('ap-abstractive-oracle-depfiltered-greedy.json', 'extractive-oracle.json')
+       # ("ap-abstractive-temptr-dateref-clsize-path.json", "ap-abstractive-datetr-dateref-path.json")
        # ("extractive-oracle.json", "ap-abstractive-oracle.json"),
        # ("agglo-abstractive-oracle.json", "ap-abstractive-oracle.json"),
        # ("baseline-oracle.json", "agglo-abstractive-oracle.json"),
@@ -142,15 +160,17 @@ def analyze_main():
                     all_results = all_crisis_results
 
                 results = check_significance(all_results, key_1, key_2)
-        
+                if results == {}:
+                    continue
+
                 all_results = []
                 for metric in metrics.split():
                     result = results[metric]
-                    if result <= 0.05:
+                    if result <= 0.05 or result >= 0.95:
                         all_results.append("X")
                     else:
                         all_results.append("-")
-        
+
                 print(corpus, key_1, key_2, " ".join(all_results))
 
     cross_constr_significance_checks = ["extractive-oracle.json", "agglo-abstractive-oracle.json", "ap-abstractive-oracle.json"]

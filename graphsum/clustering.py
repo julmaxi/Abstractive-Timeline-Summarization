@@ -25,11 +25,31 @@ import subprocess
 AP_PATH = "libs/affinity-propagation-sparse/ap"
 
 
-def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag_only=False):
+def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag_only=False, untangle_multi_date_sentences=False, post_prune=False):
     if predicted_tag_only:
         ap_matrix = generate_localized_predicted_ap_matrix(sents)
     else:
-        ap_matrix = generate_affinity_matrix_from_dated_sentences(sents, include_uncertain_date_edges=include_uncertain_date_edges)
+        if untangle_multi_date_sentences:
+            new_sents = []
+            sent_date_tags = []
+            for sent in sents:
+                all_tags = set(sent.all_date_tags)
+                all_tags.add(sent.document.dct_tag)
+                for tag in all_tags:
+                    new_sents.append(sent)
+                    sent_date_tags.append({tag})
+            sents = new_sents
+        else:
+            sent_date_tags = []
+            for sent in sents:
+                all_tags = set(sent.all_date_tags)
+                #if len(sent.exact_date_references) == 0: # TODO: maybe revert to "all tags"?
+                #            all_tags = list(sent.document.all_date_tags)
+                all_tags.add(sent.document.dct_tag)
+
+                sent_date_tags.append(all_tags)
+
+        ap_matrix = generate_affinity_matrix_from_dated_sentences(sents, sent_date_tags, include_uncertain_date_edges=include_uncertain_date_edges)
 
     logger.debug("Computed {} similarities".format(len(ap_matrix)))
 
@@ -46,26 +66,70 @@ def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag
     examplars = output.decode("utf-8").split()
     for idx, examplar in enumerate(examplars):
         examplar = int(examplar)
+        connection_graph.add_node(idx)
         if idx != examplar:
             #connection_graph[examplar].append(sents[idx])
             connection_graph.add_edge(idx, examplar)
 
-    connected_components = nx.connected_components(connection_graph)
+    connected_components = list(nx.connected_components(connection_graph))
+
+    sent_cluster_map = None
+    if post_prune:
+        cluster_potential_members_map = defaultdict(list)
+        sent_potential_cluster_map = defaultdict(list)
+        sent_cluster_map = {}
+
+        for cl_idx, sent_ids in enumerate(connected_components):
+            for sent_id in sent_ids:
+                sent = sents[sent_id]
+                sent_potential_cluster_map[sent].append((cl_idx, sent_id))
+                cluster_potential_members_map[cl_idx].append(sents[sent_id])
+
+        for sent, cand_clusters in sent_potential_cluster_map.items():
+            if len(cand_clusters) == 1:
+                sent_cluster_map[sent] = cand_clusters[0][0]
+                continue
+
+            max_cl_size = 0
+            for cand_cl_id, cand_sent_id in cand_clusters:
+                cl_size = len(cluster_potential_members_map[cand_cl_id])
+                if cl_size > max_cl_size:
+                    max_cl_size = cl_size
+                    sent_cluster_map[sent] = cand_cl_id
+            print("Selected with max size", max_cl_size, cluster_potential_members_map[sent_cluster_map[sent]])
 
     clustering = []
 
-    for component in connected_components:
+    for c_idx, component in enumerate(connected_components):
         cluster_sents = []
+
+        dates = []
+
         for idx in component:
+            if sent_cluster_map is not None and sent_cluster_map.get(sents[idx]) is not None:
+                if sent_cluster_map.get(sents[idx], [None]) != c_idx:
+                    continue
+
+            if untangle_multi_date_sentences:
+                dates.append(list(sent_date_tags[idx])[0])
             cluster_sents.append(sents[idx])
-        clustering.append(cluster_sents)
-    return clustering
 
-    clustering = []
-    for cluster_idx, vals in clusters.items():
-        vals.append(sents[cluster_idx])
-        clustering.append(vals)
+        if len(cluster_sents) == 0:
+            continue
 
+        if untangle_multi_date_sentences:
+            correct_date = None
+
+            for date in dates:
+                if date.dtype == DateTag.DAY:
+                    correct_date = date
+                    break
+            if correct_date is not None:
+                clustering.append((cluster_sents, correct_date))
+        else:
+            clustering.append(cluster_sents)
+
+    logger.info("Found {} clusters".format(len(clustering)))
     return clustering
 
 
@@ -103,17 +167,12 @@ def generate_localized_predicted_ap_matrix(sents, threshold=0.1):
     return similarities
 
 
-def generate_affinity_matrix_from_dated_sentences(sents, threshold=0.2, include_uncertain_date_edges=True):
+def generate_affinity_matrix_from_dated_sentences(sents, sent_date_tags, threshold=0.2, include_uncertain_date_edges=True):
     date_sent_index = {}
 
     week_index = defaultdict(list)
 
-    for s_idx, sent in enumerate(sents):
-        # TODO: How exactly do we deal with undated sentences?
-        all_tags = set(sent.all_date_tags)
-        #if len(sent.exact_date_references) == 0: # TODO: maybe revert to "all tags"?
-#            all_tags = list(sent.document.all_date_tags)
-        all_tags.add(sent.document.dct_tag)
+    for s_idx, (sent, all_tags) in enumerate(zip(sents, sent_date_tags)):
 
         for tag in all_tags:
             year = tag.year

@@ -2,13 +2,11 @@
     "clustering": {
         "method": "ap"
     },
-    "min_cluster_size": 2,
+    "min_cluster_size": 1,
     "selection": {
         "method": "global_submod"
     },
     "scoring": {
         "method": "rouge_oracle"
-    },
-    "cluster_cache_path": "caches/tl-clustering/transitive-global-date-ap",
-    "candidate_cache_dir": "caches/tl-candidates/transitive-global-date-ap"
+    }
 }

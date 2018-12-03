@@ -4,13 +4,11 @@
     },
     "min_cluster_size": 0,
     "scoring": {
-        "global_only": true
     },
     "generation": {
-        "method": "centroid"
+        "method": "identity"
     },
     "selection": {
         "method": "global_submod"
-    },
-   "cluster_cache_path": "caches/tl-clustering/global-date-ap"
+    }
 }

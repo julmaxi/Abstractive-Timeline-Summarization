@@ -218,13 +218,16 @@ def select_sentences_submod(per_cluster_candidates, doc_sents, max_tokens=None, 
 
 
 class SentenceCompressionGraph:
-    def __init__(self, stopwords):
+    def __init__(self, stopwords, force_original_sentences=True):
         self.stopwords = set(stopwords)
         self.graph = DiGraph()
         self.graph.add_node("START")
         self.graph.add_node("END")
 
         self.surface_to_nodes_map = defaultdict(set)
+
+        self.force_original_sentences = force_original_sentences
+        self.original_sentence_paths = []
 
     def add_sentences(self, sentences, dependency_data=None):
         if dependency_data is None:
@@ -244,11 +247,14 @@ class SentenceCompressionGraph:
         token_to_node_map = self.map_tokens_to_nodes(normalized_sentence)
 
         prev_node = "START"
+        sent_path = ["START"]
 
         for t_idx, token in enumerate(normalized_sentence):
             node = token_to_node_map[t_idx]
             if node is None:
                 node = self.create_new_node(token)
+
+            sent_path.append(node)
 
             self.surface_to_nodes_map[token].add(node)
 
@@ -264,6 +270,10 @@ class SentenceCompressionGraph:
             else:
                 self.graph.nodes[node].setdefault("mapped_tokens", []).append((t_idx, token, None, sentence))
             prev_node = node
+
+        sent_path.append("END")
+
+        self.original_sentence_paths.append(sent_path)
 
         end_edge = self.graph[prev_node].get("END")
         if end_edge is None:
@@ -404,6 +414,7 @@ class SentenceCompressionGraph:
         max_freq = 0
 
         for src, trg, data in self.graph.edges(data=True):
+            max_freq = max(max_freq, data["frequency"])
             if src == "START" or trg == "END":
                 data["weight_sl"] = 1.0 / data["frequency"]  # TODO: Check what this should be
                 data["label"] = data["weight_sl"]
@@ -418,8 +429,6 @@ class SentenceCompressionGraph:
                 for t_idx_2, _, _, sent_2 in self.graph.nodes[trg]["mapped_tokens"]:
                     if sent_1 == sent_2 and t_idx_1 < t_idx_2:
                         diff += (t_idx_2 - t_idx_1) ** -1
-
-            max_freq = max(max_freq, data["frequency"])
 
             w = (src_freq + trg_freq) / diff  # data["frequency"]
 
@@ -500,7 +509,7 @@ class SentenceCompressionGraph:
 
         start_time = time.time()
 
-        logging.info("Processing graph V = {}, E = {}".format(len(self.graph), len(self.graph.edges)))
+        logging.info("Processing graph V = {}, E = {} ({})".format(len(self.graph), len(self.graph.edges), os.getpid()))
 
         if use_weighting:
             import itertools
@@ -513,12 +522,17 @@ class SentenceCompressionGraph:
         else:
             path_iter = nx.all_simple_paths(self.graph, "START", "END")
 
+        if self.force_original_sentences:
+            path_iter = it.chain(self.original_sentence_paths, path_iter)
+
         num_tries = 0
 
         for path in path_iter:
             if max_tries is not None and num_tries > max_tries:
                 break
             num_tries += 1
+
+            #print(time.time() - start_time, timeout, num_tries, max_tries)
 
             if time.time() - start_time >= timeout:
                 logging.warn("Timeout during sentence generation")
@@ -539,6 +553,9 @@ class SentenceCompressionGraph:
                     verb_count += 1
                 if pos.startswith("WP"):
                     wp_count += 1
+
+            if verb_count < 1:
+                continue
             #if wp_count > verb_count:
             #    continue
 
@@ -594,8 +611,8 @@ class SentenceCompressionGraph:
                 continue
             if not any(h in present_toks for h in head_choice):
                 tokens = [self.graph.nodes[node]["token"] for node in path[1:-1]]
-                print(" ".join(map(lambda x: x[0], tokens)), token, head_choice)
-                print(list(filter(lambda i: i[1] > 1 and i[0] is not None and i[0][0] not in STOPWORDS, Counter(self.graph.nodes[node].get("token") for node in self.graph).items())))
+#                print(" ".join(map(lambda x: x[0], tokens)), token, head_choice)
+#                print(list(filter(lambda i: i[1] > 1 and i[0] is not None and i[0][0] not in STOPWORDS, Counter(self.graph.nodes[node].get("token") for node in self.graph).items())))
                 return False
 
         return True
@@ -1381,7 +1398,9 @@ def calculate_keyword_text_rank(sentences, window_size=None):
                 if (context_tok.lower() not in STOPWORDS and context_tok.isalnum() and context_pos.lower()[0] in "vn"):
                     graph.add_edge((context_tok, context_pos), (tok, pos))
 
-    pr = nx.pagerank(graph)
+    pr = nx.pagerank_scipy(graph)
+
+    del graph
 
     return pr
 

@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from collections import defaultdict
 
 from utils import iter_dirs, iter_files
+from calendar import monthrange
 
 
 class TokenListView(Sequence):
@@ -372,6 +373,32 @@ class TimeMLReader:
         return tokens
 
 
+def compute_month_week_range(year, month):
+    try:
+        _, start_week, _ = datetime.date(year, month, 1).isocalendar()
+        _, month_len = monthrange(2011, 2)
+        _, end_week, _ = datetime.date(year, month, month_len).isocalendar()
+    except ValueError:
+        pass
+        #logger.warning("Invalid date reference {}-{}".format(year, month))
+    else:
+        return range(start_week, end_week + 1)
+
+    return set()
+
+
+def compute_week_from_day(year, month, day):
+    try:
+        _, week, _ = datetime.date(year, month, day).isocalendar()
+    except ValueError:
+        pass
+        #logger.warning("Invalid date reference {}-{}".format(year, month))
+    else:
+        return week
+
+    return None
+
+
 class DateTag:
     YEAR = 1
     MONTH = 2
@@ -424,6 +451,34 @@ class DateTag:
             self.year = args[0]
             self.week = args[1]
 
+    def __contains__(self, other):
+        if self.dtype == other.dtype:
+            return self == other
+        elif self.dtype == DateTag.DAY and other.dtype in (DateTag.YEAR, DateTag.MONTH, DateTag.WEEK):
+            return False
+        elif self.dtype == DateTag.WEEK and other.dtype in (DateTag.YEAR, DateTag.MONTH):
+            return False
+        elif self.dtype == DateTag.MONTH and other.dtype == DateTag.YEAR:
+            return False
+
+        if other.dtype == DateTag.MONTH:
+            return self.month == other.month and self.year == other.year
+        elif other.dtype == DateTag.WEEK:
+            if self.dtype == DateTag.YEAR:
+                return other.year == self.year
+            elif self.dtype == DateTag.MONTH:
+                return other.week in compute_month_week_range(self.year, self.month)
+            assert False
+        elif other.dtype == DateTag.DAY:
+            if self.dtype == DateTag.MONTH:
+                return self.year == other.year and self.month == other.month
+            elif self.dtype == DateTag.WEEK:
+                return self.week == compute_week_from_day(other.year, other.month, other.day)
+            elif self.dtype == DateTag.YEAR:
+                return self.year == other.year
+
+        assert False
+
     def __eq__(self, other):
         return self.dtype == other.dtype and self.year == other.year and self.month == other.month and self.day == other.day and self.week == other.week
 
@@ -441,6 +496,10 @@ class DateTag:
             return "{}-{}-{}".format(self.year, self.month, self.day)
         else:
             return "{}-W{}".format(self.year, self.week)
+
+    @property
+    def datetime(self):
+        return datetime.datetime(self.year, self.month, self.day)
 
 
 class DatedSentenceReader:
@@ -489,100 +548,19 @@ class DatedSentenceReader:
                 doc.all_date_tags.add(tag)
                 if tag.dtype == DateTag.DAY:
                     possible_exact_dates.append(tag)
-                #try:
-                #    date = datetime.datetime.strptime(timeex.value, "%Y-%m-%d").date()
-                #    possible_exact_dates.append(date)
-                #    parts = timeex.value.split("-")
-                #    tag = (int(parts[0]), int(parts[1]), int(parts[2]))
-                #    all_date_tags.add(tag)
-                #    doc.all_date_tags.add(tag)
-                #except ValueError:
-                #    pass
-                #else:
-                #    continue
-#
-                #try:
-                #    date = datetime.datetime.strptime(timeex.value, "%Y-%m").date()
-                #    parts = timeex.value.split("-")
-                #    tag = (int(parts[0]), int(parts[1]), None)
-                #    all_date_tags.add(tag)
-                #    doc.all_date_tags.add(tag)
-                #except ValueError:
-                #    pass
-                #else:
-                #    continue
-#
-                #try:
-                #    date = datetime.datetime.strptime(timeex.value, "%Y").date()
-                #    tag = (int(timeex.value), None, None)
-                #    all_date_tags.add(tag)
-                #    doc.all_date_tags.add(tag)
-                #except ValueError:
-                #    pass
-                #else:
-                #    continue
 
             sent.all_date_tags = all_date_tags
             sent.exact_date_references = possible_exact_dates
 
             if len(possible_exact_dates) > 0:
                 # TODO: Find better heuristic
-                #print(sent.time_expressions[0])
                 pred_date = possible_exact_dates[0]
-                try:                
+                try:
                     sent.predicted_date = datetime.date(pred_date.year, pred_date.month, pred_date.day)
                 except ValueError:
                     sent.predicted_date = dct
             else:
                 sent.predicted_date = dct
-
-
-        #from collections import deque
-#
-        #context = deque([], 10)
-#
-        #while True:
-        #    try:
-        #        next_doc_tok = next(doc_tok_iter)
-        #        next_time_ml_tok = next(timeml_iter)
-        #    except StopIteration:
-        #        break
-#
-        #    context.append(next_doc_tok.form)
-#
-#
-        #    if isinstance(next_time_ml_tok, TimeEX):
-        #        tid, type_, value, tokens = next_time_ml_tok
-#
-        #        for tok in tokens[1:]:
-        #            try:
-        #                next_doc_tok = next(tok)
-#
-        #                context.append(next_doc_tok.form)
-#
-        #                print(next_doc_tok.form, tok)
-        #                if next_doc_tok.form != tok:
-        #                    raise RuntimeError("Parse Error: {} != {}".format(
-        #                        next_doc_tok.form,
-        #                        tok
-        #                    ))
-#
-        #            except StopIteration:
-        #                break
-        #    elif next_doc_tok.form != next_time_ml_tok:
-        #        if next_doc_tok.form == "-LRB-" and next_time_ml_tok == "(" \
-        #            or next_doc_tok.form == "-RRB-" and next_time_ml_tok == ")":
-        #            continue
-#
-        #        if next_doc_tok.form.startswith(next_time_ml_tok):
-        #            accumulated_time_ml = next_time_ml_tok
-#
-#
-        #        raise RuntimeError("Parse Error: {} != {}. Context: {}".format(
-        #            next_doc_tok.form,
-        #            next_time_ml_tok,
-        #            " ".join(context)
-        #        ))
 
         return doc
 

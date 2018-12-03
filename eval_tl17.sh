@@ -1,4 +1,4 @@
-TIMELINES=(bpoil finan h1n1 haiti iraq libya mj syria egypt)
+TIMELINES=(finan bpoil h1n1 haiti iraq libya mj syria egypt)
 CONFS=(ap-abstractive.json ap-extractive.json ap-abstractive-oracle.json extractive-oracle.json)
 
 

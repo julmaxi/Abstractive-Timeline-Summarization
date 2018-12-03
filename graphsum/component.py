@@ -160,7 +160,6 @@ class TestComponent2:
         }
 
 
-
 class CacheManager:
     def __init__(self):
         pass
@@ -179,15 +178,21 @@ class CacheManager:
 
     def save_cached_data(self, key, data):
         cache_path = self.key_to_path(key)
+
+        cache_dir = os.path.dirname(cache_path)
+        if not os.path.isdir(cache_dir):
+            os.makedirs(cache_dir)
+
         with open(cache_path, "wb") as f:
             return pickle.dump(data, f)
 
 
 class Promise:
-    def __init__(self, parent, identity_key, cache_manager):
+    def __init__(self, parent, identity_key, cache_manager, transform=None):
         self.cache_manager = cache_manager
         self.parent = parent
         self.identity_key = identity_key
+        self.transform = transform
 
     def compute_full_identity_key(self):
         if self.parent is None:
@@ -203,19 +208,22 @@ class Promise:
 
         return parent_key + "." + self.identity_key
 
-    def chain(self, executable, postprocessor=None, key=None):
+    def chain(self, executable, postprocessor=None, key=None, transform=None):
+        if key is None:
+            raise ValueError()
         return ComputedPromise(
             self,
             executable,
             postprocessor=postprocessor,
             identity_key=key,
-            cache_manager=self.cache_manager
+            cache_manager=self.cache_manager,
+            transform=transform
         )
 
 
 class ComputedPromise(Promise):
-    def __init__(self, parent, callable, postprocessor, identity_key, cache_manager):
-        super().__init__(parent, identity_key, cache_manager)
+    def __init__(self, parent, callable, postprocessor, identity_key, cache_manager, transform=None):
+        super().__init__(parent, identity_key, cache_manager, transform)
         self.cache_manager = cache_manager
         self.callable = callable
         self.postprocessor = postprocessor
@@ -238,12 +246,15 @@ class ComputedPromise(Promise):
         else:
             result = data
 
-        return result
+        if self.transform:
+            return self.transform(result)
+        else:
+            return result
 
 
 class ConstantPromise(Promise):
-    def __init__(self, data, identity_key, cache_manager):
-        super().__init__(None, identity_key, cache_manager)
+    def __init__(self, data, identity_key, cache_manager, transform=None):
+        super().__init__(None, identity_key, cache_manager, transform)
         self.data = data
 
     def get(self):
