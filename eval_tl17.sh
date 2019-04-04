@@ -11,11 +11,20 @@ else
     TRY_CONFS=$@
 fi
 
+
 for CONF in ${TRY_CONFS[@]}
 do
     for TL in ${TIMELINES[@]} 
     do
-    python graphsum/tleval.py -t corpora/timeline17/${TL}/timelines/* -- corpora/tl17-${TL}.pkl $CONF
-    python graphsum/tleval.py -c tok -t corpora/timeline17/${TL}/timelines/* -- corpora/tl17-${TL}.pkl $CONF
+    python tlgraphsum/tleval.py -t corpora/timeline17/${TL}/timelines/* -- corpora/tl17-${TL}.pkl $CONF
+    done
+done
+
+
+for CONF in ${TRY_CONFS[@]}
+do
+    for TL in ${TIMELINES[@]} 
+    do
+    python tlgraphsum/tleval.py -c tok -t corpora/timeline17/${TL}/timelines/* -- corpora/tl17-${TL}.pkl $CONF
     done
 done

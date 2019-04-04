@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<meta charset="utf-8">
+	<script
+	src="https://code.jquery.com/jquery-3.3.1.min.js"
+	integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+	crossorigin="anonymous"></script>
+	<script type='text/javascript' src='https://s3.amazonaws.com/mturk-public/externalHIT_v1.js'></script>
+
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+	<style type="text/css">
+		.date {
+			font-size: 1.2em;
+			margin-bottom: 3px;
+		}
+		.selected-cell {
+			background-color: #8cb0ea;
+		}
+	</style>
+
+</head>
+<body style="padding-top: 70px">
+
+	<script type="text/javascript">
+		function radiosAreUnchecked(radios) {
+			return radios.toArray().every(function(item) {
+				return $(item).prop("checked") == false
+			})
+		}
+
+		function isIncomplete(index, bwInstance) {
+			return radiosAreUnchecked($(bwInstance).find(".bw-radio-best")) || radiosAreUnchecked($(bwInstance).find(".bw-radio-worst"));
+		}
+/*
+		function updateSelection() {
+			var newInstance = $(".bw-instance")[parseInt($("body").attr("data-selection-index"))]
+
+			$(newInstance).find(".bw-worst-cell").addClass("selected-cell")
+		}
+*/
+		$("body").ready(function() {
+			$("body").attr("data-selection-index", "0")
+			$("body").attr("data-selection-type", "worst")
+
+			$(".bw-radio").change(function(evt) {
+				var target = $(evt.target)
+				var idParts = target.attr("id").split("-")
+				var nameParts = idParts.slice(0, 2)
+				if (idParts[2] == "worst") {
+					idParts[2] = "best"
+					nameParts[2] = "best"
+				}
+				else {
+					idParts[2] = "worst"
+					nameParts[2] = "worst"
+				}
+
+				$("[name=" + nameParts.join("-") + "]").attr("disabled", false)
+				$("#" + idParts.join("-")).attr("disabled", true)
+			})
+
+			$("body").keydown(function (evt) {
+				if (evt.which == 32) {
+					evt.preventDefault();
+
+					var firstIncomplete = $(".bw-instance").filter(isIncomplete)[0]
+					$('html, body').animate({
+						scrollTop: $(firstIncomplete).offset().top - $('nav').outerHeight()
+					}, 500);
+				} else if (evt.which >= 49 && evt.which <= 52) {
+					/*
+					var radioIdx = evt.which - 49
+					var firstIncomplete = $(".bw-instance").filter(isIncomplete)[0]
+
+					$('html, body').animate({
+						scrollTop: $(firstIncomplete).offset().top - $('nav').outerHeight()
+					}, 500);
+
+					var toSelect = null;
+					if (radiosAreUnchecked($(firstIncomplete).find(".bw-radio-worst"))) {
+						toSelect = $(firstIncomplete).find(".bw-radio-worst:eq(" + (radioIdx).toString() + ")")
+					}
+					else {
+						toSelect = $(firstIncomplete).find(".bw-radio-best:eq(" + (radioIdx).toString() + ")")
+					}
+
+					if (!toSelect.attr("disabled")) {
+						toSelect.prop("checked", true)
+					}*/
+				}
+			})
+		})
+
+	</script>
+
+	<nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+		<p>
+			<button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample">
+				Show Timeline
+			</button>
+			<button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#collapseInfo" aria-expanded="false" aria-controls="collapseInfo">
+				Show Info
+			</button>
+		</p>
+		<div class="row">
+			<div class="col">
+				<div class="collapse" id="collapseExample">
+					<div class="card card-body">
+						<div id="timeline-container">
+							<ul style="overflow-y: scroll; max-height: 200px">
+								{% for (date, summary) in timeline_entries %}
+								<li class="tl-entry" data-date="{{date}}"><b>{{date}}:</b> {{(summary|join("\n"))}}</li>
+								{% endfor %}
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="col">
+				<div class="collapse" id="collapseInfo">
+					<div class="card card-body">
+                        <p>{{event_info["description"]}} (<a href="{{event_info["href"]}}">Wikipedia</a></p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</nav>
+
+	<div class="container">
+		<p>
+			In this task you will judge the relevance of summaries events that happend during the {{event_info["name"]}}.
+			You will be presented with multiple sets of four summaries, each of which describes the events on a different date. Imagine you would like to inform yourself about what happend during {{event_info["name"]}}. Your task is to select the date and corresponding summary that you find most relevant, as well as the date and summary you find least relevant in that context.
+			In order to better understand the event, you should click "Show Timeline" to get a chronological overview. You can use the information from this timeline to guide your importance judgements, but you should try to avoid using specific knowledge about the event that you might have that is not mentioned in the timeline.
+			You can use the following question to help with finding the most important event: "If you had to summarize the event and
+            could only mention the event on one of the dates: Which one would you choose?". Similarly you can ask yourself which of the summaries you would discard if you could use only three of them.
+<!--			If you do not know what the {{event_info["name"]}} is, you can click the info button to reveal a short description. Similarly, if you can not understand a summary because it is out of context, you can read all summaries in chronological order by clicking "Show Timeline".-->
+			<b>Tipp:</b> You can jump to the next item quickly by pressing space.
+		</p>
+
+		<form name='mturk_form' method='post' id='mturk_form' action='https://www.mturk.com/mturk/externalSubmit'>
+			<input type='hidden' value='' name='assignmentId' id='assignmentId'/>
+			{% for candidate_tuple in candidate_tuples %}
+			<table class="table bw-instance">
+				<thead>
+					<tr>
+						<th scope="col">Select <em>least</em> relevant</th>
+						<th scope="col">Date</th>
+						<th scope="col">Select <em>most</em> relevant</th>
+					</tr>
+				</thead>
+				{% set tuple_loop = loop %}
+				<tbody>
+					{% for date, summary in candidate_tuple %}
+					<tr class="bw-row">
+						<td class="bw-worst-cell"><input class="radio bw-radio bw-radio-worst" required type="radio" name="item-{{tuple_loop.index0}}-worst" id="item-{{tuple_loop.index0}}-worst-{{loop.index0}}" value="{{date}}"></td>
+						<td><h4 class="date">{{date}}</h4>{{summary|join("\n")}}</td>
+						<td class="bw-best-cell"><input class="radio bw-radio bw-radio-best" id="item-{{tuple_loop.index0}}-best-{{loop.index0}}" required type="radio" name="item-{{tuple_loop.index0}}-best" value="{{date}}"></td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			{% endfor %}
+			<button class="btn btn-success" type="submit">Submit</button>
+			<script language='Javascript'>turkSetAssignmentID();</script>
+		</form>
+	</div>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<meta charset="utf-8">
+<script
+			  src="https://code.jquery.com/jquery-3.3.1.min.js"
+			  integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+			  crossorigin="anonymous"></script>
+  <script type='text/javascript' src='https://s3.amazonaws.com/mturk-public/externalHIT_v1.js'></script>
+
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+</head>
+<body>
+ <style>
+.selected {
+	border: 2px solid blue !important;
+	border-radius: 5px;
+}
+#timeline {
+	list-style-type: none;
+}
+#timeline-container {
+	height: 100vh;
+	overflow: scroll;
+}
+
+ul.rating-scale {
+	list-style-type: none;
+	margin: 0;
+	padding: 0;
+}
+
+ul.rating-scale li {
+	display: inline-block;
+}
+
+ul.rating-scale li label {
+	display: inline-block;
+}
+
+ul.rating-scale li label input {
+	display: block;
+}
+
+.info {
+	font-style: italic;
+}
+
+</style>
+
+
+<script type="text/javascript">
+function enableDateSelection(targetInput) {
+	$("#timeline").addClass("selectable")
+	$("#timeline").children("li").click(
+		function(evt) {
+			var listEntry = $(evt.target)
+			if (!listEntry.hasClass("tl-entry")) {
+				listEntry = listEntry.parents(".tl-entry")
+			}
+			listEntry.parent().find("li").removeClass("selected")
+			listEntry.addClass("selected")
+			var val = listEntry.attr("data-date")
+			targetInput.val(val)
+		}	
+	)
+}
+
+function resetDateSelection(resetSelection) {
+	if (resetSelection === undefined) {
+		resetSelection = true;
+	}
+
+	$("#timeline").removeClass("selectable")
+	$("#timeline").find("li").off("click")
+
+	if (resetSelection) {
+		$("#timeline").find("li").removeClass("selected")
+	}
+}
+
+function handleAdvanceQuestion(evt) {
+		var parent = $(evt.target).parents(".question-box")
+		if (! ($("#answer-" + parent.attr("data-qid") + "-donotknow").is(":checked") || $("#answer-" + parent.attr("data-qid")).val() !== "")) {
+			alert("Please answer the question or tick the appropriate checkbox")
+			return
+		}
+
+		$("#answer-" + parent.attr("data-qid") + "-time").val(
+			new Date().getTime()
+		)
+
+		parent.hide()
+
+		if (parent.attr("data-isLast") == "1") {
+			$("#submitBox").show()
+			$("#endTime").val(new Date().getTime())
+			return
+		}
+
+		var nextItemIdx = parseInt(parent.attr("data-qid")) + 1
+		var nextQuestionContainer = $("#qb-" + nextItemIdx)
+
+		if ($("#answer-" + parent.attr("data-qid") + "-donotknow").is(":checked")) {
+			while (nextQuestionContainer.attr("data-qtype") == "detail") {
+				if (nextQuestionContainer.attr("data-isLast") == "1") {
+					$("#submitBox").show()
+					$("#endTime").val(new Date().getTime())
+					return
+				}
+				nextItemIdx += 1
+				nextQuestionContainer = $("#qb-" + nextItemIdx)
+			}
+		}
+
+		if (nextQuestionContainer.attr("data-qtype") == "detail") {
+			resetDateSelection(false)
+		}
+		else {
+			resetDateSelection()
+		}
+
+		enableContainer(nextQuestionContainer)
+
+
+}
+
+function enableContainer(container) {
+		container.show()
+
+		if (container.attr("data-qtype") == "date") {
+			var targetInput = container.find(".answer-input")
+			enableDateSelection(targetInput)
+		}
+}
+
+$("body").ready(function() {
+	$('#startTimerModal').modal()
+
+	$(".question-next-button").click(handleAdvanceQuestion)
+
+	enableContainer($("#qb-0"))
+})
+</script>
+
+<div class="container">
+<div class="modal fade" id="startTimerModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Before you start</h5>
+      </div>
+      <div class="modal-body">
+        <p>This experiment records the time you need to complete it. The time is automatically recorded once you press "Start". Please take a minute to read the following instructions before that.</p>
+        <p>On the left side of your screen you can see a summary (called a timeline) of some events. On the right side, you will be asked to answer a series of questions based on this text.
+        Please only consider information in the text and not your own knowledge for your answer. If the answer is not present in the text, click the corresponding checkbox and continue.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="$('#startTime').val(new Date().getTime())">Start</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<form name='mturk_form' method='post' id='mturk_form' action='https://www.mturk.com/mturk/externalSubmit'>
+	<input type='hidden' value='' name='assignmentId' id='assignmentId'/>
+	
+	<input type="hidden" name="startTime" id="startTime">
+	<input type="hidden" name="endTime" id="endTime">
+
+
+<div class="row">
+<div class="col-md-6" id="timeline-container">
+<ul id="timeline">
+	{% for (date, summary) in timeline_entries %}
+		<li class="tl-entry" data-date="{{date}}"><b>{{date}}:</b> {{format_text(summary|join("\n"))}}</li>
+	{% endfor %}
+</ul>
+</div>
+
+<div class="col-md-3">
+	{% for question in questions %}
+		<div id="qb-{{loop.index0}}" class="question-box" style="display: {{"none" if loop.index0 != 0 else "default"}};" data-qid="{{loop.index0}}" data-isLast="{{"1" if loop.index == len(questions) else "0"}}" data-qtype="{{question.type}}" >
+			<p>{{question.text}}</p>
+
+			{% if question.type == "date" %}
+				<p class="info">Click on one of the entries to select the entry that describes the event. If it is not present, click the ''can't tell'' entry.</p>
+				<input name="answer-{{loop.index0}}" id="answer-{{loop.index0}}" class="answer-input" type="hidden" />
+			{% else %}
+			  <div class="form-group">
+    			<label for="answer-{{loop.index0}}">Answer</label>
+				<input name="answer-{{loop.index0}}" id="answer-{{loop.index0}}" class="answer-input form-control" type="text" />
+			  </div>
+			{% endif %}
+			<div class="form-group">
+				<input type="checkbox" name="answer-{{loop.index0}}-donotknow" id="answer-{{loop.index0}}-donotknow"/>
+				<label for="answer-{{loop.index0}}-donotknow">I can't answer this from reading the timeline</label>
+			</div>
+
+			<input name="answer-{{loop.index0}}-time" id="answer-{{loop.index0}}-time" type="hidden" />
+
+			<button type="button" class="question-next-button
+			btn btn-primary">Next</button>
+		</div>
+	{% endfor %}
+
+	<div style="display: none" id="submitBox" type="hidden">
+	<p>Thanks for answering the questions.
+	Before you go, please rate how readable the timeline was on a scale from 1 (very hard to read) to 5 (very easy to read). </p>
+
+	<div>
+    <ul class="rating-scale">
+		{% for _ in range(5) %}
+			<li><label><input required type="radio" name="readability" value={loop.index}>({{loop.index}})</label></li>
+		{% endfor %}
+	</ul>
+	</div>
+
+	<input class="btn btn-success" value="Send your result" type="submit" />
+	</div>
+</div>
+</div>
+<script language='Javascript'>turkSetAssignmentID();</script>
+</form>
+</div>
+</body>
+</html>
