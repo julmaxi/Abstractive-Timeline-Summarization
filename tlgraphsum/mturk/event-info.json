@@ -35,7 +35,7 @@
 		"href": "https://en.wikipedia.org/wiki/Financial_crisis_of_2007%E2%80%932008"
 	},
 	"tl17-haiti": {
-		"name": "2010 Haiti earthquake",
+		"name": "2010 Haiti earthquake and the subsequent relief effort",
 		"description": "The 2010 Haiti earthquake was a catastrophic magnitude 7.0 earthquake that struck the island of Haiti.",
 		"href": "https://en.wikipedia.org/wiki/2010_Haiti_earthquake"
 	},
@@ -59,7 +59,7 @@
 		"description": "The Egyptian revolution was a series of protests against the rule of the Egyptian government under Hosni Mubarak.",
 		"href": "https://en.wikipedia.org/wiki/Egyptian_revolution_of_2011"
 	},
-	"tl17-yemen": {
+	"crisis-yemen": {
 		"name": "Yemeni Civil War",
 		"description": "The Yemeni Civil War is an ongoing conflict that began in 2015 between two factions: the internationally recognized Yemeni government, led by Abdrabbuh Mansur Hadi, and the Houthi armed movement, along with their supporters and allies. Both claim to constitute the official government of Yemen.",
 		"href": "https://en.wikipedia.org/wiki/Yemeni_Civil_War_(2015%E2%80%93present)"

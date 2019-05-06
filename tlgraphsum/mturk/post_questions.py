@@ -233,7 +233,7 @@ def format_text(text):
     better_sents = []
     for sent in doc.sents:
         better_sent = sent.text.capitalize()
-        better_sent = better_sent.replace(" .", ".").replace(" 's", "'s").replace(" , ", ", ").replace("-lrb- ", "(").replace(" -rrb-", ")").replace(" !", "!").replace(" ?", "?").strip()
+        better_sent = better_sent.replace(" .", ".").replace(" 's", "'s").replace(" , ", ", ").replace("-lrb-", "(").replace("-rrb-", ")").replace("-lrb- ", "(").replace(" -rrb-", ")").replace(" !", "!").replace(" ?", "?").strip()
         better_sents.append(better_sent)
 
     return " ".join(better_sents)
