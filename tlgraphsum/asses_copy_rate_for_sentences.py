@@ -23,6 +23,10 @@ def main():
             corpus = CachedCorpusReader.load_corpus(str(corpus_path))
             corpus_sentences = set(map(lambda s: tuple(s.as_token_attr_sequence("form_lowercase")), corpus.sentences))
 
+            for sent in corpus_sentences:
+                if "demanding" in sent and "ouster" in sent:
+                    print(repr(sent))
+
             sent = line[-1]
 
             sent = sent.lower()
