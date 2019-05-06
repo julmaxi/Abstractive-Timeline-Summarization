@@ -162,17 +162,21 @@ class TestComponent2:
 
 class CacheManager:
     def __init__(self):
-        pass
+        self.cache = {}
 
     def key_to_path(self, key):
         return "test-caches/" + key.replace("/", "_") #str(base64.encodestring(bytearray(key, "utf8")), "utf8")
 
     def load_cached_data(self, key):
+        if key in self.cache:
+            return self.cache[key]
         presumed_cache_path = self.key_to_path(key)
         if os.path.isfile(presumed_cache_path):
             logger.debug("Loading data for key {!r} from {!r}".format(key, presumed_cache_path))
             with open(presumed_cache_path, "rb") as f:
-                return pickle.load(f)
+                value = pickle.load(f)
+                self.cache[key] = value
+                return value
 
         return None
 

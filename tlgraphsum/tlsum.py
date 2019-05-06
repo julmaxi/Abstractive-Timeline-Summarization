@@ -693,8 +693,13 @@ class SentenceScorer:
         def calc_date_informativeness(sent):
             local_informativeness_score = 0
             scores = self.per_date_tr_scores[cluster_date]
-            max_score = max(scores.values())
-            min_score = min(scores.values())
+
+            if len(scores.values()) == 0:
+                max_score = 0
+                min_score = 0
+            else:
+                max_score = max(scores.values())
+                min_score = min(scores.values())
 
             if max_score - min_score == 0:
                 return 0

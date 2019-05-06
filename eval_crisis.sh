@@ -11,19 +11,24 @@ else
     TRY_CONFS=$@
 fi
 
+FLAGS=""
+if [ "$1" == '-f' ]; then
+    FLAGS="-f"
+fi
+
 for CONF in ${TRY_CONFS[@]}
 do
-    for TL in ${TIMELINES[@]} 
+    for TL in ${TIMELINES[@]}
     do
-    python tlgraphsum/tleval.py -t corpora/crisis.data/${TL}/public/timelines/*  -- corpora/crisis-${TL}.pkl $CONF
+    python tlgraphsum/tleval.py $FLAGS -t corpora/crisis.data/${TL}/public/timelines/*  -- corpora/crisis-${TL}.pkl $CONF
     done
 done
 
 
 for CONF in ${TRY_CONFS[@]}
 do
-    for TL in ${TIMELINES[@]} 
+    for TL in ${TIMELINES[@]}
     do
-    python tlgraphsum/tleval.py -c tok -t corpora/crisis.data/${TL}/public/timelines/*  -- corpora/crisis-${TL}.pkl $CONF
+    python tlgraphsum/tleval.py $FLAGS -c tok -t corpora/crisis.data/${TL}/public/timelines/*  -- corpora/crisis-${TL}.pkl $CONF
     done
 done

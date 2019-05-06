@@ -137,23 +137,39 @@ def read_tls_timelines_obj_file(fname):
     return timelines_per_corpus
 
 
+from pathlib import Path
+
+def fix_tls_timeline_naming(per_corpus_tls, prefix):
+    gold_tl_path = Path("gold-timelines")
+    new_per_corpus_tls = {}
+    for corpus_name, timelines in per_corpus_tls.items():
+        corpus_dirname = prefix + corpus_name
+        corpus_tl_path = gold_tl_path / corpus_dirname
+        tl_fnames = sorted(filter(lambda x: x.name.endswith(".txt"), corpus_tl_path.iterdir()))
+        new_timelines = [(tl_fname.name, tl_gold, tl_sys) for tl_fname, (_, tl_gold, tl_sys) in zip(tl_fnames, sorted(timelines))]
+        new_per_corpus_tls[corpus_name] = new_timelines
+
+    print(new_per_corpus_tls)
+    return new_per_corpus_tls
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-b", dest="basedir", default=".")
     parser.add_argument("results_file")
     parser.add_argument("system_name")
     parser.add_argument("prefix")
     args = parser.parse_args()
 
     per_corpus_tls = read_tls_timelines_obj_file(args.results_file)
+    per_corpus_tls = fix_tls_timeline_naming(per_corpus_tls, args.prefix)
 
     for corpus_name, timelines in per_corpus_tls.items():
         modified_corpus_name = args.prefix + corpus_name
 
-        target_eval_dir = os.path.join("evaluation_results", args.system_name)
+        target_eval_dir = os.path.join(args.basedir, "evaluation_results", args.system_name)
         target_eval_path = os.path.join(target_eval_dir, modified_corpus_name + ".txt")
-        target_timelines_dir = os.path.join("system_timelines", args.system_name, modified_corpus_name)
+        target_timelines_dir = os.path.join(args.basedir, "system_timelines", args.system_name, modified_corpus_name)
 
         if not os.path.isdir(target_timelines_dir):
             os.makedirs(target_timelines_dir)

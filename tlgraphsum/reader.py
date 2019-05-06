@@ -21,14 +21,21 @@ HARDCODED_PROBLEMATIC_DOCS = {'crisis-libya': {'768', '4746', '156', '981', '434
 def load_corpus(fname, filter_blacklist=True):
     with open(fname, "rb") as f:
         corpus = pickle.load(f)
-        corpus.name = fname
-        corpus.basename = os.path.basename(fname)
-
     corpus_id, _ = os.path.basename(fname).split(".", 1)
     print(corpus.num_documents)
     if filter_blacklist:
+        print("Filtering...")
         corpus.per_date_documents = filter_corpus_by_blacklist(corpus.per_date_documents, HARDCODED_PROBLEMATIC_DOCS.get(corpus_id, []))
     print(corpus.num_documents)
+
+    corpus.real_name = fname
+    corpus.real_basename = os.path.basename(fname)
+    if filter_blacklist:
+        base_path, corpus_name = os.path.split(fname)
+        name, _ = corpus_name.rsplit(".", 1)
+        fname = os.path.join(base_path, name + "+filtered" + ".pkl")
+    corpus.name = fname
+    corpus.basename = os.path.basename(fname)
 
     return corpus
 
@@ -97,7 +104,7 @@ class TimelineCorpus:
         return iter(self.per_date_documents.keys())
 
     def docs_for_date(self, date):
-        return self.per_date_documents[date]
+        return self.per_date_documents.get(date, [])
 
     def as_docs_attr_sequence(self, arg):
         return [doc.as_token_attr_sequence(arg) for doc in self]

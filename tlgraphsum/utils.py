@@ -1,5 +1,6 @@
 import os
 import string
+from tilse.data.timelines import Timeline
 
 
 PUNCTUATION = set(string.punctuation)
@@ -47,3 +48,15 @@ def avg(l):
         return 0
 
     return s / c
+
+
+def load_all_gold_timelines():
+    all_timelines = {}
+    gold_tl_dir = "gold-timelines"
+    for topic_gold_tl_dir in iter_dirs(gold_tl_dir):
+        for gold_tl_fname in iter_files(topic_gold_tl_dir, ".txt"):
+            with open(gold_tl_fname, errors="ignore") as f:
+                tl = Timeline.from_file(f)
+                all_timelines[os.path.basename(topic_gold_tl_dir), os.path.basename(gold_tl_fname)] = tl
+
+    return all_timelines

@@ -1385,6 +1385,8 @@ def select_sentences_old(per_cluster_candidates, sim_model, maxlen=250):
 def calculate_keyword_text_rank(sentences, window_size=None):
     graph = nx.Graph()
 
+    logging.info("Computing TextRank for {} sentences".format(len(sentences)))
+
     for sent in sentences:
         context = sent
         for tok, pos in sent:

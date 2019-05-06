@@ -75,10 +75,11 @@ def analyze_main():
     parser = ArgumentParser()
     parser.add_argument("-c", dest="compute_copy_rate", action="store_true", default=False)
     parser.add_argument("-f", dest="system_filters", nargs="+")
+    parser.add_argument("-b", dest="results_basedir", default="evaluation_results")
 
     args = parser.parse_args()
 
-    results_basedir = "evaluation_results"
+    results_basedir = args.results_basedir
 
     all_entries = {}
     tl17_entries = {}
@@ -140,32 +141,33 @@ def analyze_main():
     #    ("ap-abstractive-oracle-depfiltered-greedy.json+sent", "extractive-oracle-greedy.json+sent", "*")
     #], tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
 
+    #gen_latex_table_simple([
+    #    "extractive-oracle-greedy.json+sent",
+    #    "extractive-dctdating-oracle-greedy.json+sent"
+    #], ["TimeEx", "DCT"], [
+    #    ("extractive-oracle-greedy.json+sent", "extractive-dctdating-oracle-greedy.json+sent", "*")
+    #], tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
+
+    print()
+    print()
+
     gen_latex_table_simple([
+        "chieu",
+        "nn-lr-pred+none",
+        "submod",
+        "extractive-baseline.json+sent",
+        "ap-extractive-baseline.json+sent",
+        "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent",
+        "ap-abstractive-oracle-depfiltered-greedy-redundancy.json+sent",
         "extractive-oracle-greedy.json+sent",
-        "extractive-dctdating-oracle-greedy.json+sent"
-    ], ["TimeEx", "DCT"], [
-        ("extractive-oracle-greedy.json+sent", "extractive-dctdating-oracle-greedy.json+sent", "*")
-    ], tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
-
-    print()
-    print()
-
-    gen_latex_table_simple([
-        "chieu.json+sent",
-        "martschat.json+sent",
-        "lrnn-dct.json+none",
-        "lrnn-dct-oracle.json+none",
-        "sdsnn.json+none",
-        "sdsnn-dct-oracle.json+none",
-    ], ["Chieu", "Martschat", "LR", "+Oracle", "Cent.", "+Oracle"], [
-        ("lrnn-dct-oracle.json+none", "chieu.json+sent", "a"),
-        ("lrnn-dct-oracle.json+none", "martschat.json+sent", "1"),
-        ("lrnn-dct.json+none", "chieu.json+sent", "b"),
-        ("lrnn-dct.json+none", "martschat.json+sent", "2"),
-        ("sdsnn.json+none", "chieu.json+sent", "c"),
-        ("sdsnn.json+none", "martschat.json+sent", "3"),
-        ("sdsnn-dct-oracle.json+none", "chieu.json+sent", "d"),
-        ("sdsnn-dct-oracle.json+none", "martschat.json+sent", "4"),
+        "submod-tok",
+        "extractive-baseline.json+tok",
+        "ap-extractive-baseline.json+tok",
+        "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+tok",
+        "ap-abstractive-oracle-depfiltered-greedy-redundancy.json+tok",
+        "extractive-oracle-greedy.json+tok"
+    ], ["Chieu", "Neural", "Submod (s)", "Extr. (s)", "Extr. + Cl. (s)", "Abstractive (s)", "Abs. Oracle (s)", "Extr. Oracle (s)", "Submod (t)", "Extr. (t)", "Extr. + Cl. (t)", "Abstractive (t)", "Abs. Oracle (t)", "Extr. Oracle (t)"], [
+        ("chieu", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", "*"),
     ], tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
 
 
@@ -259,7 +261,7 @@ class CachedCorpusReader:
     @classmethod
     def load_corpus(cls, name):
         if name != CachedCorpusReader.loaded_corpus_name:
-            CachedCorpusReader.loaded_corpus = load_corpus(name)
+            CachedCorpusReader.loaded_corpus = load_corpus(name, filter_blacklist=False)
             CachedCorpusReader.loaded_corpus_name = name
         corpus = CachedCorpusReader.loaded_corpus
         return corpus
@@ -325,6 +327,8 @@ def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_avera
         return None, None, None, None, None
 
     for results_file in relevant_files:
+        if "+filtered" in results_file:
+            continue
 
         #if "libya" in results_file and "crisis" in results_file:
         #    print(results_file)
@@ -342,6 +346,7 @@ def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_avera
             print("Can't match results file to corpus", results_file)
         all_results[os.path.basename(results_file)] = topic_result
 
+    print(results_file)
     if macro_average:
         macro_average_entry = compute_macro_averages(all_results)
     else:

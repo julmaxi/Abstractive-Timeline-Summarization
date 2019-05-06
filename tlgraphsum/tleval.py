@@ -19,6 +19,7 @@ from params import determine_tl_parameters
 
 def evaluate_tl_main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-f", dest="filter_corpus", default=False, action="store_true")
     parser.add_argument("-c", dest="constraint", default="sent")
     parser.add_argument("-t", dest="timelines", nargs="+")
     parser.add_argument("-m", dest="num_multi_selection_runs", type=int, default=None)
@@ -35,7 +36,7 @@ def evaluate_tl_main():
     else:
         raise ValueError("Unknown constraint {}".format(args.constraint))
 
-    corpus = load_corpus(args.corpus_pickle)
+    corpus = load_corpus(args.corpus_pickle, filter_blacklist=args.filter_corpus)
 
     timelines = []
 
@@ -51,7 +52,8 @@ def evaluate_tl_main():
 
     tl_gen = GloballyClusteredSentenceCompressionTimelineGenerator(config)
 
-    corpus_basename = os.path.basename(args.corpus_pickle).split(".")[0]
+    corpus_basename = os.path.basename(corpus.name).split(".")[0]
+    print(corpus_basename)
     config_basename = os.path.basename(args.config)
 
     results_basename = config_basename
@@ -139,7 +141,7 @@ def write_results_file(outfilename, out_timelines_dir, timelines, sys_timelines)
     date_f1_r_sum = 0
     date_f1_p_sum = 0
 
-    with open(outfilename, "w") as f_out: 
+    with open(outfilename, "w") as f_out:
         f_out.write("Timeline        \tDate R\tDate P\tDate F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\tR1 R\tR1 P\tR1 F1\tR2 R\tR2 P\tR2 F1\n")
 
         for (timeline_name, gold_timeline), sys_timeline in zip(timelines, sys_timelines):
@@ -147,7 +149,7 @@ def write_results_file(outfilename, out_timelines_dir, timelines, sys_timelines)
                 f_tl.write(str(sys_timeline))
 
             reference_timeline = GroundTruth([gold_timeline])
-            eval_results = evaluator.evaluate_concat("TL", sys_timeline, reference_timeline)
+            eval_results = evaluator.evaluate_concat(sys_timeline, reference_timeline)
             rouge_1_sum += eval_results["rouge_1"]["f_score"]
             rouge_1_r_sum += eval_results["rouge_1"]["recall"]
             rouge_1_p_sum += eval_results["rouge_1"]["precision"]
@@ -156,7 +158,7 @@ def write_results_file(outfilename, out_timelines_dir, timelines, sys_timelines)
             rouge_2_p_sum += eval_results["rouge_2"]["precision"]
 
 
-            eval_results_agree = evaluator.evaluate_agreement("TL", sys_timeline, reference_timeline)
+            eval_results_agree = evaluator.evaluate_agreement(sys_timeline, reference_timeline)
             agree_rouge_1_sum += eval_results_agree["rouge_1"]["f_score"]
             agree_rouge_1_r_sum += eval_results_agree["rouge_1"]["recall"]
             agree_rouge_1_p_sum += eval_results_agree["rouge_1"]["precision"]
@@ -165,7 +167,7 @@ def write_results_file(outfilename, out_timelines_dir, timelines, sys_timelines)
             agree_rouge_2_p_sum += eval_results_agree["rouge_2"]["precision"]
 
 
-            eval_results_align = evaluator.evaluate_align_date_content_costs_many_to_one("TL", sys_timeline, reference_timeline)
+            eval_results_align = evaluator.evaluate_align_date_content_costs_many_to_one(sys_timeline, reference_timeline)
             align_rouge_1_sum += eval_results_align["rouge_1"]["f_score"]
             align_rouge_1_r_sum += eval_results_align["rouge_1"]["recall"]
             align_rouge_1_p_sum += eval_results_align["rouge_1"]["precision"]
@@ -176,10 +178,10 @@ def write_results_file(outfilename, out_timelines_dir, timelines, sys_timelines)
 
             print(" ".join(map(lambda x: "{}-{}-{}".format(x.year, x.month, x.day), sorted(sys_timeline))))
             print(" ".join(map(lambda x: "{}-{}-{}".format(x.year, x.month, x.day), sorted(gold_timeline))))
-    
+
             date_recall = len(set(sys_timeline) & set(gold_timeline)) / len(gold_timeline)
             date_precision = len(set(sys_timeline) & set(gold_timeline)) / len(sys_timeline)
-    
+
             if date_recall + date_precision > 0:
                 date_f1 = 2 * (date_recall * date_precision) / (date_recall + date_precision)
             else:

@@ -88,8 +88,6 @@ def main():
 
     system_name = args.system_name + "+" + args.cutoff_constraint
 
-    print(system_name)
-
     system_sys_tl_dir = os.path.join(args.system_timelines_dir, system_name)
 
     system_evaluation_dir = os.path.join(args.evaluation_results_dir, system_name)
@@ -112,6 +110,7 @@ def main():
         if args.cutoff_constraint != "none":
             sys_tls = [timeline_by_applying_constraints(sys_tl, determine_tl_parameters(gold_tl), constraint_type=args.cutoff_constraint) for sys_tl, (_, gold_tl) in zip(sys_tls, gold_tls)]
 
+        print(sys_tls)
         write_results_file(os.path.join(system_evaluation_dir, corpus_name[:-len(".pkl")] + ".txt"), corpus_sys_tl_dir, gold_tls, sys_tls)
 
 if __name__ == "__main__":
