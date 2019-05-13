@@ -165,6 +165,7 @@ class CacheManager:
         self.cache = {}
 
     def key_to_path(self, key):
+        print("test-caches/" + key.replace("/", "_"))
         return "test-caches/" + key.replace("/", "_") #str(base64.encodestring(bytearray(key, "utf8")), "utf8")
 
     def load_cached_data(self, key):

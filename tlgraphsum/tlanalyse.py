@@ -53,8 +53,12 @@ def check_significance(all_entries, key_1, key_2):
     all_scores = defaultdict(lambda: [[], []])
     for topic_name, tl_name in all_timeline_names:
         for score in metrics.split():
-            score_1 = art.scores.Score([getattr(all_entries[key_1][topic_name][tl_name], score).f1])
-            score_2 = art.scores.Score([getattr(all_entries[key_2][topic_name][tl_name], score).f1])
+            if len(all_entries[key_1][topic_name]) == len(all_entries[key_1][topic_name]) == 1: # Stupid workaround for incompatible timeline names in tl17-mj
+                score_1 = art.scores.Score([(getattr(list(all_entries[key_1][topic_name].values())[0], score)).f1])
+                score_2 = art.scores.Score([(getattr(list(all_entries[key_2][topic_name].values())[0], score)).f1])
+            else:
+                score_1 = art.scores.Score([getattr(all_entries[key_1][topic_name][tl_name], score).f1])
+                score_2 = art.scores.Score([getattr(all_entries[key_2][topic_name][tl_name], score).f1])
 
             all_scores[score][0].append(score_1)
             all_scores[score][1].append(score_2)
@@ -75,11 +79,11 @@ def analyze_main():
     parser = ArgumentParser()
     parser.add_argument("-c", dest="compute_copy_rate", action="store_true", default=False)
     parser.add_argument("-f", dest="system_filters", nargs="+")
-    parser.add_argument("-b", dest="results_basedir", default="evaluation_results")
+    parser.add_argument("-b", dest="results_basedir", default=".")
 
     args = parser.parse_args()
 
-    results_basedir = args.results_basedir
+    results_basedir = os.path.join(args.results_basedir, "evaluation_results")
 
     all_entries = {}
     tl17_entries = {}
@@ -99,7 +103,7 @@ def analyze_main():
         if prefixes is not None and not any(p.match(system_name) for p in prefixes):
             continue
 
-        entry, tl17_entry, crisis_entry, tl17_results, crisis_results = analyze_system_results_dir(system_dir, compute_copy_rate=args.compute_copy_rate)
+        entry, tl17_entry, crisis_entry, tl17_results, crisis_results = analyze_system_results_dir(system_dir, compute_copy_rate=args.compute_copy_rate, basepath=args.results_basedir)
 
         if entry is not None:
             all_entries[os.path.basename(system_dir)] = entry
@@ -152,22 +156,32 @@ def analyze_main():
     print()
 
     gen_latex_table_simple([
-        "chieu",
-        "nn-lr-pred+none",
-        "submod",
-        "extractive-baseline.json+sent",
-        "ap-extractive-baseline.json+sent",
-        "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent",
-        "ap-abstractive-oracle-depfiltered-greedy-redundancy.json+sent",
-        "extractive-oracle-greedy.json+sent",
-        "submod-tok",
-        "extractive-baseline.json+tok",
-        "ap-extractive-baseline.json+tok",
-        "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+tok",
-        "ap-abstractive-oracle-depfiltered-greedy-redundancy.json+tok",
-        "extractive-oracle-greedy.json+tok"
-    ], ["Chieu", "Neural", "Submod (s)", "Extr. (s)", "Extr. + Cl. (s)", "Abstractive (s)", "Abs. Oracle (s)", "Extr. Oracle (s)", "Submod (t)", "Extr. (t)", "Extr. + Cl. (t)", "Abstractive (t)", "Abs. Oracle (t)", "Extr. Oracle (t)"], [
-        ("chieu", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", "*"),
+        ("chieu", "Chieu"),
+        ("nn-lr-pred+none", "Neural"),
+        ("submod", "Submod (s)"),
+        ("extractive-baseline.json+sent", "Extr. (s)"),
+        #"ap-extractive-baseline-redundancy.json+sent",
+        ("ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", "Abstractive (s)"),
+        ("extractive-oracle-greedy.json+sent", "Extr. Oracle (s)"),
+        ("ap-abstractive-oracle-depfiltered-greedy-redundancy.json+sent", "Abs. Oracle (s)"),
+        ("submod-tok", "Sumod (t)"),
+        ("extractive-baseline.json+tok", "Extr. (t)"),
+        #"ap-extractive-baseline-redundancy.json+tok",
+        ("ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+tok", "Abstractive (t)"),
+        ("extractive-oracle-greedy.json+tok", "Ext. Oracle (t)"),
+        ("ap-abstractive-oracle-depfiltered-greedy-redundancy.json+tok", "Abs. Oracle (t)")
+    ],
+    [
+        ("chieu", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", "1"),
+        ("chieu", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+tok", "a"),
+        ("nn-lr-pred+none", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", "2"),
+        ("nn-lr-pred+none", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+tok", "b"),
+        ("submod", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", "3"),
+        ("submod-tok", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+tok", "c"),
+        ("extractive-baseline.json+sent", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", "*"),
+        ("extractive-baseline.json+tok", "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+tok", "*"),
+        ("ap-abstractive-oracle-depfiltered-greedy-redundancy.json+tok", "extractive-oracle-greedy.json+tok", "*"),
+        ("ap-abstractive-oracle-depfiltered-greedy-redundancy.json+sent", "extractive-oracle-greedy.json+sent", "*")
     ], tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
 
 
@@ -267,12 +281,12 @@ class CachedCorpusReader:
         return corpus
 
 
-def analyse_results_file(results_file, compute_copy_rate=False):
+def analyse_results_file(results_file, compute_copy_rate=False, basepath="."):
     system_path, topic_fname = os.path.split(results_file)
     topic_name = topic_fname.rsplit(".", 1)[0]
     _, system_name = os.path.split(system_path)
 
-    sys_tl_path = os.path.join("system_timelines", system_name, topic_name)
+    sys_tl_path = os.path.join(basepath, "system_timelines", system_name, topic_name)
     corpus_name = os.path.join("corpora", topic_name + ".pkl")
 
     if compute_copy_rate:
@@ -315,7 +329,7 @@ def analyse_results_file(results_file, compute_copy_rate=False):
     return topic_result
 
 
-def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_average=False):
+def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_average=False, basepath="."):
     all_results = {}
 
     tl17_results = {}
@@ -334,7 +348,7 @@ def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_avera
         #    print(results_file)
         #    continue
 
-        topic_result = analyse_results_file(results_file, compute_copy_rate=compute_copy_rate)
+        topic_result = analyse_results_file(results_file, compute_copy_rate=compute_copy_rate, basepath=basepath)
 
         all_results[os.path.basename(results_file)] = topic_result
 
@@ -654,6 +668,7 @@ def create_sig_diff_dict(results, entries, sys_1, sys_2, symbol="*"):
 
     #print(sys_1, sys_2, sig_level)
 
+    print(sig_level)
     for metric in metrics.split():
         if sig_level[metric] < 0.05:
             if getattr(entries[sys_2], metric).f1 > getattr(entries[sys_1], metric).f1:
@@ -742,7 +757,7 @@ def gen_latex_table_sent_features(tl17_entries, crisis_entries, all_tl17_results
     print("\n".join(lines))
 
 
-def gen_latex_table_simple(systems, names, comparison_pairs, tl17_entries, crisis_entries, all_tl17_results, all_crisis_results):
+def gen_latex_table_simple(systems, comparison_pairs, tl17_entries, crisis_entries, all_tl17_results, all_crisis_results):
     #systems = [
     #  #  "ap-abstractive-datetr-dateref-path.json+sent",
     # #   "ap-abstractive-temptr-dateref-clsize-path.json+sent",
@@ -774,9 +789,9 @@ def gen_latex_table_simple(systems, names, comparison_pairs, tl17_entries, crisi
     #lines.append("\\hline {}\t& {}\\\\\\hline".format("System".ljust(longest_name_len), "\t& ".join(val_headers)))
 
     lines.append("\\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Timeline 17"))
-    lines.extend(gen_table_part_for_corpus(systems, tl17_entries, tl17_sig_diff_sys, names))
+    lines.extend(gen_table_part_for_corpus(systems, tl17_entries, tl17_sig_diff_sys))
     lines.append("\\hline\multicolumn{{{}}}{{|l|}}{{ \\textbf{{{}}}}}\\\\\\hline".format(len(metrics.split()) + 1, "Crisis"))
-    lines.extend(gen_table_part_for_corpus(systems, crisis_entries, crisis_sig_diff_sys, names))
+    lines.extend(gen_table_part_for_corpus(systems, crisis_entries, crisis_sig_diff_sys))
 
     print("\n".join(lines))
 
@@ -785,7 +800,7 @@ def gen_latex_table_simple(systems, names, comparison_pairs, tl17_entries, crisi
 def gen_table_part_for_corpus(all_names, all_result_entries, significant_diff_systems=set(), names=None):
     lines = []
     all_cells = np.empty(shape=(len(all_names), len(metrics.split())))
-    for idx, system in enumerate(all_names):
+    for idx, (system, name) in enumerate(all_names):
         entry = all_result_entries[system]
         all_cells[idx,:] = entry.datesel.f1, entry.rouge_1_concat.f1, entry.rouge_2_concat.f1, entry.rouge_1_agree.f1, entry.rouge_2_agree.f1, entry.rouge_1_align.f1, entry.rouge_2_align.f1
 
@@ -795,7 +810,7 @@ def gen_table_part_for_corpus(all_names, all_result_entries, significant_diff_sy
 
     previous_clusterer_name = ""
 
-    for idx, (system, row) in enumerate(zip(all_names, all_cells)):
+    for idx, ((system, name), row) in enumerate(zip(all_names, all_cells)):
         data_cells = []
 
         for col_idx, cell_val in enumerate(row):
@@ -813,7 +828,7 @@ def gen_table_part_for_corpus(all_names, all_result_entries, significant_diff_sy
 
             data_cells.append(cell_str)
 
-        if names is None:
+        if names is None and False:
             if "chieu" not in system:
                 cl_method, score_func = clusterer_and_score_func_name_from_system_description(system)
 
@@ -825,7 +840,7 @@ def gen_table_part_for_corpus(all_names, all_result_entries, significant_diff_sy
 
             lines.append("{} \t & {} \\\\\\hline".format(score_func, "\t& ".join(data_cells)))
         else:
-            lines.append("{} \t & {} \\\\\\hline".format(names[idx], "\t& ".join(data_cells)))
+            lines.append("{} \t & {} \\\\\\hline".format(name, "\t& ".join(data_cells)))
 
     return lines
 

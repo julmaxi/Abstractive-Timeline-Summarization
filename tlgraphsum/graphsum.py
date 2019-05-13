@@ -612,7 +612,7 @@ class SentenceCompressionGraph:
                 continue
             if not any(h in present_toks for h in head_choice):
                 tokens = [self.graph.nodes[node]["token"] for node in path[1:-1]]
-#                print(" ".join(map(lambda x: x[0], tokens)), token, head_choice)
+                print(" ".join(map(lambda x: x[0], tokens)), token, head_choice)
 #                print(list(filter(lambda i: i[1] > 1 and i[0] is not None and i[0][0] not in STOPWORDS, Counter(self.graph.nodes[node].get("token") for node in self.graph).items())))
                 return False
 
@@ -733,7 +733,7 @@ def cluster_with_seed_sentences(seeds, documents, sim_model):
 #            print(norm, cosine, np.dot(vec_seed, vec_doc))
 #
 #            #cosine = vec_seed.dot(vec_doc.T) / (sp_linalg.norm(vec_doc) * sp_linalg.norm(vec_seed))
-            
+
 
             cosine = sim_model.compute_similarity(
                 map(lambda t: t[0], filter(lambda t: t[1][0] in "NV", sent.as_token_tuple_sequence("form", "pos"))),
@@ -1503,7 +1503,7 @@ def test_reallife_compression():
     generated_sentence = []
 
     for cnd in compressor.generate_compression_candidates(n=200):
-        generated_sentence.append((" ".join(map(lambda x: x[0], cnd)), 
+        generated_sentence.append((" ".join(map(lambda x: x[0], cnd)),
             (1.0 / (1.0 - lm.estimate_sent_log_proba(list(map(lambda x: x[0], cnd)))))))
 
     generated_sentence.sort(key=lambda t: t[1], reverse=True)
@@ -1635,7 +1635,7 @@ def summ_with_premade_clusters():
 if __name__ == "__main__":
     #test_reallife_compression()
     #test_sentence_compression()
-    
+
     main()
 
     #timeline_main()
