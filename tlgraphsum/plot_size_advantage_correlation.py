@@ -63,7 +63,7 @@ def main():
 
             score_diffs.append(result_1.rouge_2_align.f1 - result_2.rouge_2_align.f1)
             available_sents.append(len(corpus.docs_between_dates(min(gold_tl.get_dates()), max(gold_tl.get_dates()))))
-            compression_rates.append(total_tl_length / total_corpus_length)
+            compression_rates.append(1.0 - (total_tl_length / total_corpus_length))
 
             spreads.append(compute_spread(gold_tl))
 

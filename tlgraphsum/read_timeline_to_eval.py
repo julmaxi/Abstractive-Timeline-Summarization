@@ -31,23 +31,21 @@ def ensure_is_dir(dirpath):
 
 
 def timeline_by_applying_constraints(sys_tl, params, constraint_type="tok"):
-    if constraint_type == "sent":
-        for date, summary in list(sys_tl.dates_to_summaries.items()):
-            if constraint_type == "tok":
-                new_summary = apply_token_constraint_to_text("\n".join(summary), params.max_token_count)
-            elif constraint_type == "sent":
-                new_summary = apply_sent_constraint_to_text("\n".join(summary), params.max_sent_count)
-            else:
-                raise ValueError()
+    for date, summary in list(sys_tl.dates_to_summaries.items()):
+        if constraint_type == "tok":
+            new_summary = apply_token_constraint_to_text("\n".join(summary), params.max_token_count)
+        elif constraint_type == "sent":
+            new_summary = apply_sent_constraint_to_text("\n".join(summary), params.max_sent_count)
+        else:
+            raise ValueError()
 
-            sys_tl.dates_to_summaries[date] = new_summary
+        sys_tl.dates_to_summaries[date] = new_summary
     return sys_tl
 
 
 import spacy
 
 nlp = spacy.load('en')
-
 
 def apply_token_constraint_to_text(text, max_toks):
     doc = nlp(text)
@@ -110,7 +108,6 @@ def main():
         if args.cutoff_constraint != "none":
             sys_tls = [timeline_by_applying_constraints(sys_tl, determine_tl_parameters(gold_tl), constraint_type=args.cutoff_constraint) for sys_tl, (_, gold_tl) in zip(sys_tls, gold_tls)]
 
-        print(sys_tls)
         write_results_file(os.path.join(system_evaluation_dir, corpus_name[:-len(".pkl")] + ".txt"), corpus_sys_tl_dir, gold_tls, sys_tls)
 
 if __name__ == "__main__":

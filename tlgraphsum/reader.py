@@ -769,7 +769,6 @@ if __name__ == "__main__":#java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.Stanfor
                     f_out.write(" ".join(map(fst, toks)))
 
 
-
     #print(DatedSentenceReader().read(sys.argv[1], sys.argv[2]))
 #
     #sys.exit()

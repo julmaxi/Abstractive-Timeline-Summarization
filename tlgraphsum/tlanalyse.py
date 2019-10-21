@@ -125,6 +125,19 @@ def analyze_main():
     print("\n===== Crisis =====")
     print_results_table(crisis_entries, compute_copy_rate=args.compute_copy_rate)
 
+    if False:
+        for (entries, results) in ((crisis_entries, all_crisis_results), (tl17_entries, all_tl17_results)):
+            for key, entry in entries.items():
+                if "full-no" in key and "+sent" in key:
+                    datesel_diff = (entry.datesel.f1 - entries["ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent"].datesel.f1)
+                    rouge_1_diff = (entry.rouge_1_align.f1 - entries["ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent"].rouge_1_align.f1)
+                    rouge_2_diff = (entry.rouge_2_align.f1 - entries["ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent"].rouge_2_align.f1)
+
+                    sig_dict = (check_significance(results, "ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json+sent", key))
+                    print(sig_dict)
+                    cell_str = "{}&\t{:.3f}\t&\t{:.3f}&\t&\t{:.3f}\\\\".format(key, datesel_diff, rouge_1_diff, rouge_2_diff)
+                    print(cell_str)
+
     #print()
     #gen_latex_table_oracle(tl17_entries, crisis_entries, all_tl17_results, all_crisis_results)
     #print()
@@ -275,6 +288,7 @@ class CachedCorpusReader:
     @classmethod
     def load_corpus(cls, name):
         if name != CachedCorpusReader.loaded_corpus_name:
+            name = name.split("+")[0] + ".pkl"
             CachedCorpusReader.loaded_corpus = load_corpus(name, filter_blacklist=False)
             CachedCorpusReader.loaded_corpus_name = name
         corpus = CachedCorpusReader.loaded_corpus
@@ -341,9 +355,9 @@ def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_avera
         return None, None, None, None, None
 
     for results_file in relevant_files:
-        if "+filtered" in results_file:
+        if "+filtered" not in results_file:
+            print(results_file)
             continue
-
         #if "libya" in results_file and "crisis" in results_file:
         #    print(results_file)
         #    continue
@@ -360,7 +374,6 @@ def analyze_system_results_dir(results_dir, compute_copy_rate=False, macro_avera
             print("Can't match results file to corpus", results_file)
         all_results[os.path.basename(results_file)] = topic_result
 
-    print(results_file)
     if macro_average:
         macro_average_entry = compute_macro_averages(all_results)
     else:
@@ -778,6 +791,7 @@ def gen_latex_table_simple(systems, comparison_pairs, tl17_entries, crisis_entri
     for sys_1, sys_2, symbol in comparison_pairs:
         for key, entry in create_sig_diff_dict(all_tl17_results, tl17_entries, sys_1, sys_2, symbol=symbol).items():
             tl17_sig_diff_sys.setdefault(key, []).extend(entry)
+        #print("WARNING! crisis sig diff disabled!")
         for key, entry in create_sig_diff_dict(all_crisis_results, crisis_entries, sys_1, sys_2, symbol=symbol).items():
             crisis_sig_diff_sys.setdefault(key, []).extend(entry)
 
@@ -928,9 +942,9 @@ def gen_latex_table_tok(tl17_entries, crisis_entries, all_tl17_results, all_cris
         sig_level_crisis = check_significance(all_crisis_results, system + "+tok", system + "+sent")
 
         for metric in metrics.split():
-            if sig_level_tl17[metric] < 0.05:
+            if sig_level_tl17[metric] < 0.025:
                 significant_diff_systems_tl17.add((system, metric))
-            if sig_level_crisis[metric] < 0.05:
+            if sig_level_crisis[metric] < 0.025:
                 significant_diff_systems_crisis.add((system, metric))
 
     lines = []
