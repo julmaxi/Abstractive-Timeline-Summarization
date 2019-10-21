@@ -17,6 +17,10 @@ import numpy as np
 import json
 from urllib.parse import quote, unquote
 
+import multiprocessing
+from pathos.multiprocessing import ProcessingPool
+from multiprocessing import Pool, get_context, cpu_count
+
 try:
     from pymprog import model
 except:
@@ -1239,9 +1243,6 @@ class TLSumModuleBase:
     def prepare(self, corpus):
         pass
 
-import multiprocessing
-from pathos.multiprocessing import ProcessingPool
-from multiprocessing import Pool, get_context, cpu_count
 
 class GraphCandidateGenerator(TLSumModuleBase):
     def __init__(self, config):
@@ -1321,112 +1322,16 @@ class GraphCandidateGenerator(TLSumModuleBase):
         return all_candidates_and_info
 
 
-class PseudoGraphCandidateGenerator(TLSumModuleBase):
-    def __init__(self, config):
-        pass
-
-    def prepare(self, corpus):
-        self.tfidf_model = TfidfVectorizer()
-        self.tfidf_model.fit(list(map(lambda s: s.as_tokenized_string(), corpus.sentences)))
-
-    def generate_candidates(self, cluster):
-        all_candidates_and_info = []
-
-        compressor = SentenceCompressionGraph(STOPWORDS)
-        for s in cluster:
-
-            compressor.add_sentence(
-                list(s.as_token_tuple_sequence("form_lowercase", "pos")),
-                s.dependency_tree.as_head_idx_sequence())
-
-        cluster_vectors = self.tfidf_model.transform(list(map(lambda s: " ".join(s.as_token_attr_sequence("form")), cluster)))
-
-        def check_closeness(sent):
-            if not self.force_abstractive:
-                return True
-
-            sent_vec = self.tfidf_model.transform([" ".join(map(lambda x: x[0], sent))])
-            sims = cosine_similarity(sent_vec, cluster_vectors)
-
-            return all(sims[0,:] <= 0.8)
-
-        for proposed_sent, path_info in compressor.generate_compression_candidates(
-                use_weighting=True,
-                minlen=0,
-                return_weight=True,
-                use_dep_filtering=False,
-                n=len(cluster)):
-            all_candidates_and_info.append((proposed_sent, {"weight": path_info["weight"], "rel_frequency": path_info["avg_rel_frequency"]}))
-
-        return all_candidates_and_info
-
-
-
-class CentroidCandidateGenerator(TLSumModuleBase):
-    def __init__(self, config):
-        pass
-
-    def prepare(self, corpus):
-        self.tfidf = TfidfVectorizer()
-        self.tfidf.fit(list(map(lambda s: s.as_tokenized_string(), corpus.sentences)))
-
-    def generate_candidates(self, cluster):
-        vecs = self.tfidf.transform(list(map(lambda s: s.as_tokenized_string(), cluster)))
-        sims = cosine_similarity(vecs)
-
-        best_idx = sims.sum(0).argmax()
-
-        return [(cluster[best_idx].as_token_tuple_sequence("form", "pos"), {})]
-
-
-class CenterGrowCandidateGenerator(TLSumModuleBase):
-    def __init__(self, config):
-        pass
-
-    def prepare(self, corpus):
-        self.tfidf_model = TfidfVectorizer(norm="l2")
-        self.tfidf_model.fit(map(lambda d: d.plaintext, corpus))
-
-    def generate_candidates(self, cluster):
-        essentials = build_essential_cooc_list(cluster)
-        return self.generate_candidates_from_tuple_sequences([s.as_token_tuple_sequence("form", "pos") for s in cluster], essentials)
-
-    def generate_candidates_from_tuple_sequences(self, cluster, essentials):
-        all_candidates_and_info = []
-
-        compressor = SentenceCompressionGraph(STOPWORDS)
-        compressor.add_sentences(cluster)
-
-        cluster_vectors = self.tfidf_model.transform(list(map(lambda s: " ".join([t[0] for t in s]), cluster)))
-
-        def check_closeness(sent):
-            sent_vec = self.tfidf_model.transform([" ".join(map(lambda x: x[0], sent))])
-            #sims = cosine_similarity(sent_vec, cluster_vectors)
-
-            sims = cluster_vectors.dot(sent_vec.T)
-
-            return not any(sims[0,:] > 0.8)
-
-        for proposed_sent, path_info in compressor.alternate_compression_generation(lambda s: check_candidate_integrity(essentials, s) and check_closeness(s)):
-            all_candidates_and_info.append((proposed_sent, {"weight": path_info["weight"], "rel_frequency": path_info["avg_rel_frequency"]}))
-
-        return all_candidates_and_info
-
-
 class MayorityClusterDater:
     def __init__(self, config):
         pass
 
     def date_cluster(self, cluster):
-        #print(list(map(lambda s: s.predicted_date, cluster)))
-        #return cluster[0].predicted_date
         referenced_dates = Counter()
 
         for sent in cluster:
-            #if len(sent.exact_date_references) > 0:
-                referenced_dates.update(sent.exact_date_references)
-            #elif len(sent.all_date_tags) == 0:
-                referenced_dates.update([sent.document.dct_tag])
+            referenced_dates.update(sent.exact_date_references)
+            referenced_dates.update([sent.document.dct_tag])
 
         if len(referenced_dates) == 0:
             return None
@@ -1479,245 +1384,6 @@ class APClusterer:
             post_prune=self.post_prune)
 
         return [Cluster(c) for c in clusters]
-
-#from graphsum import cluster_with_seed_sentences
-
-class CentralDocumentClusterer:
-    def __init__(self, config):
-        pass
-
-    def cluster_corpus(self, corpus):
-        tfidf_model = TfidfVectorizer()
-        all_docs = list(corpus)
-        tfidf_model.fit(list(map(lambda s: s.plaintext, all_docs)))
-
-        all_clusters = []
-
-        for date in corpus.iter_dates():
-            all_clusters.extend(self.cluster_date_docs(corpus.docs_for_date(date), tfidf_model))
-
-        return all_clusters
-
-    def cluster_date_docs(self, date_docs, tfidf_model):
-        if len(date_docs) < 2:
-            return []
-        doc_reprs = tfidf_model.transform(map(lambda d: d.plaintext, date_docs))
-
-        best_doc_idx = cosine_similarity(doc_reprs).sum(1).argmax(0)
-
-        most_imp_doc = date_docs[best_doc_idx]
-
-        doc_sents = list(most_imp_doc.sentences)
-
-        other_sents = [sent for idx, doc in enumerate(date_docs) for sent in doc if idx != best_doc_idx]
-
-        if len(other_sents) == 0:
-            return []
-
-        doc_sent_reprs = tfidf_model.transform(map(lambda s: s.as_tokenized_string(), doc_sents))
-        other_sent_reprs = tfidf_model.transform(map(lambda s: s.as_tokenized_string(), other_sents))
-
-        sims = cosine_similarity(
-            doc_sent_reprs,
-            other_sent_reprs
-        )
-
-        all_clusters = [[sent] for sent in doc_sents]
-
-        for other_sent_idx, most_sim_sent_idx in enumerate(sims.argmax(0)):
-            if sims[most_sim_sent_idx, other_sent_idx] > 0.5:
-                all_clusters[most_sim_sent_idx].append(other_sents[other_sent_idx])
-
-        return [cluster for cluster in all_clusters if len(cluster) > 1]
-
-
-
-
-
-class IdentityClusterer:
-    def __init__(self, config):
-        pass
-
-    def cluster_corpus(self, corpus):
-        return [[sent] for sent in corpus.sentences]
-
-
-class AgglomerativeClusterer:
-    def __init__(self, config):
-        self.clustering_threshold = config.get("clustering_threshold", 0.5)
-
-    def cluster_corpus(self, corpus):
-        date_sentences = defaultdict(list)
-        logger.debug("Partitioning {} sentences".format(len(corpus.sentences)))
-        for sentence in corpus.sentences:
-            date_sentences[sentence.predicted_date].append(sentence)
-
-        logger.debug("Fitting Tfidf Model on {} documents".format(corpus.num_documents))
-        sim_model = TfidfVectorizer()
-        sim_model.fit(list(map(lambda d: d.plaintext, corpus)))
-
-        all_clusters = []
-
-        for date, sentences in date_sentences.items():
-            logger.debug("Clustering {} sentences for date {}".format(len(sentences), date))
-            all_clusters.extend(self.cluster_date_sentences(sentences, sim_model))
-
-        return all_clusters
-
-    def cluster_date_sentences(self, sentences, sim_model):
-        sent_vecs = sim_model.transform(list(map(lambda s: s.as_tokenized_string(), sentences)))
-
-        similarities = cosine_similarity(sent_vecs)
-
-        clusters = []
-
-        for row in similarities:
-            cluster = []
-            _, indices, _ = scipy.sparse.find(row > self.clustering_threshold)
-            for idx in indices:
-                cluster.append(sentences[idx])
-
-            if len(cluster) > 1:
-                clusters.append(set(cluster))
-
-        non_redundant_clusters = []
-
-        import networkx as nx
-        from networkx.algorithms.components import connected_components
-
-        graph = nx.Graph()
-
-        for idx, cluster_1 in enumerate(clusters):
-            for idx2, cluster_2 in enumerate(clusters[idx + 1:]):
-                overlap = len(cluster_1 & cluster_2)
-                if overlap / len(cluster_1) >= 1.0 or overlap / len(cluster_2) >= 1.0:
-                    graph.add_edge(idx, idx2)
-
-        for component in connected_components(graph):
-            new_cluster = set()
-
-            for subcluster_idx in component:
-                new_cluster.update(clusters[subcluster_idx])
-
-            non_redundant_clusters.append(list(new_cluster))
-
-        #for idx, cluster_1 in enumerate(clusters):
-        #    if cluster_1 is None:
-        #        continue
-        #    to_merge = []
-        #    for idx_2, cluster_2 in enumerate(clusters[idx + 1:]):
-        #        if cluster_2 is None:
-        #            continue
-        #        if len(cluster_1 & cluster_2) / len(cluster_1 | cluster_2) > 0.8:
-        #            to_merge.append((idx_2, cluster_2))
-#
-        #    for idx_2, cluster_2 in to_merge:
-        #        cluster_1.update(cluster_2)
-        #        clusters[idx_2] = None
-        #        non_redundant_clusters.append(list(cluster_1))
-
-        return non_redundant_clusters
-
-
-        #for idx, sent_vec in enumerate(sent_vecs):
-        #    for seed_vec, cluster in clusters:
-        #        if seed_vec.dot(sent_vec.T)[0] > self.clustering_threshold:
-        #            cluster.append(sentences[idx])
-        #    clusters.append((sent_vec, [sentences[idx]]))
-
-        return list(map(lambda x: x[1], clusters))
-
-
-class ILPSentenceSelector:
-    def __init__(self, config):
-        self.max_per_cluster_candidates = config.get("max_per_cluster_candidates", 200)
-
-    def prepare(self, corpus):
-        self.tfidf_model = TfidfVectorizer()
-        self.tfidf_model.fit(map(lambda d: d.plaintext, corpus))
-
-        self.date_doc_counts = dict((date, len(docs)) for date, docs in corpus.per_date_documents.items())
-
-        #for doc in corpus:
-        #    date_doc_counts[datetime.date(doc.dct_tag.year, doc.dct_tag.month, doc.dct_tag.day)] += 1
-
-    def select_sentences_from_clusters(self, per_date_clusters, parameters):
-        all_dates = [date for date, _ in per_date_clusters]
-        assert len(all_dates) <= parameters.max_date_count
-        assert min(all_dates) >= parameters.first_date
-        assert max(all_dates) <= parameters.last_date
-
-        summaries = {}
-
-        for date, clusters in per_date_clusters:
-            summaries[date] = [" ".join(map(fst, s)) for s in self.select_from_clusters(clusters, parameters, self.date_doc_counts.get(date, 0) // 2)]
-
-        return summaries
-
-    def select_from_clusters(self, clusters, parameters, min_size):
-        if len(clusters) > 20:
-            clusters = sorted(clusters, key=lambda x: len(x))[:20]
-
-        reduced_clusters = []
-
-        for cluster in clusters:
-            if len(cluster) < min_size:
-                continue
-            new_sentences = sorted(cluster, key=lambda x: x[1], reverse=True)
-            reduced_clusters.append(new_sentences[:self.max_per_cluster_candidates])
-
-        clusters = reduced_clusters
-
-        if sum(map(len, clusters)) == 0:
-            return []
-
-        p = model('basic')
-
-        selection_indices = [(c_idx, s_idx) for c_idx, candidates in enumerate(clusters) for s_idx in range(len(candidates))]
-
-        select_switch = p.var('p', selection_indices, bool)
-
-        p.maximize(sum(select_switch[c_idx, s_idx] * clusters[c_idx][s_idx][1] for c_idx, s_idx in selection_indices))
-
-        for c_idx, cluster in enumerate(clusters):
-            sum([select_switch[c_idx, s_idx] for s_idx in range(len(cluster))]) <= 1.0
-
-        if parameters.max_token_count is not None:
-            for c_idx, cluster in enumerate(clusters):
-                sum(select_switch[c_idx, s_idx] * len(sent) for s_idx, sent in enumerate(cluster)) <= parameters.max_token_count
-
-        #sum(select_switch[c_idx, s_idx] for c_idx, s_idx in selection_indices) <= parameters.max_sent_count
-        
-        #else:
-        #    sum(select_switch[c_idx, s_idx] * len(clusters[c_idx][s_idx]) for c_idx, s_idx in selection_indices) <= parameters.max_token_count
-
-        #print([clusters[c_idx][s_idx][0] for c_idx, s_idx in selection_indices])
-
-        all_sent_reprs = self.tfidf_model.transform(" ".join(map(fst, clusters[c_idx][s_idx][0])) for c_idx, s_idx in selection_indices)
-        all_sims = cosine_similarity(all_sent_reprs)
-        sim_x_indices, sim_y_indices = (all_sims > 0.5).nonzero()
-
-        for x_idx, y_idx in zip(sim_x_indices, sim_y_indices):
-            if y_idx >= x_idx:
-                continue
-            c_1, s_1 = selection_indices[x_idx]
-            c_2, s_2 = selection_indices[y_idx]
-
-            if c_1 == c_2:
-                continue
-
-            select_switch[c_1, s_1] + select_switch[c_2, s_2] <= 1.0
-
-        p.solve()
-
-        results = []
-        for c_idx, s_idx in select_switch:
-            if select_switch[c_idx, s_idx].primal > 0.0:
-                results.append(clusters[c_idx][s_idx][0])
-
-        p.end()
-
-        return results
 
 
 class GlobalSubModularSentenceSelector:
@@ -1856,19 +1522,6 @@ def compute_rouge_for_clusters(per_date_cluster_candidates, timelines, combine_m
                 scored_sentences.append((sent, final_score))
             scored_clusters.append(scored_sentences)
         scored_per_date_cluster_candidates[date] = scored_clusters
-
-#    non_empty_dates = set()
-#    for date, clusters in scored_per_date_cluster_candidates.items():
-#        date_max = 0
-#        for cl in clusters:
-#            if date in timeline.get_dates():
-#                if len(cl) > 0:
-#                    date_max = max(date_max, max(s[1] for s in cl))
-#                    if date_max > 1.0:
-#                        non_empty_dates.add(date)
-#
-#        if date in timeline.get_dates():
-#            print(date, date_max)
 
     return scored_per_date_cluster_candidates
 
@@ -2331,25 +1984,12 @@ def read_candidate_file(fname, clusters):
 
                 sentences.append((sentence, info))
 
-                #print(sentence)
-                #if sentence[0] == ('coastal', 'NNP'):
-                #    print(id(sentence[0][0]))
-                #    print(id(sentence[0][1]))
-                #    print("----")
-                ##print("S", getsize(sentence))
-                #print("I", getsize(info))
-
                 first_subset_iter = False
 
             if first_subset_iter:
                 raise RuntimeError("Candidate file corrupted")
 
-            #print(getsize(sentences), len(sentences))
-
             yield sentences
-
-            #if len(cluster) > self.min_cluster_size:
-                #    yield sentences
 
 
 class DateFreqeuencyDateSelector:
@@ -2371,148 +2011,6 @@ class DateFreqeuencyDateSelector:
                 break
 
         return selected_dates
-
-
-class APClusteringTimelineGenerator:
-    def __init__(self, config):
-        self.extractive = config.get("extractive", False)
-
-    def _score_clusters(self, clusters):
-        scored_clusters = []
-        maxlen = max(map(lambda c: len(c), clusters))
-        for cluster in clusters:
-            scored_clusters.append((cluster, len(cluster) / maxlen))
-
-        return scored_clusters
-
-    def generate_timelines(self, corpus, all_parameters):
-        lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
-
-        clustering = cluster_sentences_ap(corpus.sentences)
-
-        #ap_matrix = generate_affinity_matrix_from_dated_sentences()
-
-        #clustering = read_ap_file("clustering.txt", corpus.sorted_sentences)
-        per_date_candidates = defaultdict(list)
-
-        tfidf = TfidfVectorizer()
-        tfidf.fit([doc.plaintext for doc in corpus])
-
-        clustering = self._score_clusters(clustering)
-
-        for cluster, cluster_score in clustering:
-            if len(cluster) < 5:
-                continue
-            referenced_dates = Counter()
-            for sent in cluster:
-                if len(sent.exact_date_references) > 0:
-                    referenced_dates.update(sent.exact_date_references)
-                elif len(sent.all_date_tags) == 0:
-                    referenced_dates.update([sent.document.dct_tag])
-            if len(referenced_dates) == 0:
-                continue
-
-            cluster_tag, _ = referenced_dates.most_common(1)[0]
-            cluster_date = datetime.date(cluster_tag.year, cluster_tag.month, cluster_tag.day)
-
-            if self.extractive:
-                similarities = tfidf.fit_transform([sent.as_tokenized_string() for sent in cluster])
-                sims = cosine_similarity(similarities)
-                best_idx = sims.sum(1).argmax()
-
-                first_date = None
-                last_date = None
-
-                for sent in cluster:
-                    date = datetime.datetime(sent.document.dct_tag.year, sent.document.dct_tag.month, sent.document.dct_tag.day)
-                    if first_date is None:
-                        first_date = date
-                        last_date = date
-
-                    if first_date > date:
-                        first_date = date
-
-                    if last_date < date:
-                        last_date = date
-
-                #score = max((last_date - first_date).days, 1)
-                score = len(cluster)
-
-                candidates = [(cluster[best_idx].as_token_tuple_sequence("form_lowercase", "pos"), score)]
-            else:
-                candidates = generate_summary_candidates(
-                        list(
-                            map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
-                                cluster)), lm,
-                        length_normalized=False,
-                        use_weighting=False)
-
-                candidates = [(cand, cluster_score * sent_score) for cand, sent_score in candidates]
-
-            per_date_candidates[cluster_date].append(candidates)
-
-        timelines = []
-        for params in all_parameters:
-            print(params)
-            timeline = select_tl_sentences_submod(
-                list(per_date_candidates.items()),
-                [sent.as_token_tuple_sequence("form_lowercase", "pos") for doc in corpus for sent in doc],
-                params
-            )
-            timelines.append(Timeline(timeline))
-
-            print(Timeline(timeline))
-
-        return timelines
-
-
-def create_timeline_clustering(corpus, parameters):
-    reader = DatedSentenceReader()
-    lm = KenLMLanguageModel.from_file("langmodel20k_vp_3.bin")
-
-    #affinities = generate_affinity_matrix_from_dated_sentences(all_sents, sim_model)
-    #affinities = generate_affinity_matrix_from_dated_sentences(corpus.sorted_sentences)
-    #write_similarity_file("similarities.txt", len(corpus.sentences), affinities)
-
-    clustering = read_ap_file("clustering.txt", corpus.sorted_sentences)
-
-    per_date_candidates = defaultdict(list)
-    for cluster in clustering:
-        if len(cluster) < 5:
-            continue
-        referenced_dates = Counter()
-
-        for sent in cluster:
-            if len(sent.exact_date_references) > 0:
-                referenced_dates.update(sent.exact_date_references)
-            elif len(sent.all_date_tags) == 0:
-                referenced_dates.update([sent.document.dct_tag])
-
-        cluster_date = None
-        for cluster_tag, _ in sorted(referenced_dates.items(), key=lambda i: i[1], reverse=True):
-            cluster_date = datetime.date(cluster_tag.year, cluster_tag.month, cluster_tag.day)
-            if cluster_date > parameters.last_date or cluster_date < parameters.first_date:
-                cluster_date = None
-
-        if cluster_date is None:
-            continue
-
-        candidates = generate_summary_candidates(
-                list(
-                    map(lambda s: s.as_token_tuple_sequence("form_lowercase", "pos"),
-                        cluster)), lm,
-                length_normalized=False,
-                use_weighting=False)
-
-        per_date_candidates[cluster_date].append(candidates)
-
-    date_summary_dict = select_tl_sentences_submod(
-        list(per_date_candidates.items()),
-        [sent for doc in corpus for sent in doc],
-        parameters
-    )
-
-    return Timeline(date_summary_dict)
 
 
 import itertools as it
@@ -2541,8 +2039,6 @@ def build_essential_cooc_list(cluster):
         if prop >= 1.0 and word_freqs[r_word] > 1:
             essential_combos[r_word].add(l_word)
 
-    #print(essential_combos)
-
     return essential_combos
 
 
@@ -2562,7 +2058,3 @@ def check_candidate_integrity(essential_cooc, candidate):
                 return False
 
     return True
-
-
-if __name__ == "__main__":
-    run_full_tl_summ(create_timeline_clustering)

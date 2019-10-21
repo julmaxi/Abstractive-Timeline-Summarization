@@ -25,9 +25,9 @@ import math
 from networkx.drawing.nx_pydot import to_pydot
 import functools
 from utils import iter_files, scnd, fst, is_punctuation
-from langmodel import StoredLanguageModel, KenLMLanguageModel
+from langmodel import KenLMLanguageModel
 from reader import StanfordXMLReader, Sentence, Token
-from similarity import EmbeddingsCosingSimilarityModel, read_glove_embeddings, ModifiedIdfCosineSimilarityModel, SklearnTfIdfCosineSimilarityModel, BinaryCosineSimilarityModel, BinaryOverlapSimilarityModel
+from similarity import SklearnTfIdfCosineSimilarityModel, BinaryCosineSimilarityModel, BinaryOverlapSimilarityModel
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
