@@ -7,44 +7,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
-#class HierarchicalDict:
-#    pass
-#
-#
-#class ComponentRunner:
-#    def derive_component_cache_path(self, input_data, component):
-#        cache_path_parts = component.derive_cache_path_components()
-#        component_dependency_keys = component.component_dependency_keys
-#        for component_key in component_dependency_keys:
-#            dependency = self.components[component_key]
-#            dependency_cache_path_parts = dependency.derive_cache_path_components()
-#
-#            for key, val in dependency_cache_path_parts:
-#                cache_path_parts[component_key + "." + key] = val
-#
-#        partial_strings = []
-#        for key, val in sorted(cache_path_parts.items()):
-#            partial_strings.append(key + "=" + val)
-#
-#        fname = urllib.parse.quote("&".join(partial_strings))
-#        path = os.path.join("compcache", input_data.cache_key, fname)
-#
-#        return path
-#
-#    def run(self, component, context, *args, **kwargs):
-#        should_recompute = True
-#        if isinstance(component, CacheableComponent):
-#            cache_path = self.derive_component_cache_path(self.input_data, component)
-#            if os.path.isfile(cache_path):
-#                component_data = component.load_cache_data(cache_path)
-#                should_recompute = True
-#        if should_recompute:
-#            component_data = component.compute(self.input_data, context, *args, **kwargs)
-#
-#        new_context = component.apply_data_to_context(component_data, context)
-#
-#        return new_context
-
 
 class ComponentRegistry:
     registry = {}

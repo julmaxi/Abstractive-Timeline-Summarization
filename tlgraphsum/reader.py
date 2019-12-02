@@ -1,10 +1,8 @@
 import os
 import sys
-import glob
 import itertools as it
 
 from xml.etree import ElementTree as ET
-from subprocess import Popen
 import datetime
 
 from collections.abc import Sequence
@@ -14,6 +12,8 @@ from tlgraphsum.utils import iter_dirs, iter_files, fst
 from calendar import monthrange
 
 import pickle
+from collections import namedtuple
+
 
 HARDCODED_PROBLEMATIC_DOCS = {'crisis-libya': {'768', '4746', '156', '981', '434', '1001', '5456', '1086', '825'}, 'tl17-libya': {'308', '257', '3', '212', '341', '309'}, 'tl17-haiti': {'820'}, 'tl17-bpoil': {'124', '364', '489', '2131', '1908', '1965'}, 'tl17-h1n1': {'519'}, 'tl17-finan': {'2124'}, 'crisis-egypt': {'2342', '506', '1808', '3312', '4831', '4983', '5047', '1268', '4933', '1569', '3110', '2510', '2190', '608', '385', '4633'}, 'crisis-yemen': {'3664', '592', '2787'}, 'tl17-syria': {'328', '283', '293'}, 'tl17-mj': {'176'}}
 
@@ -22,11 +22,9 @@ def load_corpus(fname, filter_blacklist=True):
     with open(fname, "rb") as f:
         corpus = pickle.load(f)
     corpus_id, _ = os.path.basename(fname).split(".", 1)
-    print(corpus.num_documents)
     if filter_blacklist:
         print("Filtering...")
         corpus.per_date_documents = filter_corpus_by_blacklist(corpus.per_date_documents, HARDCODED_PROBLEMATIC_DOCS.get(corpus_id, []))
-    print(corpus.num_documents)
 
     corpus.real_name = fname
     corpus.real_basename = os.path.basename(fname)
@@ -350,11 +348,6 @@ class StanfordXMLReader:
                 continue
             edge_type = dep.attrib["type"]
 
-            #if "subj" in edge_type:
-            #    edge_type = "SB"
-            #elif "obj" in edge_type:
-            #    edge_type = "OA"
-
             if edge_type != "root":
                 gov_tok = tokens[gov_id]
                 dep_tok = tokens[dep_id]
@@ -408,8 +401,6 @@ class DUC2005Reader:
                 paragraphs = [text]
         return os.path.basename(doc_path), "\n".join([p.text for p in paragraphs])
 
-from xml.etree import ElementTree as ET
-from collections import namedtuple
 
 TimeEX = namedtuple("TimeEX", "tid type_ value tokens")
 
@@ -458,7 +449,6 @@ def compute_month_week_range(year, month):
         _, end_week, _ = datetime.date(year, month, month_len).isocalendar()
     except ValueError:
         pass
-        #logger.warning("Invalid date reference {}-{}".format(year, month))
     else:
         return range(start_week, end_week + 1)
 
@@ -470,7 +460,6 @@ def compute_week_from_day(year, month, day):
         _, week, _ = datetime.date(year, month, day).isocalendar()
     except ValueError:
         pass
-        #logger.warning("Invalid date reference {}-{}".format(year, month))
     else:
         return week
 
@@ -599,9 +588,6 @@ class DatedSentenceReader:
 
         for timetok, doc_tok in zip(timeml_tokens, doc_tok_iter):
             (time_tok, timex) = timetok
-            normalized_form = time_tok.replace("&", "&amp;")
-            #if normalized_form != doc_tok.form:
-            #    print("WARNING, unmatched text")
             assert time_tok == doc_tok.form, "{} != {}".format(time_tok, doc_tok.form)
 
             if timex is not None:
@@ -672,8 +658,6 @@ class DependencyTree:
     def extract_svo_tuples(self):
         possible_tuples = defaultdict(dict)
 
-        obj_token = None
-        subj_token = None
         for token, (head, label) in self.token_heads.items():
             if label == "dobj":
                 possible_tuples[head]["dobj"] = token
@@ -687,44 +671,6 @@ class DependencyTree:
                     (root, args.get("subj"), args.get("dobj"))
                 )
         return tuples
-
-
-
-#class DependencyTreeNode:
-#    def __init__(self, token, tree, idx):
-#        self.token = token
-#        self.children = []
-#        self.tree = tree
-#        self.parent = None
-#        self.incoming_edge_type = None
-#        self.idx = idx
-#
-#    def add_child(self, child, edge_type):
-#        if child.parent is None:
-#            self.tree.roots.remove(child)
-#        else:
-#            child.parent.remove_child(child)
-#        self.children.append((child, edge_type))
-#        child.parent = self
-#        child.incoming_edge_type = edge_type
-#
-#    def line_repr(self, indent=0):
-#        if indent == 0:
-#            indent_str = ""
-#        elif indent == 1:
-#            indent_str = "+----"
-#        else:
-#            indent_str = "     " * (indent - 1) + "+----"
-#        own_line = indent_str + "({}) {}".format(
-#            self.incoming_edge_type, self.token)
-#        lines = [(self.idx, own_line)]
-#        for child, _ in self.children:
-#            lines += child.line_repr(indent + 1)
-#
-#        return lines
-#
-#    def __str__(self, indent=0):
-#        return "\n".join(map(lambda t: t[1], sorted(self.line_repr())))
 
 
 class DatedTimelineCorpusReader:
@@ -750,7 +696,8 @@ class DatedTimelineCorpusReader:
         return TimelineCorpus(date_dict)
 
 
-if __name__ == "__main__":#java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.StanfordCoreNLP -annotators tokenize,ssplit,pos,lemma -file input.txt
+if __name__ == "__main__":
+    # java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.StanfordCoreNLP -annotators tokenize,ssplit,pos,lemma -file input.txt
     reader = TimeMLReader(True)
     outdir = sys.argv[2]
     for crisis_dir in iter_dirs(sys.argv[1]):
@@ -767,23 +714,3 @@ if __name__ == "__main__":#java -cp "*" -Xmx2g edu.stanford.nlp.pipeline.Stanfor
 
                 with open(date_out_dir + "/" + basename + ".tokenized", "w") as f_out:
                     f_out.write(" ".join(map(fst, toks)))
-
-
-    #print(DatedSentenceReader().read(sys.argv[1], sys.argv[2]))
-#
-    #sys.exit()
-#
-    #reader = DUC2005Reader(sys.argv[1])
-    #target_dir = sys.argv[2]
-#
-    #os.mkdir(target_dir)
-#
-    #for cluster_id, docs in reader.read_all_document_clusters():
-    #    cluster_dir = os.path.join(target_dir, cluster_id)
-    #    os.mkdir(cluster_dir)
-    #    for doc_name, doc in docs:
-    #        with open(os.path.join(cluster_dir, doc_name), "w") as f_out:
-    #            f_out.write(doc)
-    #        doc_full_path = os.path.join(cluster_dir, doc_name)
-    #        proc = Popen(["java", "-cp", '/Users/juliussteen/Documents/Studium/master/libs/stanford-corenlp-full-2015-12-09/*', "-Xmx2g", "edu.stanford.nlp.pipeline.StanfordCoreNLP", "-annotators", "tokenize,ssplit,pos,lemma", "-file", doc_full_path, "-outputDirectory", cluster_dir], cwd=os.curdir)
-    #        proc.wait()

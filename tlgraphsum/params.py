@@ -40,15 +40,6 @@ def determine_tl_parameters(timeline, use_average=True, use_token_count=True):
     if not use_token_count:
         date_token_count = None
 
-#    print(TimelineParameters(
-#        earliest_date,
-#        last_date,
-#        tl_date_count,
-#        total_sent_len,
-#        date_token_count,
-#        date_sent_count
-#    ))
-
     return TimelineParameters(
         earliest_date,
         last_date,

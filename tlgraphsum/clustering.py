@@ -10,6 +10,9 @@ from reader import DateTag
 from graphsum import STOPWORDS
 
 import string
+import subprocess
+from scipy.sparse import find
+
 
 PUNCTUATION = set(string.punctuation)
 
@@ -19,8 +22,6 @@ logger = logging.getLogger(__name__)
 
 DateIndexEntry = namedtuple("DateIndexEntry", "child_dates members exact_date_members")
 
-from subprocess import Popen, PIPE
-import subprocess
 
 AP_PATH = "libs/affinity-propagation-sparse/ap"
 
@@ -43,8 +44,6 @@ def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag
             sent_date_tags = []
             for sent in sents:
                 all_tags = set(sent.all_date_tags)
-                #if len(sent.exact_date_references) == 0: # TODO: maybe revert to "all tags"?
-                #            all_tags = list(sent.document.all_date_tags)
                 all_tags.add(sent.document.dct_tag)
 
                 sent_date_tags.append(all_tags)
@@ -62,13 +61,11 @@ def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag
 
     connection_graph = nx.Graph()
 
-    clusters = defaultdict(list)
     examplars = output.decode("utf-8").split()
     for idx, examplar in enumerate(examplars):
         examplar = int(examplar)
         connection_graph.add_node(idx)
         if idx != examplar:
-            #connection_graph[examplar].append(sents[idx])
             connection_graph.add_edge(idx, examplar)
 
     connected_components = list(nx.connected_components(connection_graph))
@@ -96,7 +93,6 @@ def cluster_sentences_ap(sents, include_uncertain_date_edges=True, predicted_tag
                 if cl_size > max_cl_size:
                     max_cl_size = cl_size
                     sent_cluster_map[sent] = cand_cl_id
-            print("Selected with max size", max_cl_size, cluster_potential_members_map[sent_cluster_map[sent]])
 
     clustering = []
 
@@ -227,17 +223,13 @@ def generate_affinity_matrix_from_dated_sentences(sents, sent_date_tags, thresho
             logging.info("Processing sent {} of {}".format(s_idx + 1, len(sents)))
 
         all_tags = set(sent.all_date_tags)
-        #if len(all_tags) == 0:
-            #all_tags = set(sent.document.all_date_tags)
         all_tags.add(sent.document.dct_tag)
-        #print(all_tags, sent.as_tokenized_string())
 
         connected_sents = []
         sents_to_add = []
         for tag in all_tags:
             if tag.dtype == DateTag.DAY:
-                pass # handled separatly
-                #connected_sents.extend(date_sent_index[tag.year].child_dates[tag.month].child_dates[tag.day].members)
+                pass  # handled separatly
             elif tag.dtype == DateTag.MONTH:
                 sents_to_add.extend(date_sent_index[tag.year].child_dates[tag.month].exact_date_members)
             elif tag.dtype == DateTag.YEAR:
@@ -265,8 +257,6 @@ def generate_affinity_matrix_from_dated_sentences(sents, sent_date_tags, thresho
         connected_vecs = vectors[tuple(sid for sid, sent in connected_sents),:]
 
         sims = cosine_similarity(vectors[s_idx], connected_vecs)
-
-        from scipy.sparse import csr_matrix, find
 
         _, relevant_indices, _ = find(sims >= threshold)
 
