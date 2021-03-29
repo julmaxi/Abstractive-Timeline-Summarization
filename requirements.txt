@@ -57,7 +57,7 @@ prompt-toolkit==1.0.15
 ptyprocess==0.6.0
 pycparser==2.19
 pyemd==0.5.1
-Pygments==2.2.0
+Pygments==2.7.4
 Pympler==0.6
 pyparsing==2.2.0
 Pyphen==0.9.4
