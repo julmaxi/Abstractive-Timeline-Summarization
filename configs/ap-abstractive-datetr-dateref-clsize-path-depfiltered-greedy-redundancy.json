@@ -1,0 +1,22 @@
+{
+    "clustering": {
+        "method": "ap"
+    },
+    "selection": {
+        "method": "greedy",
+        "disallow_cluster_repetition": true
+    },
+    "generation": {
+        "method": "graph",
+        "use_dep_filtering": true
+    },
+    "scoring": {
+        "use_path_weight": true,
+        "use_local_informativeness": false,
+        "use_per_date_informativeness": true,
+        "use_temporalized_informativeness": false,
+        "use_date_frequency": true,
+        "use_cluster_size": true,
+        "temporalized_informativeness_cache_dir": "caches/tl-datetr"
+    }
+}
