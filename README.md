@@ -9,7 +9,7 @@ To use AP clustering, place this repository https://github.com/nojima/affinity-p
 2. Run ``get-and-preprocess-data`` from the tilse library. There is no need to wait for the preprocessing, we only need the downloaded data.
 3. Use the raw data (in the raw directory created by tilse) and parse it using Stanford CoreNLP
 4. Run the save_tl_corpus.py script. It needs the location of both timeml files from Heideltime and the location of the CoreNLP parsed files. You can either run Heideltime yourself or let tilse do the job. This needs to be done seperately for each corpus.
-5. Download the Language Model from https://www.keithv.com/software/giga/lm_giga_20k_vp_3gram.zip and put it in your home directory
+5. Download the Language Model from https://www.keithv.com/software/giga/lm_giga_20k_vp_3gram.zip. Preprocess the model to a binary file as described here: https://kheafield.com/code/kenlm/. Call the resulting binary file ``lm_giga_20k_vp_3gram.bin`` and put it in your project home directory.
 6. Run the tleval.py script. It requires the path of the corpus file created in step 4 and a config file as arguments. Example config files can be found in the configs directory.
 Use the ap-abstractive-datetr-dateref-clsize-path-depfiltered-greedy-redundancy.json to for the setup described in the paper.
 
